@@ -3,6 +3,8 @@ package scan
 import (
 	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
 	"log/slog"
@@ -35,8 +37,19 @@ func NewController(store persistence.Store, wrapper trivy.Wrapper, transformer T
 
 func (c *controller) Scan(ctx context.Context, scanJobKey job.ScanJobKey, request *harbor.ScanRequest) error {
 	if err := c.scan(ctx, scanJobKey, request); err != nil {
-		slog.Error("Scan failed", slog.String("err", err.Error()))
-		if err = c.store.UpdateStatus(ctx, scanJobKey, job.Failed, err.Error()); err != nil {
+		errMsg := err.Error()
+		var scanErr *trivy.ScanError
+		if errors.As(err, &scanErr) {
+			slog.Error("Scan failed",
+				slog.String("category", string(scanErr.Category)),
+				slog.String("image_ref", scanErr.ImageRef),
+				slog.String("detail", scanErr.Detail),
+			)
+			errMsg = fmt.Sprintf("[%s] %s", scanErr.Category, scanErr.Detail)
+		} else {
+			slog.Error("Scan failed", slog.String("err", errMsg))
+		}
+		if err = c.store.UpdateStatus(ctx, scanJobKey, job.Failed, errMsg); err != nil {
 			return xerrors.Errorf("updating scan job as failed: %v", err)
 		}
 	}

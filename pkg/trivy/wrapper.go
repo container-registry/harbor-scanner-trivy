@@ -107,11 +107,20 @@ func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
 
 	stdout, err := w.ambassador.RunCmd(cmd)
 	if err != nil {
+		output := string(stdout)
+		category := classifyTrivyError(output)
+		targetName, _ := target.Name()
 		logger.Error("Running trivy failed",
 			slog.String("exit_code", fmt.Sprintf("%d", cmd.ProcessState.ExitCode())),
-			slog.String("std_out", string(stdout)),
+			slog.String("std_out", output),
+			slog.String("category", string(category)),
 		)
-		return Report{}, fmt.Errorf("running trivy: %v: %v", err, string(stdout))
+		return Report{}, &ScanError{
+			Category: category,
+			ImageRef: targetName,
+			Detail:   output,
+			Cause:    err,
+		}
 	}
 
 	logger.Debug("Running trivy finished",
@@ -260,6 +269,23 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 	}
 
 	return cmd, nil
+}
+
+// classifyTrivyError categorizes Trivy CLI errors by pattern-matching the output.
+func classifyTrivyError(output string) ScanErrorCategory {
+	lower := strings.ToLower(output)
+	switch {
+	case strings.Contains(lower, "unauthorized") || strings.Contains(lower, "401") || strings.Contains(lower, "403 forbidden"):
+		return ErrCategoryAuth
+	case strings.Contains(lower, "connection refused") || strings.Contains(lower, "no such host") || strings.Contains(lower, "dial tcp"):
+		return ErrCategoryNetwork
+	case strings.Contains(lower, "timeout") || strings.Contains(lower, "deadline exceeded"):
+		return ErrCategoryTimeout
+	case strings.Contains(lower, "failed to extract the archive") || strings.Contains(lower, "unexpected eof"):
+		return ErrCategoryUnscannable
+	default:
+		return ErrCategoryTrivyExec
+	}
 }
 
 func (w *wrapper) GetVersion() (VersionInfo, error) {

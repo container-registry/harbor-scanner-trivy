@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type Target string
@@ -21,6 +22,24 @@ const (
 	TargetSBOM  Target = "sbom"
 	TargetImage Target = "image"
 )
+
+// scannableLayerMediaTypes is the set of layer media types that Trivy can process.
+// Layers with media types not in this set are non-archive payloads (signatures,
+// attestations, DSSE envelopes) that Trivy will fail to extract as tar archives.
+var scannableLayerMediaTypes = map[string]struct{}{
+	// Docker/OCI image layers (actual content Trivy scans)
+	"application/vnd.docker.image.rootfs.diff.tar.gzip":              {},
+	"application/vnd.docker.image.rootfs.diff.tar":                   {},
+	"application/vnd.oci.image.layer.v1.tar":                         {},
+	"application/vnd.oci.image.layer.v1.tar+gzip":                    {},
+	"application/vnd.oci.image.layer.v1.tar+zstd":                    {},
+	"application/vnd.oci.image.layer.nondistributable.v1.tar":        {},
+	"application/vnd.oci.image.layer.nondistributable.v1.tar+gzip":   {},
+	"application/vnd.oci.image.layer.nondistributable.v1.tar+zstd":   {},
+	"application/vnd.docker.image.rootfs.foreign.diff.tar.gzip":      {},
+	"application/vnd.oci.image.layer.nondistributable.v1.tar+gzip;q": {},
+	// Empty/no layers is OK (scratch images)
+}
 
 type ScanTarget struct {
 	img      v1.Image
@@ -40,7 +59,12 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador) (
 	}
 	ref, err := name.ParseReference(imageRef.Name, nameOpts...)
 	if err != nil {
-		return ScanTarget{}, xerrors.Errorf("parsing image reference: %w", err)
+		return ScanTarget{}, &ScanError{
+			Category: ErrCategoryImageFetch,
+			ImageRef: imageRef.Name,
+			Detail:   "parsing image reference",
+			Cause:    err,
+		}
 	}
 
 	authOpt := remote.WithAuthFromKeychain(authn.DefaultKeychain)
@@ -65,7 +89,12 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador) (
 
 	img, err := ambassador.RemoteImage(ref, authOpt, trOpt)
 	if err != nil {
-		return ScanTarget{}, xerrors.Errorf("fetching image: %w", err)
+		return ScanTarget{}, &ScanError{
+			Category: classifyRemoteError(err),
+			ImageRef: imageRef.Name,
+			Detail:   "fetching image from registry",
+			Cause:    err,
+		}
 	}
 
 	target := ScanTarget{
@@ -75,7 +104,30 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador) (
 
 	m, err := target.img.Manifest()
 	if err != nil {
-		return ScanTarget{}, xerrors.Errorf("getting image manifest: %w", err)
+		return ScanTarget{}, &ScanError{
+			Category: ErrCategoryManifest,
+			ImageRef: imageRef.Name,
+			Detail:   "getting image manifest",
+			Cause:    err,
+		}
+	}
+
+	slog.Debug("Image manifest retrieved",
+		slog.String("image_ref", imageRef.Name),
+		slog.String("media_type", string(m.MediaType)),
+		slog.String("artifact_type", m.ArtifactType),
+		slog.String("config_media_type", string(m.Config.MediaType)),
+		slog.Int("layer_count", len(m.Layers)),
+	)
+
+	for i, l := range m.Layers {
+		slog.Debug("Layer info",
+			slog.String("image_ref", imageRef.Name),
+			slog.Int("index", i),
+			slog.String("media_type", string(l.MediaType)),
+			slog.Int64("size", l.Size),
+			slog.String("digest", l.Digest.String()),
+		)
 	}
 
 	switch m.ArtifactType {
@@ -86,9 +138,55 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador) (
 		}
 	default:
 		target.kind = TargetImage
+
+		// Validate that layers are scannable before invoking Trivy.
+		// Non-archive payloads (cosign signatures, DSSE envelopes, in-toto attestations)
+		// will cause Trivy to fail with "failed to extract the archive: unexpected EOF".
+		if err := validateLayers(imageRef.Name, m.Layers); err != nil {
+			return ScanTarget{}, err
+		}
 	}
 
 	return target, nil
+}
+
+// validateLayers checks that all layers in the manifest have media types that
+// Trivy can scan (tar archives). Returns a ScanError if any layer has a
+// non-scannable media type (e.g., cosign signatures, DSSE envelopes).
+func validateLayers(imageRef string, layers []v1.Descriptor) error {
+	for _, l := range layers {
+		mt := string(l.MediaType)
+		if _, ok := scannableLayerMediaTypes[mt]; !ok && mt != "" {
+			slog.Warn("Image has unscannable layer",
+				slog.String("image_ref", imageRef),
+				slog.String("media_type", mt),
+				slog.String("digest", l.Digest.String()),
+				slog.Int64("size", l.Size),
+			)
+			return &ScanError{
+				Category: ErrCategoryUnscannable,
+				ImageRef: imageRef,
+				Detail: "artifact contains non-scannable layer with media type " + mt +
+					" (expected tar archive); this is likely a signature, attestation, or SBOM artifact, not a container image",
+			}
+		}
+	}
+	return nil
+}
+
+// classifyRemoteError categorizes errors from go-containerregistry's remote.Image.
+func classifyRemoteError(err error) ScanErrorCategory {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "unauthorized") || strings.Contains(msg, "401") || strings.Contains(msg, "403"):
+		return ErrCategoryAuth
+	case strings.Contains(msg, "connection refused") || strings.Contains(msg, "no such host") || strings.Contains(msg, "dial tcp"):
+		return ErrCategoryNetwork
+	case strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded"):
+		return ErrCategoryTimeout
+	default:
+		return ErrCategoryImageFetch
+	}
 }
 
 func (t ScanTarget) Name() (string, error) {
