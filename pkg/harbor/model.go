@@ -115,7 +115,7 @@ func (c ScanRequest) GetImageRef() (imageRef string, nonSSL bool, err error) {
 	}
 
 	imageRef = fmt.Sprintf("%s:%s/%s@%s", registryURL.Hostname(), port, c.Artifact.Repository, c.Artifact.Digest)
-	nonSSL = "http" == registryURL.Scheme
+	nonSSL = registryURL.Scheme == "http"
 	return
 }
 
