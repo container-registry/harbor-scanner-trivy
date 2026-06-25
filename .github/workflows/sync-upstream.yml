@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout fork
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -126,6 +126,8 @@ jobs:
 
             git add CONFLICTS.md
             git commit -m "chore: document upstream sync action required"
+            git fetch --force origin \
+              "+refs/heads/${branch}:refs/remotes/origin/${branch}" >/dev/null 2>&1 || true
             git push --force-with-lease origin "HEAD:${branch}"
 
             local pr_number
@@ -233,7 +235,7 @@ jobs:
                 exit 1
               fi
             else
-              git tag "${tag}" "${EXPECTED_RELEASE_SHA}"
+              git tag -a "${tag}" "${EXPECTED_RELEASE_SHA}" -m "Release ${tag}"
               git push origin "refs/tags/${tag}"
             fi
 
