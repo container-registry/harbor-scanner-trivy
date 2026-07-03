@@ -11,11 +11,11 @@ import (
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/job"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/persistence"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 )
 
 type Controller interface {

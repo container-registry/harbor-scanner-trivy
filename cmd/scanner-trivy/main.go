@@ -8,15 +8,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/ext"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
-	v1 "github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api/v1"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/persistence/redis"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/queue"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/redisx"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/scan"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
+	v1 "github.com/container-registry/harbor-scanner-trivy/pkg/http/api/v1"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence/redis"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/queue"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/redisx"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/scan"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 )
 
 var (

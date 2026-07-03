@@ -3,8 +3,8 @@ package persistence
 import (
 	"context"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
 )
 
 type Store interface {

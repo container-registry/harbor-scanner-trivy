@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 )
 
 const Anything = mock.Anything

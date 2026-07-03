@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Harbor Scanner Adapter for Trivy -- a Go microservice that integrates the Trivy vulnerability scanner with Harbor container registry. It implements Harbor's scanner adapter API, accepting async scan requests via HTTP, processing them through a Redis-backed job queue, and returning vulnerability/SBOM reports. This is the default scanner in Harbor >= 2.2.
 
-Module: `github.com/aquasecurity/harbor-scanner-trivy`
+Module: `github.com/container-registry/harbor-scanner-trivy`
 
 ## Build & Test Commands
 

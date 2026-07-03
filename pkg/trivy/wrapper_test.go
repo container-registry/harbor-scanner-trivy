@@ -15,8 +15,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	"github.com/stretchr/testify/require"
 )
 

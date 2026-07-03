@@ -12,7 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/xerrors"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 )
 
 // NewClient constructs a redis.Client with the specified configuration.

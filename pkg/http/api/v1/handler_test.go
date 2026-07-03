@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/job"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/mock"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/mock"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -763,7 +763,7 @@ func TestRequestHandler_GetMetadata(t *testing.T) {
 	"harbor.scanner-adapter/vulnerability-database-next-update-at": "2020-03-18T05:00:44Z",
 	"harbor.scanner-adapter/vulnerability-database-updated-at": "2020-03-18T07:47:24Z",
 	"org.label-schema.build-date": "2019-01-03T13:40",
-	"org.label-schema.vcs": "https://github.com/aquasecurity/harbor-scanner-trivy",
+	"org.label-schema.vcs": "https://github.com/container-registry/harbor-scanner-trivy",
 	"org.label-schema.vcs-ref": "abc",
 	"org.label-schema.version": "0.1",
 	"env.SCANNER_TRIVY_SKIP_UPDATE": "false",
@@ -843,7 +843,7 @@ func TestRequestHandler_GetMetadata(t *testing.T) {
 "properties":{
 	"harbor.scanner-adapter/scanner-type": "os-package-vulnerability",
 	"org.label-schema.build-date": "2019-01-03T13:40",
-	"org.label-schema.vcs": "https://github.com/aquasecurity/harbor-scanner-trivy",
+	"org.label-schema.vcs": "https://github.com/container-registry/harbor-scanner-trivy",
 	"org.label-schema.vcs-ref": "abc",
 	"org.label-schema.version": "0.1",
 	"env.SCANNER_TRIVY_SKIP_UPDATE": "false",
@@ -916,7 +916,7 @@ func TestRequestHandler_GetMetadata(t *testing.T) {
 "properties":{
 	"harbor.scanner-adapter/scanner-type": "os-package-vulnerability",
 	"org.label-schema.build-date": "2019-01-03T13:40",
-	"org.label-schema.vcs": "https://github.com/aquasecurity/harbor-scanner-trivy",
+	"org.label-schema.vcs": "https://github.com/container-registry/harbor-scanner-trivy",
 	"org.label-schema.vcs-ref": "abc",
 	"org.label-schema.version": "0.1",
 	"env.SCANNER_TRIVY_SKIP_UPDATE": "false",

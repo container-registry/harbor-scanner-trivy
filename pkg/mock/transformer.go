@@ -1,9 +1,9 @@
 package mock
 
 import (
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 	"github.com/stretchr/testify/mock"
 )
 

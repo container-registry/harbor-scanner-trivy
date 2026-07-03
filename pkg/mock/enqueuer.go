@@ -3,7 +3,7 @@ package mock
 import (
 	"context"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
 	"github.com/stretchr/testify/mock"
 )
 
