@@ -1,0 +1,95 @@
+---
+name: Test
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "helm/**"
+      - "LICENSE"
+      - "NOTICE"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "helm/**"
+      - "LICENSE"
+      - "NOTICE"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-unit:
+    name: Unit Tests
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || contains(fromJSON('["OWNER","MEMBER"]'), github.event.pull_request.author_association)) && vars.RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-go-cached
+        with:
+          go-version-file: go.mod
+          go-sum-path: go.sum
+
+      - uses: ./.github/actions/setup-task
+        with:
+          version: 3.49.1
+
+      - name: Run unit tests
+        run: task test
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: coverage
+          path: coverage.txt
+          if-no-files-found: warn
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || contains(fromJSON('["OWNER","MEMBER"]'), github.event.pull_request.author_association)) && vars.RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-go-cached
+        with:
+          go-version-file: go.mod
+          go-sum-path: go.sum
+
+      - uses: ./.github/actions/setup-task
+        with:
+          version: 3.49.1
+
+      - name: Run integration tests
+        run: task test:integration
+
+  test-component:
+    name: Component Tests
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || contains(fromJSON('["OWNER","MEMBER"]'), github.event.pull_request.author_association)) && vars.RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-go-cached
+        with:
+          go-version-file: go.mod
+          go-sum-path: go.sum
+
+      - uses: ./.github/actions/setup-task
+        with:
+          version: 3.49.1
+
+      - name: Run component tests
+        run: task test:component

@@ -1,0 +1,126 @@
+---
+name: Publish Image
+
+on:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        required: true
+        type: string
+      image_tag:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      registry_address:
+        required: false
+        type: string
+        default: 8gears.container-registry.com
+      registry_project:
+        required: false
+        type: string
+        default: 8gcr
+    secrets:
+      REGISTRY_PASSWORD:
+        required: true
+    outputs:
+      digest:
+        description: Digest of the pushed multi-arch image
+        value: ${{ jobs.build.outputs.digest }}
+
+jobs:
+  build:
+    name: Build and Push
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    env:
+      REGISTRY_ADDRESS: ${{ inputs.registry_address }}
+      REGISTRY_PROJECT: ${{ inputs.registry_project }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ inputs.checkout_ref }}
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cached
+        with:
+          go-version-file: go.mod
+          go-sum-path: go.sum
+
+      - name: Install Task
+        uses: ./.github/actions/setup-task
+        with:
+          version: 3.49.1
+
+      - name: Build binaries
+        run: task build PLATFORMS=linux/amd64,linux/arm64 VERSION="${VERSION}"
+
+      - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3  # v4.1.0
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
+
+      - name: Log in to registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
+        with:
+          registry: ${{ inputs.registry_address }}
+          username: ${{ vars.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        run: |
+          task image \
+            PUSH=true \
+            PLATFORMS=linux/amd64,linux/arm64 \
+            VERSION="${VERSION}" \
+            IMAGE_TAG="${IMAGE_TAG}" \
+            REGISTRY_ADDRESS="${REGISTRY_ADDRESS}" \
+            REGISTRY_PROJECT="${REGISTRY_PROJECT}"
+
+      - name: Capture image digest
+        id: digest
+        run: |
+          image="${REGISTRY_ADDRESS}/${REGISTRY_PROJECT}/harbor-scanner-trivy:${IMAGE_TAG}"
+          digest=$(docker buildx imagetools inspect "${image}" --format '{{.Manifest.Digest}}')
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Unexpected digest for ${image}: ${digest}"
+            exit 1
+          fi
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+  sign:
+    name: Sign Image
+    needs: [build]
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE_REF: ${{ inputs.registry_address }}/${{ inputs.registry_project }}/harbor-scanner-trivy@${{ needs.build.outputs.digest }}
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+
+      - name: Log in to registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
+        with:
+          registry: ${{ inputs.registry_address }}
+          username: ${{ vars.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Sign image
+        run: cosign sign --yes "${IMAGE_REF}"
+
+      - name: Generate SBOM and attest
+        run: |
+          syft "${IMAGE_REF}" -o spdx-json > sbom.spdx.json
+          cosign attest --yes --type spdxjson --predicate sbom.spdx.json "${IMAGE_REF}"
