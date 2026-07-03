@@ -87,6 +87,68 @@ tasks:
     cmds:
       - go build {{.GOBUILD_FLAGS}} -ldflags "{{.LDFLAGS}}" -o bin/{{.PLATFORM}}/{{.BINARY}} ./cmd/scanner-trivy
 
+  build:trivy:
+    desc: "Build the Trivy CLI from source for PLATFORMS (default: native arch, CI: all)"
+    vars:
+      PLATFORMS: '{{.PLATFORMS | default .CI_PLATFORMS}}'
+    cmds:
+      - for: {var: PLATFORMS, split: ','}
+        task: 'build:trivy:{{.ITEM | trim | replace "/" "-"}}'
+
+  build:trivy:*:
+    desc: "Build Trivy from source for one platform, e.g. build:trivy:linux-arm64"
+    vars:
+      PLATFORM: '{{index .MATCH 0}}'
+      GOOS: '{{index (splitList "-" (index .MATCH 0)) 0}}'
+      GOARCH: '{{index (splitList "-" (index .MATCH 0)) 1}}'
+    # Unlike the adapter binary, the trivy build is fully determined by the
+    # pinned version, so a version stamp makes local rebuilds no-ops.
+    status:
+      - test -x bin/{{.PLATFORM}}/trivy
+      - test "$(cat bin/{{.PLATFORM}}/.trivy-version 2>/dev/null)" = "{{.TRIVY_BASE_IMAGE_VERSION}}"
+    cmds:
+      - cmd: mkdir -p bin/{{.PLATFORM}}
+        silent: true
+      # Mirrors trivy's own goreleaser build (ldflags, CGO_ENABLED=0,
+      # GOEXPERIMENT=jsonv2) so the binary is equivalent to the official one
+      # but built by us, which keeps CVE overrides possible via go mod edit.
+      - |
+        TRIVY_DIR=$(mktemp -d)
+        trap "rm -rf $TRIVY_DIR" EXIT
+        git clone --branch v{{.TRIVY_BASE_IMAGE_VERSION}} --depth 1 https://github.com/aquasecurity/trivy.git "$TRIVY_DIR"
+        cd "$TRIVY_DIR"
+        GOEXPERIMENT=jsonv2 CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -trimpath \
+          -ldflags "-s -w -extldflags '-static' -X github.com/aquasecurity/trivy/pkg/version/app.ver={{.TRIVY_BASE_IMAGE_VERSION}}" \
+          -o "{{.ROOT_DIR}}/bin/{{.PLATFORM}}/trivy" ./cmd/trivy
+      - cmd: echo "{{.TRIVY_BASE_IMAGE_VERSION}}" > bin/{{.PLATFORM}}/.trivy-version
+        silent: true
+
+  dist:binaries:
+    desc: "Package adapter and trivy binaries from bin/ into dist/ tarballs with checksums"
+    vars:
+      PLATFORMS: '{{.PLATFORMS | default .CI_PLATFORMS}}'
+    cmds:
+      - mkdir -p dist
+      - |
+        for platform in $(echo "{{.PLATFORMS}}" | tr ',' ' '); do
+          p=$(echo "$platform" | tr '/' '-')
+          for binary in {{.BINARY}} trivy; do
+            if [ ! -x "bin/${p}/${binary}" ]; then
+              echo "missing bin/${p}/${binary} - run 'task build build:trivy PLATFORMS={{.PLATFORMS}}' first" >&2
+              exit 1
+            fi
+            tar -czf "dist/${binary}_${p}.tar.gz" -C "bin/${p}" "${binary}"
+          done
+        done
+      - |
+        cd dist
+        if command -v sha256sum >/dev/null 2>&1; then
+          sha256sum *.tar.gz > checksums.txt
+        else
+          shasum -a 256 *.tar.gz > checksums.txt
+        fi
+        cat checksums.txt
+
   # ============================================================================
   # Lint & Vulnerability Checks
   # ============================================================================
@@ -183,6 +245,8 @@ tasks:
         msg: "PUSH=false requires a single platform (--load limitation)"
     cmds:
       - task: build
+        vars: {PLATFORMS: '{{.PLATFORMS}}'}
+      - task: build:trivy
         vars: {PLATFORMS: '{{.PLATFORMS}}'}
       - task: buildx:setup
       - >-

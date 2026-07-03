@@ -19,6 +19,11 @@ RUN adduser -u 10000 -D -g '' scanner scanner
 
 COPY bin/linux-${TARGETARCH}/scanner-trivy /home/scanner/bin/scanner-trivy
 
+# Overwrite the base image's prebuilt trivy with our source-built binary
+# (same pinned version, built by `task build:trivy`); keeps the binary
+# CVE-patchable via go mod overrides, same pattern as harbor-next.
+COPY bin/linux-${TARGETARCH}/trivy /usr/local/bin/trivy
+
 ENV TRIVY_VERSION=${TRIVY_VERSION}
 
 USER scanner
