@@ -4,16 +4,15 @@
 package docker
 
 import (
-	"context"
+	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
+	"net/http"
 	"net/url"
 
-	"github.com/docker/docker/api/types/image"
-	apiregistry "github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/client"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -23,64 +22,59 @@ type RegistryConfig struct {
 	Password string
 }
 
-func (c RegistryConfig) GetRegistryAuth() (auth string, err error) {
-	authConfig := apiregistry.AuthConfig{
-		Username: c.Username,
-		Password: c.Password,
-	}
-	encodedJSON, err := json.Marshal(authConfig)
-	if err != nil {
-		return "", err
-	}
-	auth = base64.URLEncoding.EncodeToString(encodedJSON)
-	return
-}
-
 func (c RegistryConfig) GetBasicAuthorization() string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", c.Username, c.Password))))
 }
 
-// ReplicateImage tags the given imageRef and pushes it to the given dest registry.
-func ReplicateImage(imageRef string, dest RegistryConfig) (d digest.Digest, err error) {
-	ctx := context.Background()
-
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+// ReplicateImage copies the given imageRef from its source registry to the
+// given dest registry. The copy is performed by this process with a registry
+// client rather than through the Docker daemon: on Docker Desktop the daemon
+// runs in a VM and cannot reach host-mapped localhost ports, while the test
+// process can.
+func ReplicateImage(imageRef string, dest RegistryConfig) (digest.Digest, error) {
+	src, err := name.ParseReference(imageRef)
 	if err != nil {
-		return
-	}
-	pullOut, err := cli.ImagePull(ctx, imageRef, image.PullOptions{})
-	defer func() {
-		_ = pullOut.Close()
-	}()
-
-	_, err = io.Copy(io.Discard, pullOut)
-	if err != nil {
-		return
+		return "", err
 	}
 
-	targetImageRef := fmt.Sprintf("%s:%s/%s", dest.URL.Hostname(), dest.URL.Port(), imageRef)
-
-	err = cli.ImageTag(ctx, imageRef, targetImageRef)
+	targetRef := fmt.Sprintf("%s:%s/%s", dest.URL.Hostname(), dest.URL.Port(), imageRef)
+	dst, err := name.ParseReference(targetRef)
 	if err != nil {
-		return
+		return "", err
 	}
 
-	auth, err := dest.GetRegistryAuth()
-	if err != nil {
-		return
+	// The test registry uses a self-signed certificate.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	opts := []remote.Option{
+		remote.WithAuth(&authn.Basic{Username: dest.Username, Password: dest.Password}),
+		remote.WithTransport(transport),
 	}
-	pushOut, err := cli.ImagePush(ctx, targetImageRef, image.PushOptions{RegistryAuth: auth})
+
+	desc, err := remote.Get(src)
 	if err != nil {
-		return
+		return "", err
 	}
-	defer func() {
-		_ = pushOut.Close()
-	}()
-	_, err = io.Copy(io.Discard, pushOut)
-	inspect, err := cli.DistributionInspect(ctx, targetImageRef, auth)
-	if err != nil {
-		return
+
+	// Preserve the source artifact as-is (multi-arch index or single image)
+	// so the digest the scanner is asked to scan matches the source digest.
+	if desc.MediaType.IsIndex() {
+		idx, err := desc.ImageIndex()
+		if err != nil {
+			return "", err
+		}
+		if err := remote.WriteIndex(dst, idx, opts...); err != nil {
+			return "", err
+		}
+	} else {
+		img, err := desc.Image()
+		if err != nil {
+			return "", err
+		}
+		if err := remote.Write(dst, img, opts...); err != nil {
+			return "", err
+		}
 	}
-	d = inspect.Descriptor.Digest
-	return
+
+	return digest.Digest(desc.Digest.String()), nil
 }

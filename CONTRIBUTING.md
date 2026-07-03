@@ -54,11 +54,6 @@ task test:component    # component tests (requires Docker; builds the image firs
 task lint              # golangci-lint
 ```
 
-**Note for macOS**: component tests replicate a test image by instructing the Docker
-daemon to push to a `localhost:<port>` registry. Docker Desktop's daemon runs in a VM
-and cannot reach host-mapped localhost ports, so `task test:component` only works on
-Linux (CI runs it on ubuntu-latest).
-
 ## Test Against a Local Harbor
 
 The scanner is consumed by Harbor as a scanner adapter. To test a locally built image against
