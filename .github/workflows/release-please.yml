@@ -41,8 +41,6 @@ jobs:
       version: ${{ needs.release-please.outputs.version }}
       registry_address: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
       registry_project: ${{ vars.REGISTRY_PROJECT || '8gcr' }}
-    secrets:
-      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
 
   publish-helm-chart:
     name: Publish Helm Chart
@@ -51,6 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Mint the OIDC token Harbor's federated robot login exchanges
+      id-token: write
     env:
       REGISTRY_ADDRESS: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
       REGISTRY_PROJECT: ${{ vars.REGISTRY_PROJECT || '8gcr' }}
@@ -65,13 +65,16 @@ jobs:
           go: "false"
 
       - name: Log in to helm registry
-        env:
-          REGISTRY_USERNAME: ${{ vars.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
+          # Keyless: exchange the GitHub OIDC token; Harbor maps it to a
+          # federated robot via claim rules, the username is ignored
+          response=$(curl -sSf -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://${REGISTRY_ADDRESS}")
+          token=$(jq -r '.value' <<<"${response}")
+          echo "::add-mask::${token}"
           helm registry login "${REGISTRY_ADDRESS}" \
-            --username "${REGISTRY_USERNAME}" \
-            --password-stdin <<< "${REGISTRY_PASSWORD}"
+            --username jwt \
+            --password-stdin <<< "${token}"
 
       - name: Package and push chart
         run: |
