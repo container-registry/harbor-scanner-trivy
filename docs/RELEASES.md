@@ -24,17 +24,21 @@ Every push to `main` additionally publishes `8gears.container-registry.com/8gcr/
 
 ## Version Rules
 
+Only `feat:`, `fix:`, and breaking changes trigger a release. All other types
+do not cause a release on their own; they are listed in the changelog when the
+next release is cut (or hidden entirely).
+
 | Commit type | Bump | Notes section |
 |-------------|------|---------------|
 | `feat:` | Minor | Features |
 | `fix:` | Patch | Bug Fixes |
-| `perf:` | Patch | Performance Improvements |
-| `upstream:` | Patch | Upstream |
-| `revert:` | Patch | Reverts |
-| `refactor:` | Patch | Code Refactoring |
-| `docs:` | Patch | Documentation |
-| `feat!:` or `BREAKING CHANGE:` | Major (minor while 0.x) | Breaking changes |
-| `ci:`, `chore:`, `build:`, `test:` | No release | Hidden |
+| `feat!:` or `BREAKING CHANGE:` | Major (Minor while on 0.x, via `bump-minor-pre-major`) | Breaking changes |
+| `perf:` | None (changelog only) | Performance Improvements |
+| `upstream:` | None (changelog only) | Upstream |
+| `revert:` | None (changelog only) | Reverts |
+| `refactor:` | None (changelog only) | Code Refactoring |
+| `docs:` | None (changelog only) | Documentation |
+| `ci:`, `chore:`, `build:`, `test:` | None | Hidden |
 
 Use `upstream:` for changes synced from `goharbor/harbor-scanner-trivy`.
 

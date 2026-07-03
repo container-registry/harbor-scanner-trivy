@@ -28,18 +28,19 @@ jobs:
 
           # Single source of truth for the pin is versions.env
           TYPOS_VERSION="$(grep '^TYPOS_VERSION=' versions.env | cut -d= -f2)"
+          TYPOS_SHA256="$(grep '^TYPOS_SHA256_LINUX_X86_64=' versions.env | cut -d= -f2)"
 
-          case "$(uname -m)" in
-            x86_64|amd64) target="x86_64-unknown-linux-musl" ;;
-            aarch64|arm64) target="aarch64-unknown-linux-musl" ;;
-            *)
-              echo "Unsupported architecture: $(uname -m)"
-              exit 1
-              ;;
-          esac
+          # This job runs on ubuntu-latest (x86_64) only; the checksum pin in
+          # versions.env covers exactly that asset (upstream publishes none).
+          target="x86_64-unknown-linux-musl"
+          if [ "$(uname -m)" != "x86_64" ]; then
+            echo "::error::typos checksum is pinned for x86_64 only; got $(uname -m)"
+            exit 1
+          fi
 
           install_dir="$(mktemp -d)"
           curl -fsSL "https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERSION}/typos-v${TYPOS_VERSION}-${target}.tar.gz" -o /tmp/typos.tar.gz
+          echo "${TYPOS_SHA256}  /tmp/typos.tar.gz" | sha256sum -c -
           tar -xzf /tmp/typos.tar.gz -C "$install_dir" --strip-components=1 --no-same-owner --no-same-permissions
           typos="$install_dir/typos"
 
@@ -113,7 +114,8 @@ jobs:
         run: |
           failed=0
           while IFS= read -r file; do
-            while IFS= read -r line; do
+            # `|| [ -n "$line" ]` still processes a final line without a trailing newline
+            while IFS= read -r line || [ -n "$line" ]; do
               if echo "$line" | grep -qE '^\s*(-\s+)?uses:\s+'; then
                 ref=$(echo "$line" | sed 's/.*uses:[[:space:]]*//' | awk '{print $1}')
                 # Skip local actions (starting with ./) and docker:// references
@@ -139,8 +141,8 @@ jobs:
   dependency-review:
     name: Dependency Review
     if: github.event_name == 'pull_request'
-    # Requires Dependency Graph to be enabled in repo settings
-    continue-on-error: true
+    # Requires Dependency Graph to be enabled in repo settings; this is a
+    # real gate (fail-on-severity), so it must not be continue-on-error.
     runs-on: ubuntu-latest
     permissions:
       contents: read

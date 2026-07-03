@@ -78,7 +78,7 @@ func (w *worker) subscribe(ctx context.Context, ch <-chan *redis.Message) {
 func (w *worker) scanArtifact(ctx context.Context, msg *redis.Message) error {
 	var job Job
 	if err := json.Unmarshal([]byte(msg.Payload), &job); err != nil {
-		return xerrors.Errorf("unmarshalling scan request: %w", err)
+		return xerrors.Errorf("unmarshaling scan request: %w", err)
 	}
 
 	// Lock the job so that other workers won't process it.

@@ -88,10 +88,10 @@ func (h *requestHandler) logRequest(next http.Handler) http.Handler {
 func (h *requestHandler) AcceptScanRequest(res http.ResponseWriter, req *http.Request) {
 	var scanRequest harbor.ScanRequest
 	if err := json.NewDecoder(req.Body).Decode(&scanRequest); err != nil {
-		slog.Error("Error while unmarshalling scan request", slog.String("err", err.Error()))
+		slog.Error("Error while unmarshaling scan request", slog.String("err", err.Error()))
 		h.WriteJSONError(res, api.Error{
 			HTTPCode: http.StatusBadRequest,
-			Message:  fmt.Sprintf("unmarshalling scan request: %s", err.Error()),
+			Message:  fmt.Sprintf("unmarshaling scan request: %s", err.Error()),
 		})
 		return
 	}
