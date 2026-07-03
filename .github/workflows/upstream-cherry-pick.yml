@@ -1,0 +1,39 @@
+---
+name: Upstream Cherry-Pick
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Log planned PRs without pushing branches or creating PRs
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 3,15 * * *"
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-cherry-pick
+  cancel-in-progress: false
+
+jobs:
+  upstream-cherry-pick:
+    name: Open upstream cherry-pick PRs
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Open PRs
+        run: .github/scripts/upstream-cherry-pick.sh
