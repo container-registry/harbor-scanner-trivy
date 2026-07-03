@@ -4,7 +4,7 @@ fullnameOverride: ""
 image:
   registry: 8gears.container-registry.com
   repository: 8gcr/harbor-scanner-trivy
-  tag: v0.38.1 # x-release-please-version
+  tag: v0.39.0 # x-release-please-version
   pullPolicy: IfNotPresent
 
 replicaCount: 1
