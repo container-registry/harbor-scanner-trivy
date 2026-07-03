@@ -15,8 +15,10 @@ const (
 	HeaderAccept      = "Accept"
 )
 
-type MimeTypeParams map[string]string
-type MediaType string
+type (
+	MimeTypeParams map[string]string
+	MediaType      string
+)
 
 // Error holds the information about an error, including metadata about its JSON structure.
 type Error struct {
@@ -126,8 +128,7 @@ func (mt *MIMEType) Equal(other MIMEType) bool {
 	return true
 }
 
-type BaseHandler struct {
-}
+type BaseHandler struct{}
 
 func (h *BaseHandler) WriteJSON(res http.ResponseWriter, data interface{}, mimeType MIMEType, statusCode int) {
 	res.Header().Set(HeaderContentType, mimeType.String())

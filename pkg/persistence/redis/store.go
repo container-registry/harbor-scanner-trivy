@@ -30,7 +30,7 @@ func NewStore(cfg etc.RedisStore, rdb *redis.Client) persistence.Store {
 func (s *store) Create(ctx context.Context, scanJob job.ScanJob) error {
 	bytes, err := json.Marshal(scanJob)
 	if err != nil {
-		return xerrors.Errorf("marshalling scan job: %w", err)
+		return xerrors.Errorf("marshaling scan job: %w", err)
 	}
 
 	key := s.keyForScanJob(scanJob.Key)
@@ -52,7 +52,7 @@ func (s *store) Create(ctx context.Context, scanJob job.ScanJob) error {
 func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
 	bytes, err := json.Marshal(scanJob)
 	if err != nil {
-		return xerrors.Errorf("marshalling scan job: %w", err)
+		return xerrors.Errorf("marshaling scan job: %w", err)
 	}
 
 	key := s.keyForScanJob(scanJob.Key)
@@ -82,7 +82,7 @@ func (s *store) Get(ctx context.Context, scanJobKey job.ScanJobKey) (*job.ScanJo
 
 	var scanJob job.ScanJob
 	if err = json.Unmarshal([]byte(value), &scanJob); err != nil {
-		return nil, xerrors.Errorf("unmarshalling scan job: %w", err)
+		return nil, xerrors.Errorf("unmarshaling scan job: %w", err)
 	}
 
 	return &scanJob, nil

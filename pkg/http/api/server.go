@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -11,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
-	"golang.org/x/net/context"
 )
 
 type Server struct {
@@ -58,7 +58,7 @@ func NewServer(config etc.API, handler http.Handler) (server *Server, err error)
 			for _, clientCAPath := range config.ClientCAs {
 				clientCA, err := os.ReadFile(clientCAPath)
 				if err != nil {
-					return nil, fmt.Errorf("cound not read file %s: %w", clientCAPath, err)
+					return nil, fmt.Errorf("could not read file %s: %w", clientCAPath, err)
 				}
 
 				certPool.AppendCertsFromPEM(clientCA)

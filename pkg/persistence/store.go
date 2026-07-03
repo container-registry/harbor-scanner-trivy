@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/job"
 )

@@ -2,17 +2,18 @@ package trivy
 
 import (
 	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+	"time"
+
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/fake"
 	"github.com/google/go-containerregistry/pkg/v1/random"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/mock"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"testing"
-	"time"
 
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/ext"
@@ -123,7 +124,7 @@ func TestWrapper_Scan(t *testing.T) {
 		}
 
 		reportPath := filepath.Join(reportsDir, "scan_report_vuln.json")
-		require.NoError(t, os.WriteFile(reportPath, []byte(expectedReportJSON), 0644))
+		require.NoError(t, os.WriteFile(reportPath, []byte(expectedReportJSON), 0o644))
 		ambassador.On("TempFile", reportsDir, mock.Anything).Return(os.Open(reportPath))
 
 		ambassador.On("RunCmd", &exec.Cmd{
@@ -211,7 +212,7 @@ func TestWrapper_Scan(t *testing.T) {
 		}
 
 		reportPath := filepath.Join(reportsDir, "scan_report_vuln.json")
-		require.NoError(t, os.WriteFile(reportPath, []byte(expectedReportJSON), 0644))
+		require.NoError(t, os.WriteFile(reportPath, []byte(expectedReportJSON), 0o644))
 		ambassador.On("TempFile", reportsDir, mock.Anything).Return(os.Open(reportPath))
 
 		sbomPath := filepath.Join(cacheDir, "sbom.json")
@@ -293,9 +294,9 @@ func TestWrapper_GetVersion(t *testing.T) {
 func tmpDirs(t *testing.T) (string, string) {
 	tmpDir := t.TempDir()
 	cacheDir := filepath.Join(tmpDir, "cache")
-	require.NoError(t, os.MkdirAll(cacheDir, 0700))
+	require.NoError(t, os.MkdirAll(cacheDir, 0o700))
 	reportsDir := filepath.Join(tmpDir, "reports")
-	require.NoError(t, os.MkdirAll(reportsDir, 0700))
+	require.NoError(t, os.MkdirAll(reportsDir, 0o700))
 
 	return cacheDir, reportsDir
 }

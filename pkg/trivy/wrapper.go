@@ -36,11 +36,9 @@ type ScanOption struct {
 }
 
 // RegistryAuth wraps registry credentials.
-type RegistryAuth interface {
-}
+type RegistryAuth interface{}
 
-type NoAuth struct {
-}
+type NoAuth struct{}
 
 type BasicAuth struct {
 	Username string

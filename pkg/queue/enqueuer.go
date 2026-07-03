@@ -5,9 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
 	"io"
 	"log/slog"
+
+	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/samber/lo"
@@ -108,7 +109,7 @@ func (e *enqueuer) enqueue(ctx context.Context, j Job, scanJob job.ScanJob) erro
 
 	b, err := json.Marshal(j)
 	if err != nil {
-		return xerrors.Errorf("marshalling scan request: %v", err)
+		return xerrors.Errorf("marshaling scan request: %v", err)
 	}
 
 	// Publish the job to the workers

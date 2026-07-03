@@ -165,7 +165,6 @@ func TestSeverity_UnmarshalJSON(t *testing.T) {
 		}
 		assert.Equal(t, tc.expectedSeverity, s.String())
 	}
-
 }
 
 func TestGetScannerMetadata(t *testing.T) {

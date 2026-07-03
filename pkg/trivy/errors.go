@@ -8,14 +8,14 @@ import "fmt"
 type ScanErrorCategory string
 
 const (
-	ErrCategoryImageFetch    ScanErrorCategory = "image_fetch"
-	ErrCategoryManifest      ScanErrorCategory = "manifest"
-	ErrCategoryAuth          ScanErrorCategory = "auth"
-	ErrCategoryUnscannable   ScanErrorCategory = "unscannable_layer"
-	ErrCategoryTrivyExec     ScanErrorCategory = "trivy_execution"
-	ErrCategoryNetwork       ScanErrorCategory = "network"
-	ErrCategoryTimeout       ScanErrorCategory = "timeout"
-	ErrCategoryReportParse   ScanErrorCategory = "report_parse"
+	ErrCategoryImageFetch  ScanErrorCategory = "image_fetch"
+	ErrCategoryManifest    ScanErrorCategory = "manifest"
+	ErrCategoryAuth        ScanErrorCategory = "auth"
+	ErrCategoryUnscannable ScanErrorCategory = "unscannable_layer"
+	ErrCategoryTrivyExec   ScanErrorCategory = "trivy_execution"
+	ErrCategoryNetwork     ScanErrorCategory = "network"
+	ErrCategoryTimeout     ScanErrorCategory = "timeout"
+	ErrCategoryReportParse ScanErrorCategory = "report_parse"
 )
 
 // ScanError provides structured context about scan failures.
