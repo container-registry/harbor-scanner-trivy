@@ -85,9 +85,47 @@ jobs:
             REGISTRY_ADDRESS="${REGISTRY_ADDRESS}" \
             REGISTRY_PROJECT="${REGISTRY_PROJECT}"
 
+  publish-binaries:
+    name: Publish Release Binaries
+    needs: [release-please]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      # Upload release assets
+      contents: write
+    outputs:
+      trivy_version: ${{ steps.trivy-version.outputs.trivy_version }}
+    env:
+      TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+      # Bare semver, matching what publish-image stamps into the image binary
+      VERSION: ${{ needs.release-please.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - name: Read Trivy pin
+        id: trivy-version
+        run: echo "trivy_version=$(grep '^TRIVY_BASE_IMAGE_VERSION=' versions.env | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Build adapter and Trivy binaries
+        run: |
+          task build PLATFORMS=linux/amd64,linux/arm64 VERSION="${VERSION}"
+          task build:trivy PLATFORMS=linux/amd64,linux/arm64
+
+      - name: Package and upload release assets
+        run: |
+          task dist:binaries PLATFORMS=linux/amd64,linux/arm64
+          # --clobber keeps re-runs idempotent when assets already exist
+          gh release upload "${TAG_NAME}" dist/*.tar.gz dist/checksums.txt --clobber
+
   update-release-notes:
     name: Update Release Notes
-    needs: [release-please, publish-image, publish-helm-chart]
+    needs: [release-please, publish-image, publish-helm-chart, publish-binaries]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     permissions:
@@ -98,6 +136,7 @@ jobs:
       TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
       VERSION: ${{ needs.release-please.outputs.version }}
       IMAGE_DIGEST: ${{ needs.publish-image.outputs.digest }}
+      TRIVY_VERSION: ${{ needs.publish-binaries.outputs.trivy_version }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
     steps:
@@ -148,4 +187,14 @@ jobs:
             echo "  oci://${REGISTRY}/charts/harbor-scanner-trivy \\"
             echo "  --version ${VERSION}"
             echo "\`\`\`"
+            echo ""
+            echo "## Binaries"
+            echo ""
+            echo "Static \`linux/amd64\` and \`linux/arm64\` binaries are attached to this release"
+            echo "(\`checksums.txt\` has the SHA256 sums):"
+            echo ""
+            echo "| Asset | Contents |"
+            echo "|-------|----------|"
+            echo "| \`scanner-trivy_linux-<arch>.tar.gz\` | Harbor scanner adapter ${TAG_NAME} |"
+            echo "| \`trivy_linux-<arch>.tar.gz\` | Trivy CLI v${TRIVY_VERSION}, built from source |"
           } | gh release edit "${TAG_NAME}" --notes-file -

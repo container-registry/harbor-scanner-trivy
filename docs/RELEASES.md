@@ -50,7 +50,17 @@ Release-please ignores commits that only touch `.github/` or `docs/`. Use `ci:` 
 |----------|----------|
 | Container image | `8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z` (and `:latest` from `main`) |
 | Helm chart | `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy` |
+| Adapter binaries | `scanner-trivy_linux-{amd64,arm64}.tar.gz` release assets |
+| Trivy binaries | `trivy_linux-{amd64,arm64}.tar.gz` release assets (built from source at the `TRIVY_BASE_IMAGE_VERSION` pin) |
+| Checksums | `checksums.txt` release asset (SHA256 of all tarballs) |
 | Changelog | `CHANGELOG.md` and the GitHub Release |
+
+The Trivy CLI is compiled from source (`task build:trivy`) with the same flags as
+Trivy's own release builds, and the container image ships that binary instead of
+the prebuilt one from the `aquasec/trivy` base image. This keeps the binary
+CVE-patchable via `go mod` overrides and lets downstream consumers (e.g.
+harbor-next) take the adapter and Trivy as version-coupled artifacts: binary,
+image, or source, from one release.
 
 Install the chart:
 
