@@ -254,7 +254,7 @@ func TestRequestHandler_AcceptScanRequest(t *testing.T) {
 			expectedContentType: "application/vnd.scanner.adapter.error; version=1.0",
 			expectedResponse: `{
   "error": {
-    "message": "unmarshalling scan request: invalid character 'T' looking for beginning of value"
+    "message": "unmarshaling scan request: invalid character 'T' looking for beginning of value"
   }
 }`,
 		},
