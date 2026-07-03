@@ -97,6 +97,8 @@ jobs:
       trivy_version: ${{ steps.trivy-version.outputs.trivy_version }}
     env:
       TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+      # Bare semver, matching what publish-image stamps into the image binary
+      VERSION: ${{ needs.release-please.outputs.version }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
@@ -112,13 +114,14 @@ jobs:
 
       - name: Build adapter and Trivy binaries
         run: |
-          task build PLATFORMS=linux/amd64,linux/arm64 VERSION="${TAG_NAME}"
+          task build PLATFORMS=linux/amd64,linux/arm64 VERSION="${VERSION}"
           task build:trivy PLATFORMS=linux/amd64,linux/arm64
 
       - name: Package and upload release assets
         run: |
           task dist:binaries PLATFORMS=linux/amd64,linux/arm64
-          gh release upload "${TAG_NAME}" dist/*.tar.gz dist/checksums.txt
+          # --clobber keeps re-runs idempotent when assets already exist
+          gh release upload "${TAG_NAME}" dist/*.tar.gz dist/checksums.txt --clobber
 
   update-release-notes:
     name: Update Release Notes

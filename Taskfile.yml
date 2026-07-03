@@ -114,7 +114,7 @@ tasks:
       # but built by us, which keeps CVE overrides possible via go mod edit.
       - |
         TRIVY_DIR=$(mktemp -d)
-        trap "rm -rf $TRIVY_DIR" EXIT
+        trap 'rm -rf "$TRIVY_DIR"' EXIT
         git clone --branch v{{.TRIVY_BASE_IMAGE_VERSION}} --depth 1 https://github.com/aquasecurity/trivy.git "$TRIVY_DIR"
         cd "$TRIVY_DIR"
         GOEXPERIMENT=jsonv2 CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -trimpath \
