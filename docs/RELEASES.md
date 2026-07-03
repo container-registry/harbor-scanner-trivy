@@ -83,11 +83,17 @@ cosign verify-attestation \
 
 | Name | Type | Required | Purpose |
 |------|------|----------|---------|
-| `RUNNER` | Variable | No | Custom runner label |
 | `REGISTRY_ADDRESS` | Variable | No | Registry host, defaults to `8gears.container-registry.com` |
 | `REGISTRY_PROJECT` | Variable | No | Registry project, defaults to `8gcr` |
-| `REGISTRY_USERNAME` | Variable | Yes | Registry push username |
-| `REGISTRY_PASSWORD` | Secret | Yes | Registry push password/token |
+
+There is no registry password anywhere: publish jobs authenticate keyless through
+Harbor's Federated Identity Provider. The job mints a GitHub OIDC token
+(`id-token: write`, audience `https://<registry>`), logs in with `-u jwt` and the
+token as password, and Harbor maps it to the federated robot
+`robot_gh-scanner-trivy-push` via a claim rule that only matches this repository's
+tokens (`repository == container-registry/harbor-scanner-trivy`). The robot has no
+secret; there is nothing to rotate or leak. See
+[harbor-workload-identity-federation](https://github.com/container-registry/harbor-workload-identity-federation).
 
 Repository settings:
 

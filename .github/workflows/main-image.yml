@@ -30,5 +30,3 @@ jobs:
       # version omitted: publish-image derives it via git describe
       registry_address: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
       registry_project: ${{ vars.REGISTRY_PROJECT || '8gcr' }}
-    secrets:
-      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
