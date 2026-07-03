@@ -102,6 +102,12 @@ jobs:
         run: |
           REGISTRY="${REGISTRY_ADDRESS}/${REGISTRY_PROJECT}"
 
+          # Idempotency: a re-run must not stack another artifact section
+          if gh release view "${TAG_NAME}" --json body -q .body | grep -q "^## Container Image$"; then
+            echo "Release notes already contain the artifact section; skipping."
+            exit 0
+          fi
+
           {
             gh release view "${TAG_NAME}" --json body -q .body
             echo ""

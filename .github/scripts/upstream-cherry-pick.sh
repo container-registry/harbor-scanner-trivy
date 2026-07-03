@@ -63,7 +63,7 @@ is_handled() {
   local sha=$2
   local pr_count
 
-  if remote_branch_exists "${branch}"; then
+  if handled_in_git_log "${sha}"; then
     return 0
   fi
 
@@ -72,7 +72,17 @@ is_handled() {
     return 0
   fi
 
-  handled_in_git_log "${sha}"
+  # A remote branch without any PR referencing the commit is an orphan from a
+  # run that pushed but failed before `gh pr create`; delete it so this run
+  # can recreate branch and PR instead of skipping the commit forever.
+  if remote_branch_exists "${branch}"; then
+    echo "deleting orphaned branch without PR: ${branch}"
+    if [ "${DRY_RUN}" != "true" ]; then
+      git push "${TARGET_REMOTE}" --delete "${branch}" || true
+    fi
+  fi
+
+  return 1
 }
 
 single_parent_commit() {

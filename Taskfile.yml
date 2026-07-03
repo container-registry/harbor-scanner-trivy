@@ -76,13 +76,10 @@ tasks:
       PLATFORM: '{{index .MATCH 0}}'
       GOOS: '{{index (splitList "-" (index .MATCH 0)) 0}}'
       GOARCH: '{{index (splitList "-" (index .MATCH 0)) 1}}'
-    sources:
-      - cmd/**/*.go
-      - pkg/**/*.go
-      - go.mod
-      - go.sum
-    generates:
-      - bin/{{index .MATCH 0}}/{{.BINARY}}
+    # Deliberately no sources/generates caching: the ldflags embed
+    # VERSION/GIT_COMMIT/BUILD_DATE, which change without any source change,
+    # so Task's fingerprinting would serve binaries with stale metadata.
+    # Go's own build cache keeps rebuilds cheap.
     env:
       GOOS: '{{.GOOS}}'
       GOARCH: '{{.GOARCH}}'

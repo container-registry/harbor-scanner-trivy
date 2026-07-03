@@ -5,26 +5,73 @@
   "release-type": "go",
   "always-update": true,
   "include-v-in-tag": true,
-  "exclude-paths": [".github", "docs"],
+  "exclude-paths": [
+    ".github",
+    "docs"
+  ],
   "changelog-sections": [
-    {"type": "feat",     "section": "Features"},
-    {"type": "fix",      "section": "Bug Fixes"},
-    {"type": "perf",     "section": "Performance Improvements"},
-    {"type": "upstream", "section": "Upstream"},
-    {"type": "revert",   "section": "Reverts"},
-    {"type": "refactor", "section": "Code Refactoring"},
-    {"type": "docs",     "section": "Documentation"},
-    {"type": "test",     "section": "Tests", "hidden": true},
-    {"type": "chore",    "section": "Miscellaneous", "hidden": true},
-    {"type": "ci",       "section": "CI/CD",          "hidden": true},
-    {"type": "build",    "section": "Build System",   "hidden": true}
+    {
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes"
+    },
+    {
+      "type": "perf",
+      "section": "Performance Improvements"
+    },
+    {
+      "type": "upstream",
+      "section": "Upstream"
+    },
+    {
+      "type": "revert",
+      "section": "Reverts"
+    },
+    {
+      "type": "refactor",
+      "section": "Code Refactoring"
+    },
+    {
+      "type": "docs",
+      "section": "Documentation"
+    },
+    {
+      "type": "test",
+      "section": "Tests",
+      "hidden": true
+    },
+    {
+      "type": "chore",
+      "section": "Miscellaneous",
+      "hidden": true
+    },
+    {
+      "type": "ci",
+      "section": "CI/CD",
+      "hidden": true
+    },
+    {
+      "type": "build",
+      "section": "Build System",
+      "hidden": true
+    }
   ],
   "packages": {
     ".": {
       "extra-files": [
-        {"type": "generic", "path": "helm/harbor-scanner-trivy/Chart.yaml"},
-        {"type": "generic", "path": "helm/harbor-scanner-trivy/values.yaml"}
+        {
+          "type": "generic",
+          "path": "helm/harbor-scanner-trivy/Chart.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "helm/harbor-scanner-trivy/values.yaml"
+        }
       ]
     }
-  }
+  },
+  "bump-minor-pre-major": true
 }
