@@ -12,13 +12,13 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/job"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/persistence"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/queue"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/queue"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -305,7 +305,7 @@ func (h *requestHandler) GetMetadata(res http.ResponseWriter, _ *http.Request) {
 		"org.label-schema.version":    h.info.Version,
 		"org.label-schema.build-date": h.info.Date,
 		"org.label-schema.vcs-ref":    h.info.Commit,
-		"org.label-schema.vcs":        "https://github.com/aquasecurity/harbor-scanner-trivy",
+		"org.label-schema.vcs":        "https://github.com/container-registry/harbor-scanner-trivy",
 
 		"env.SCANNER_TRIVY_SKIP_UPDATE":          strconv.FormatBool(h.config.Trivy.SkipDBUpdate),
 		"env.SCANNER_TRIVY_SKIP_JAVA_DB_UPDATE":  strconv.FormatBool(h.config.Trivy.SkipJavaDBUpdate),

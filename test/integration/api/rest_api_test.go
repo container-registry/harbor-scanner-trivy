@@ -17,13 +17,13 @@ import (
 	"time"
 
 	fixtures "github.com/aquasecurity/bolt-fixtures"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/ext"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/persistence"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/queue"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/redisx"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/scan"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/queue"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/redisx"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/scan"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
@@ -34,10 +34,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api/v1"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/persistence/redis"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api/v1"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence/redis"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -407,7 +407,7 @@ func TestRestAPI(t *testing.T) {
 	"org.label-schema.version": "1.0",
 	"org.label-schema.build-date": "2019-01-04T12:40",
 	"org.label-schema.vcs-ref": "abc",
-	"org.label-schema.vcs": "https://github.com/aquasecurity/harbor-scanner-trivy",
+	"org.label-schema.vcs": "https://github.com/container-registry/harbor-scanner-trivy",
 	"env.SCANNER_TRIVY_SKIP_UPDATE": "true",
 	"env.SCANNER_TRIVY_SKIP_JAVA_DB_UPDATE": "true",
 	"env.SCANNER_TRIVY_OFFLINE_SCAN": "false",

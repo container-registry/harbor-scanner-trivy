@@ -14,7 +14,11 @@ Harbor Scanner Adapter for Trivy is the default static vulnerability scanner in 
 
 For compliance with core components Harbor builds the adapter service binaries into Docker images based on Photos OS
 (`goharbor/trivy-adapter-photon`), whereas in this repository we build Docker images based on Alpine
-(`aquasec/harbor-scanner-trivy`). There is no difference in functionality though.
+(`8gears.container-registry.com/8gcr/harbor-scanner-trivy`). There is no difference in functionality though.
+
+This repository is a fork of [goharbor/harbor-scanner-trivy](https://github.com/goharbor/harbor-scanner-trivy)
+maintained by [container-registry.com](https://container-registry.com). Releases are automated with
+release-please; see [docs/RELEASES.md](docs/RELEASES.md).
 
 ## TOC
 
@@ -66,6 +70,14 @@ helm install harbor harbor/harbor \
 
 The adapter service is automatically registered under the **Interrogation Service** in the Harbor interface and
 designated as the default scanner.
+
+To deploy this adapter standalone into Kubernetes and register it as an external scanner, use the Helm chart
+published with each release:
+
+```
+helm install harbor-scanner-trivy \
+  oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy
+```
 
 ## Configuration
 
@@ -159,15 +171,16 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 requests.
 
 ---
-Harbor Scanner Adapter for Trivy is an [Aqua Security](https://aquasec.com) open source project.
-Learn about our open source work and portfolio [here](https://www.aquasec.com/products/open-source-projects/).
+Harbor Scanner Adapter for Trivy was originally an [Aqua Security](https://aquasec.com) open source project,
+later maintained under [goharbor](https://github.com/goharbor/harbor-scanner-trivy). This fork is maintained
+by [container-registry.com](https://container-registry.com).
 
-[release-img]: https://img.shields.io/github/release/goharbor/harbor-scanner-trivy.svg?logo=github
-[release]: https://github.com/goharbor/harbor-scanner-trivy/releases
-[report-card-img]: https://goreportcard.com/badge/github.com/goharbor/harbor-scanner-trivy
-[report-card]: https://goreportcard.com/report/github.com/goharbor/harbor-scanner-trivy
-[license-img]: https://img.shields.io/github/license/goharbor/harbor-scanner-trivy.svg
-[license]: https://github.com/goharbor/harbor-scanner-trivy/blob/main/LICENSE
+[release-img]: https://img.shields.io/github/release/container-registry/harbor-scanner-trivy.svg?logo=github
+[release]: https://github.com/container-registry/harbor-scanner-trivy/releases
+[report-card-img]: https://goreportcard.com/badge/github.com/container-registry/harbor-scanner-trivy
+[report-card]: https://goreportcard.com/report/github.com/container-registry/harbor-scanner-trivy
+[license-img]: https://img.shields.io/github/license/container-registry/harbor-scanner-trivy.svg
+[license]: https://github.com/container-registry/harbor-scanner-trivy/blob/main/LICENSE
 
 [Harbor]: https://github.com/goharbor/harbor
 [Harbor Helm chart]: https://github.com/goharbor/harbor-helm

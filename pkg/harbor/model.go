@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 )
 
 // Severity represents the severity of a image/component in terms of vulnerability.

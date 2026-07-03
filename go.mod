@@ -1,4 +1,4 @@
-module github.com/aquasecurity/harbor-scanner-trivy
+module github.com/container-registry/harbor-scanner-trivy
 
 go 1.26.4
 

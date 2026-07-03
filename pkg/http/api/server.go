@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 )
 
 type Server struct {
