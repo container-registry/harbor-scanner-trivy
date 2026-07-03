@@ -1,15 +1,13 @@
 .idea/
 .vscode/
 
-scanner-trivy
+# Build artifacts
+bin/
 dist/
-
 coverage.txt
 
 # Directory Cache Files
 .DS_Store
 thumbs.db
-
-bin
 
 .vagrant/

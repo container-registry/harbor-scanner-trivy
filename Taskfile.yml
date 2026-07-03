@@ -1,0 +1,284 @@
+# Build automation for harbor-scanner-trivy
+#
+# CI-aware: local builds target the native arch only, CI builds all platforms.
+# Explicit PLATFORMS=... always wins.
+#
+# Usage:
+#   task build                               # native-arch linux binary
+#   task build PLATFORMS=linux/amd64,linux/arm64
+#   task image                               # CI: multi-arch push, local: native push
+#   task image:local                         # local image for component tests (--load)
+---
+version: '3'
+
+set:
+  - errexit
+  - pipefail
+
+dotenv:
+  - versions.env
+
+vars:
+  BINARY: scanner-trivy
+  IMAGE_NAME: harbor-scanner-trivy
+
+  GIT_COMMIT:
+    sh: git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown"
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  BUILD_DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+
+  GOPATH_BIN:
+    sh: echo "${GOBIN:-$(go env GOPATH)/bin}"
+  GOBUILD_FLAGS: "-trimpath -buildvcs=false"
+  LDFLAGS: >-
+    -extldflags=-static -s -w
+    -X main.version={{.VERSION}}
+    -X main.commit={{.GIT_COMMIT}}
+    -X main.date={{.BUILD_DATE}}
+
+  # Multi-arch image build configuration
+  # Registry: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:<tag>
+  REGISTRY_ADDRESS: '{{.REGISTRY_ADDRESS | default "8gears.container-registry.com"}}'
+  REGISTRY_PROJECT: '{{.REGISTRY_PROJECT | default "8gcr"}}'
+  IMAGE_PLATFORMS: '{{.IMAGE_PLATFORMS | default "linux/amd64,linux/arm64"}}'
+  IMAGE_BUILDER: "scanner-multiarch"
+
+  # CI detection: CI builds all platforms, local builds native arch only
+  IS_CI:
+    sh: '[ -n "${CI:-}${GITHUB_ACTIONS:-}" ] && echo "true" || echo "false"'
+  CI_PLATFORMS: '{{ternary .IMAGE_PLATFORMS (printf "linux/%s" ARCH) (eq .IS_CI "true")}}'
+
+tasks:
+  default:
+    desc: "Build the scanner-trivy binary"
+    cmds:
+      - task: build
+
+  # ============================================================================
+  # Build
+  # ============================================================================
+
+  build:
+    desc: "Build scanner-trivy binaries for PLATFORMS (default: native arch, CI: all)"
+    vars:
+      PLATFORMS: '{{.PLATFORMS | default .CI_PLATFORMS}}'
+    cmds:
+      - for: {var: PLATFORMS, split: ','}
+        task: 'build:binary:{{.ITEM | trim | replace "/" "-"}}'
+      - cmd: 'echo "Binaries:"; find bin -type f -exec ls -lh {} \;'
+        silent: true
+
+  build:binary:*:
+    desc: "Build binary for one platform, e.g. build:binary:linux-arm64"
+    vars:
+      PLATFORM: '{{index .MATCH 0}}'
+      GOOS: '{{index (splitList "-" (index .MATCH 0)) 0}}'
+      GOARCH: '{{index (splitList "-" (index .MATCH 0)) 1}}'
+    sources:
+      - cmd/**/*.go
+      - pkg/**/*.go
+      - go.mod
+      - go.sum
+    generates:
+      - bin/{{index .MATCH 0}}/{{.BINARY}}
+    env:
+      GOOS: '{{.GOOS}}'
+      GOARCH: '{{.GOARCH}}'
+      CGO_ENABLED: '0'
+    cmds:
+      - go build {{.GOBUILD_FLAGS}} -ldflags "{{.LDFLAGS}}" -o bin/{{.PLATFORM}}/{{.BINARY}} ./cmd/scanner-trivy
+
+  # ============================================================================
+  # Lint & Vulnerability Checks
+  # ============================================================================
+
+  lint:
+    desc: "Lint Go code with golangci-lint in Docker"
+    cmd: >-
+      docker run --rm
+      -v {{.ROOT_DIR}}:/src -w /src
+      golangci/golangci-lint:{{.GOLANGCILINT_VERSION}}-alpine
+      golangci-lint run --timeout=10m
+
+  _require-golangci-lint:
+    internal: true
+    run: once
+    status:
+      - test -x {{.GOPATH_BIN}}/golangci-lint
+      - |
+        version='{{.GOLANGCILINT_VERSION}}'
+        {{.GOPATH_BIN}}/golangci-lint version | grep -Eq "version v?${version#v}"
+    cmd: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCILINT_VERSION}}
+
+  lint:local:
+    desc: "Lint Go code with pinned local golangci-lint (used by CI)"
+    deps: [_require-golangci-lint]
+    cmd: '{{.GOPATH_BIN}}/golangci-lint run --timeout=10m'
+
+  lint:yaml:
+    desc: "Lint YAML files with yamllint (.yamllint config)"
+    cmds:
+      - |
+        if command -v yamllint >/dev/null 2>&1; then
+          yamllint .
+        else
+          pipx run yamllint=={{.YAMLLINT_VERSION}} .
+        fi
+
+  vuln-check:
+    desc: "Scan Go dependencies for known vulnerabilities"
+    cmd: go run golang.org/x/vuln/cmd/govulncheck@{{.GOVULNCHECK_VERSION}} ./...
+
+  # ============================================================================
+  # Tests
+  # ============================================================================
+
+  test:
+    desc: "Run unit tests with race detection and coverage"
+    cmd: go test -short -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+  test:integration:
+    desc: "Run integration tests (build tag: integration)"
+    cmd: go test -count=1 -tags=integration ./test/integration/...
+
+  test:component:
+    desc: "Run component tests against the locally built image (requires Docker)"
+    deps: [image:local]
+    env:
+      TEST_ADAPTER_IMAGE: '{{.IMAGE_NAME}}:{{.VERSION}}'
+    cmd: go test -count=1 -tags=component ./test/component/...
+
+  test:all:
+    desc: "Run unit, integration, and component tests"
+    cmds:
+      - task: test
+      - task: test:integration
+      - task: test:component
+
+  # ============================================================================
+  # Container Image
+  # ============================================================================
+
+  buildx:setup:
+    internal: true
+    run: once
+    status:
+      - docker buildx inspect {{.IMAGE_BUILDER}} >/dev/null 2>&1
+    cmds:
+      - docker buildx create --name {{.IMAGE_BUILDER}} --driver docker-container --bootstrap
+
+  image:
+    desc: "Build container image (PUSH=false to --load locally, PLATFORMS=... to override)"
+    vars:
+      PUSH: '{{.PUSH | default "true"}}'
+      PLATFORMS: '{{.PLATFORMS | default (ternary (printf "linux/%s" ARCH) .CI_PLATFORMS (eq .PUSH "false"))}}'
+      IMAGE_TAG: '{{.IMAGE_TAG | default .VERSION}}'
+      OUTPUT: '{{ternary "--push" "--load" (eq .PUSH "true")}}'
+      TAG_PREFIX: '{{ternary (printf "%s/%s/" .REGISTRY_ADDRESS .REGISTRY_PROJECT) "" (eq .PUSH "true")}}'
+      FULL_TAG: '{{.TAG_PREFIX}}{{.IMAGE_NAME}}:{{.IMAGE_TAG}}'
+    preconditions:
+      - sh: '{{if and (ne .PUSH "true") (contains "," .PLATFORMS)}}exit 1{{end}}'
+        msg: "PUSH=false requires a single platform (--load limitation)"
+    cmds:
+      - task: build
+        vars: {PLATFORMS: '{{.PLATFORMS}}'}
+      - task: buildx:setup
+      - >-
+        docker buildx build
+        --builder {{.IMAGE_BUILDER}}
+        --platform {{.PLATFORMS}}
+        --build-arg TRIVY_VERSION={{.TRIVY_BASE_IMAGE_VERSION}}
+        -t {{.FULL_TAG}}
+        {{.OUTPUT}}
+        .
+
+  image:local:
+    desc: "Build local image {{.IMAGE_NAME}}:<version> for component tests (native arch)"
+    cmds:
+      - task: image
+        vars: {PUSH: "false"}
+
+  # ============================================================================
+  # Helm Chart
+  # ============================================================================
+
+  helm:lint:
+    desc: "Lint the Helm chart"
+    cmd: helm lint helm/harbor-scanner-trivy
+
+  helm:package:
+    desc: "Package the Helm chart into dist/"
+    cmds:
+      - mkdir -p dist
+      - helm package helm/harbor-scanner-trivy -d dist
+
+  helm:push:
+    desc: "Push the packaged Helm chart to the OCI registry"
+    cmd: helm push dist/harbor-scanner-trivy-*.tgz oci://{{.REGISTRY_ADDRESS}}/{{.REGISTRY_PROJECT}}/charts
+
+  # ============================================================================
+  # Development
+  # ============================================================================
+
+  run:
+    desc: "Run the scanner locally with debug logging (requires redis and trivy in PATH)"
+    vars:
+      RUN_TMP:
+        sh: echo "${TMPDIR:-/tmp/}"
+    env:
+      SCANNER_TRIVY_CACHE_DIR: '{{.RUN_TMP}}harbor-scanner-trivy/.cache/trivy'
+      SCANNER_TRIVY_REPORTS_DIR: '{{.RUN_TMP}}harbor-scanner-trivy/.cache/reports'
+      SCANNER_LOG_LEVEL: debug
+    cmds:
+      - mkdir -p "$SCANNER_TRIVY_CACHE_DIR" "$SCANNER_TRIVY_REPORTS_DIR"
+      - go run ./cmd/scanner-trivy
+
+  setup:
+    desc: "Install pinned development tools and git hooks"
+    cmds:
+      - task: _require-golangci-lint
+      - go install golang.org/x/vuln/cmd/govulncheck@{{.GOVULNCHECK_VERSION}}
+      - cmd: |
+          if [ -f lefthook.yml ]; then
+            if command -v lefthook >/dev/null 2>&1; then
+              lefthook install
+            else
+              echo "lefthook not installed; install it (e.g. 'brew install lefthook') and run 'lefthook install'"
+            fi
+          fi
+        silent: true
+
+  clean:
+    desc: "Remove build artifacts, packaged charts, and coverage output"
+    cmds:
+      - rm -rf bin/ dist/ coverage.txt
+
+  info:
+    desc: "Print version, tool pins, and build configuration"
+    silent: true
+    cmds:
+      - |
+        echo ""
+        echo "harbor-scanner-trivy build information"
+        echo ""
+        echo "Build metadata:"
+        echo "  Version:        {{.VERSION}}"
+        echo "  Git commit:     {{.GIT_COMMIT}}"
+        echo "  Build date:     {{.BUILD_DATE}}"
+        echo "  Go build flags: {{.GOBUILD_FLAGS}}"
+        echo "  Output:         bin/<os>-<arch>/{{.BINARY}}"
+        echo ""
+        echo "Image configuration:"
+        echo "  Image:          {{.REGISTRY_ADDRESS}}/{{.REGISTRY_PROJECT}}/{{.IMAGE_NAME}}"
+        echo "  Platforms:      {{.CI_PLATFORMS}} (CI: {{.IMAGE_PLATFORMS}})"
+        echo ""
+        echo "Tool pins (versions.env):"
+        echo "  Trivy:          {{.TRIVY_BASE_IMAGE_VERSION}}"
+        echo "  golangci-lint:  {{.GOLANGCILINT_VERSION}}"
+        echo "  govulncheck:    {{.GOVULNCHECK_VERSION}}"
+        echo "  Task (CI):      {{.TASK_VERSION}}"
+        echo "  typos:          {{.TYPOS_VERSION}}"
+        echo "  yamllint:       {{.YAMLLINT_VERSION}}"
+        echo ""

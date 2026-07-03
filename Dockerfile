@@ -1,16 +1,23 @@
-# That's the only place where you're supposed to specify version of Trivy.
-ARG TRIVY_VERSION=0.72.0
+# Binary is pre-cross-compiled by `task build` into bin/linux-<arch>/.
+# TRIVY_VERSION is pinned as TRIVY_BASE_IMAGE_VERSION in versions.env and passed
+# by `task image`; there is deliberately no default so builds fail loudly without it.
+ARG TRIVY_VERSION
 
 FROM aquasec/trivy:${TRIVY_VERSION}
 
-# An ARG declared before a FROM is outside of a build stage, so it can't be used in any
-# instruction after a FROM. To use the default value of an ARG declared before the first
-# FROM use an ARG instruction without a value inside of a build stage.
+# An ARG declared before a FROM is outside of a build stage, so it must be
+# redeclared inside the stage to be usable after FROM.
 ARG TRIVY_VERSION
+ARG TARGETARCH
+
+LABEL org.opencontainers.image.title="harbor-scanner-trivy" \
+      org.opencontainers.image.description="Harbor scanner adapter for Trivy" \
+      org.opencontainers.image.source="https://github.com/container-registry/harbor-scanner-trivy" \
+      org.opencontainers.image.licenses="Apache-2.0"
 
 RUN adduser -u 10000 -D -g '' scanner scanner
 
-COPY scanner-trivy /home/scanner/bin/scanner-trivy
+COPY bin/linux-${TARGETARCH}/scanner-trivy /home/scanner/bin/scanner-trivy
 
 ENV TRIVY_VERSION=${TRIVY_VERSION}
 
