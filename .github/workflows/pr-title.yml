@@ -1,8 +1,10 @@
 ---
 name: PR Title
 
+# pull_request (not pull_request_target): the action only reads the PR title
+# via the API, so the fork-safe read-only token is sufficient.
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize]
 
 permissions:

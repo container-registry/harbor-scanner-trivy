@@ -137,6 +137,9 @@ tasks:
 
   test:
     desc: "Run unit tests with race detection and coverage"
+    env:
+      # -race requires cgo; some CI runner images export CGO_ENABLED=0
+      CGO_ENABLED: "1"
     cmd: go test -short -race -coverprofile=coverage.txt -covermode=atomic ./...
 
   test:integration:
