@@ -17,7 +17,6 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
 	"github.com/container-registry/harbor-scanner-trivy/test/component/docker"
 	"github.com/container-registry/harbor-scanner-trivy/test/component/scanner"
-	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	tc "github.com/testcontainers/testcontainers-go"
@@ -231,18 +230,18 @@ func TestComponent(t *testing.T) {
 	}
 }
 
-func GetRegistryExternalURL(registry tc.Container, exposedPort nat.Port) (*url.URL, error) {
+func GetRegistryExternalURL(registry tc.Container, exposedPort string) (*url.URL, error) {
 	port, err := registry.MappedPort(context.TODO(), exposedPort)
 	if err != nil {
 		return nil, err
 	}
-	return url.Parse(fmt.Sprintf("https://localhost:%d", port.Int()))
+	return url.Parse(fmt.Sprintf("https://localhost:%d", port.Num()))
 }
 
-func GetAdapterURL(adapter tc.Container, exposedPort nat.Port) (string, error) {
+func GetAdapterURL(adapter tc.Container, exposedPort string) (string, error) {
 	port, err := adapter.MappedPort(context.TODO(), exposedPort)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("http://localhost:%d", port.Int()), nil
+	return fmt.Sprintf("http://localhost:%d", port.Num()), nil
 }
