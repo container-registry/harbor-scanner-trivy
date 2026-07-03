@@ -2,6 +2,12 @@ package trivy
 
 import (
 	"crypto/tls"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"strings"
+
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/ext"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -9,11 +15,6 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"golang.org/x/xerrors"
-	"io"
-	"log/slog"
-	"net/http"
-	"os"
-	"strings"
 )
 
 type Target string

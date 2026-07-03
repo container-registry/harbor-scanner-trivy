@@ -1,12 +1,13 @@
 package ext
 
 import (
+	"os"
+	"os/exec"
+
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/stretchr/testify/mock"
-	"os"
-	"os/exec"
 )
 
 type MockAmbassador struct {

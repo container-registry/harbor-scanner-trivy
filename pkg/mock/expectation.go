@@ -1,8 +1,9 @@
 package mock
 
 import (
-	"github.com/stretchr/testify/mock"
 	"testing"
+
+	"github.com/stretchr/testify/mock"
 
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/trivy"
 )

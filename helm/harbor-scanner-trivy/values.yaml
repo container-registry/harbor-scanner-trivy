@@ -2,9 +2,9 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  registry: docker.io
-  repository: goharbor/harbor-scanner-trivy
-  tag: v0.38.0
+  registry: 8gears.container-registry.com
+  repository: 8gcr/harbor-scanner-trivy
+  tag: v0.38.0 # x-release-please-version
   pullPolicy: IfNotPresent
 
 replicaCount: 1

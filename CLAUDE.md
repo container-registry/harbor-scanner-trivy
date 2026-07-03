@@ -11,14 +11,17 @@ Module: `github.com/aquasecurity/harbor-scanner-trivy`
 ## Build & Test Commands
 
 ```bash
-make build              # Build binary (GOOS=linux CGO_ENABLED=0)
-make test               # Unit tests with race detection and coverage
-make test-integration   # Integration tests (build tag: integration, uses miniredis)
-make test-component     # Component tests (build tag: component, requires Docker)
-make lint               # golangci-lint with integration,component build tags
-make docker-build       # Build Docker image (aquasec/harbor-scanner-trivy:dev)
-make run                # Run locally with debug logging on :8080
+task build              # Build binary for native arch (CI: linux/amd64,linux/arm64)
+task test               # Unit tests with race detection and coverage
+task test:integration   # Integration tests (build tag: integration, uses testcontainers)
+task test:component     # Component tests (build tag: component, requires Docker)
+task lint               # golangci-lint (Docker); task lint:local uses a pinned binary
+task image:local        # Build local Docker image (harbor-scanner-trivy:<version>)
+task run                # Run locally with debug logging on :8080
 ```
+
+Tool and base-image pins live in `versions.env` (loaded by Taskfile via dotenv).
+Releases are automated with release-please; never push `v*` tags manually (see docs/RELEASES.md).
 
 Run a single test:
 ```bash
@@ -61,4 +64,4 @@ go test -v -tags=integration -run TestName ./test/integration/...
 - All configuration is via environment variables prefixed with `SCANNER_`. No config files.
 - Redis is the sole persistence and job queue backend (Pub/Sub for queue, key-value for job state).
 - `go.mod` has a `replace` directive: `google/go-containerregistry` is replaced with a fork (`knqyf263/go-containerregistry`) for custom registry auth handling.
-- Version info (`version`, `commit`, `date`) is injected via ldflags at build time by GoReleaser.
+- Version info (`version`, `commit`, `date`) is injected via ldflags at build time by `task build`.

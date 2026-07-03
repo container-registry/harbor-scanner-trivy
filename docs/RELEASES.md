@@ -1,84 +1,112 @@
-# Releases
+# Release Process
 
-This document is intended for maintainers only.
+Releases are automated with [release-please](https://github.com/googleapis/release-please). Do not create `v*` tags or GitHub Releases manually.
 
-## TOC
+Release state is defined by:
 
-- [Prerequisites](#prerequisites)
-- [Build and test the next release locally](#build-and-test-the-next-release-locally)
-- [Release a new version](#release-a-new-version)
-- [Release artifacts](#release-artifacts)
+- Conventional squash commit titles on `main`
+- `release-please-config.json`
+- `.release-please-manifest.json` (last published version)
+- `CHANGELOG.md`
 
-## Prerequisites
+## How It Works
 
-1. Install [GoReleaser](https://goreleaser.com/) or use it as curl bash piping:
-   ```
-   $ brew install goreleaser/tap/goreleaser
-   $ goreleaser -v
-   ```
-   ```
-   $ curl -sL https://git.io/goreleaser | bash -s -- -v
-   ```
-2. Fork and clone this repository and then add the `upstream` remote repository:
-   ```
-   $ git remote -v
-   origin    git@github.com:<YOUR_GITHUB_USERNAME>/harbor-scanner-trivy.git (fetch)
-   origin    git@github.com:<YOUR_GITHUB_USERNAME>/harbor-scanner-trivy.git (push)
-   upstream  git@github.com:aquasecurity/harbor-scanner-trivy.git (fetch)
-   upstream  git@github.com:aquasecurity/harbor-scanner-trivy.git (push)
-   ```
-3. Docker client connected to a Docker host:
-   ```
-   $ docker info
-   ```
+1. PRs are squash-merged to `main` with conventional commit titles. The PR title becomes the commit release-please parses, so the repository must allow **squash merging only** (disable merge commits and rebase merging).
+2. On every push to `main`, the `Release Please` workflow opens or updates a `chore: release X.Y.Z` PR. The PR bumps `.release-please-manifest.json`, updates `CHANGELOG.md`, and stamps the version into `helm/harbor-scanner-trivy/Chart.yaml` (`version`, `appVersion`) and `helm/harbor-scanner-trivy/values.yaml` (`image.tag`) via the `x-release-please-version` annotations.
+3. Squash-merging the release PR creates the `vX.Y.Z` tag and GitHub Release.
+4. The release then automatically:
+   - builds and pushes the multi-arch (`linux/amd64`, `linux/arm64`) image `8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z`
+   - signs the image with cosign (keyless) and attaches an SPDX SBOM attestation
+   - packages and pushes the Helm chart to `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy`
+   - appends image references, Helm install instructions, and cosign verification commands to the release notes
 
-### Environment
+Every push to `main` additionally publishes `8gears.container-registry.com/8gcr/harbor-scanner-trivy:latest` via the `Main Image` workflow.
 
-GoReleaser requires the following environment variables to be set.
+## Version Rules
 
-| Environment Variable | Description |
-|----------------------|-------------|
-| `GITHUB_TOKEN`       | GitHub API token with the `repo` scope to deploy the artifacts to GitHub |
-| `DOCKERHUB_USER`     | DockerHub username |
-| `DOCKERHUB_TOKEN`    | DockerHub access token to push images |
+| Commit type | Bump | Notes section |
+|-------------|------|---------------|
+| `feat:` | Minor | Features |
+| `fix:` | Patch | Bug Fixes |
+| `perf:` | Patch | Performance Improvements |
+| `upstream:` | Patch | Upstream |
+| `revert:` | Patch | Reverts |
+| `refactor:` | Patch | Code Refactoring |
+| `docs:` | Patch | Documentation |
+| `feat!:` or `BREAKING CHANGE:` | Major (minor while 0.x) | Breaking changes |
+| `ci:`, `chore:`, `build:`, `test:` | No release | Hidden |
 
-These can be stored as secrets in GitHub repository settings.
+Use `upstream:` for changes synced from `goharbor/harbor-scanner-trivy`.
 
-## Build and test the next release locally
+Release-please ignores commits that only touch `.github/` or `docs/`. Use `ci:` for workflow-only changes.
 
-1. Make sure that your fork's `main` branch is up to date with `upstream/main` and your working tree is clean.
-2. Run unit tests and make sure that they're passing:
-   ```
-   $ make test
-   ```
-3. Perform a dry run to test everything before doing a release for real. Notice the `--skip-publish` flag, which
-   instructs GoReleaser to only build and package things:
-   ```
-   $ goreleaser --snapshot --skip-publish --rm-dist
-   ```
-4. Make sure that the Docker image was built successfully:
-   ```
-   $ docker image inspect "docker.io/aquasec/harbor-scanner-trivy:$CURRENT_VERSION-next"
-   ```
-   where `CURRENT_VERSION` corresponds to the latest release tag, e.g. `v0.1.0` or equals `v0.0.0` if you're releasing
-   for the first time.
-5. You can even try running the container to be more confident with new release:
-   ```
-   $ docker container run --rm -p 8080:8080 "docker.io/aquasec/harbor-scanner-trivy:$CURRENT_VERSION-next"
-   ```
+## Release Artifacts
 
-## Release a new version
+| Artifact | Location |
+|----------|----------|
+| Container image | `8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z` (and `:latest` from `main`) |
+| Helm chart | `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy` |
+| Changelog | `CHANGELOG.md` and the GitHub Release |
 
-1. If everything is fine so far create an annotated git tag and push it to the `upstream` repository to actually
-   trigger the release build:
-   ```
-   $ git tag -a $NEW_VERSION -m "Release $NEW_VERSION"
-   $ git push upstream $NEW_VERSION
-   ```
-   where `NEW_VERSION` adheres to semantic versioning, e.g. `v0.2.0`.
-2. Check that Travis CI scheduled a build job that corresponds to `NEW_VERSION`. Make sure that the job exited with 0 status code.
+Install the chart:
 
-## Release artifacts
+```sh
+helm install harbor-scanner-trivy \
+  oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy \
+  --version X.Y.Z
+```
 
-1. Make sure that GoReleaser uploaded artifacts to GitHub [releases](https://github.com/aquasecurity/harbor-scanner-trivy/releases) page.
-2. Make sure that GoReleaser pushed new tag `NEW_VERSION` to Docker Hub [repository](https://hub.docker.com/r/aquasec/harbor-scanner-trivy/tags).
+Verify an image signature:
+
+```sh
+cosign verify \
+  --certificate-identity "https://github.com/container-registry/harbor-scanner-trivy/.github/workflows/publish-image.yml@refs/heads/main" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z
+```
+
+Verify the SBOM attestation:
+
+```sh
+cosign verify-attestation \
+  --certificate-identity "https://github.com/container-registry/harbor-scanner-trivy/.github/workflows/publish-image.yml@refs/heads/main" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  --type spdxjson \
+  8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z
+```
+
+## Required Configuration
+
+| Name | Type | Required | Purpose |
+|------|------|----------|---------|
+| `RUNNER` | Variable | No | Custom runner label |
+| `REGISTRY_ADDRESS` | Variable | No | Registry host, defaults to `8gears.container-registry.com` |
+| `REGISTRY_PROJECT` | Variable | No | Registry project, defaults to `8gcr` |
+| `REGISTRY_USERNAME` | Variable | Yes | Registry push username |
+| `REGISTRY_PASSWORD` | Secret | Yes | Registry push password/token |
+
+Repository settings:
+
+- Enable only **Allow squash merging**.
+- Settings > Actions > General: allow GitHub Actions to create and approve pull requests (release-please opens the release PR with `GITHUB_TOKEN`).
+
+## Maintainer Checklist
+
+Before merging a normal PR:
+
+1. PR title is a valid conventional commit.
+2. Merge method is **Squash and merge**.
+
+Before merging a release PR:
+
+1. Version bump matches the commits since the last release.
+2. `CHANGELOG.md`, `Chart.yaml` (`version`, `appVersion`), and `values.yaml` (`image.tag`) all show the new version.
+3. Merge method is **Squash and merge**.
+4. After merge, the `Release Please` workflow completes and the release notes include image and chart references.
+
+## Manual Intervention
+
+Manual intervention should be rare:
+
+- Rerun a failed release workflow job.
+- Never push replacement tags or edit published releases unless maintainers agree the release is unrecoverable.

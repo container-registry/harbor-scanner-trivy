@@ -7,6 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
 	fixtures "github.com/aquasecurity/bolt-fixtures"
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/ext"
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
@@ -23,14 +32,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
@@ -87,7 +88,7 @@ func TestRestAPI(t *testing.T) {
 			// when
 			body := harbor.ScanRequest{
 				Registry: harbor.Registry{
-					URL: imageRef.Registry.Scheme() + "://" + imageRef.RegistryStr(),
+					URL: imageRef.Scheme() + "://" + imageRef.RegistryStr(),
 				},
 				Artifact: harbor.Artifact{
 					Repository: imageRef.RepositoryStr(),
@@ -186,7 +187,7 @@ func TestRestAPI(t *testing.T) {
 			// when
 			body := harbor.ScanRequest{
 				Registry: harbor.Registry{
-					URL: imageRef.Registry.Scheme() + "://" + imageRef.RegistryStr(),
+					URL: imageRef.Scheme() + "://" + imageRef.RegistryStr(),
 				},
 				Artifact: harbor.Artifact{
 					Repository: imageRef.RepositoryStr(),
@@ -271,7 +272,7 @@ func TestRestAPI(t *testing.T) {
 			// when
 			body := harbor.ScanRequest{
 				Registry: harbor.Registry{
-					URL: sbomRef.Registry.Scheme() + "://" + sbomRef.RegistryStr(),
+					URL: sbomRef.Scheme() + "://" + sbomRef.RegistryStr(),
 				},
 				Artifact: harbor.Artifact{
 					Repository: "testimage",
@@ -491,7 +492,7 @@ func initVulnDB(t *testing.T, now time.Time) string {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "db", "trivy.db")
 	dbDir := filepath.Dir(dbPath)
-	err = os.MkdirAll(dbDir, 0700)
+	err = os.MkdirAll(dbDir, 0o700)
 	require.NoError(t, err)
 
 	// Load testdata into BoltDB
@@ -524,7 +525,8 @@ func initVulnDB(t *testing.T, now time.Time) string {
 }
 
 func initWorker(t *testing.T, ctx context.Context, store persistence.Store, jobQueue etc.JobQueue,
-	rdb *goredis.Client, wrapper trivy.Wrapper) {
+	rdb *goredis.Client, wrapper trivy.Wrapper,
+) {
 	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}))
 	worker := queue.NewWorker(jobQueue, rdb, controller)
 	t.Cleanup(worker.Stop)

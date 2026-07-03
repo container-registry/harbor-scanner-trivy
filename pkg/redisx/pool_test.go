@@ -24,7 +24,6 @@ func TestGetPool(t *testing.T) {
 		})
 		assert.EqualError(t, err, "invalid redis URL scheme: https")
 	})
-
 }
 
 func TestParseSentinelURL(t *testing.T) {
@@ -101,8 +100,8 @@ func TestParseSentinelURL(t *testing.T) {
 
 			sentinelURL, err := ParseSentinelURL(configURL)
 
-			switch {
-			case tc.expectedError == "":
+			switch tc.expectedError {
+			case "":
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedSentinelURL, sentinelURL)
 			default:
@@ -110,5 +109,4 @@ func TestParseSentinelURL(t *testing.T) {
 			}
 		})
 	}
-
 }

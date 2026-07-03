@@ -11,7 +11,6 @@ import (
 )
 
 func TestCheck(t *testing.T) {
-
 	t.Run("Should return error when trivy cache dir is blank", func(t *testing.T) {
 		tempDir := t.TempDir()
 		reportsDir := path.Join(tempDir, "reports")
@@ -59,9 +58,9 @@ func TestCheck(t *testing.T) {
 		cacheDir := path.Join(tempDir, "cache")
 		reportsDir := path.Join(tempDir, "reports")
 
-		err := os.Mkdir(cacheDir, 0755)
+		err := os.Mkdir(cacheDir, 0o755)
 		require.NoError(t, err)
-		err = os.Mkdir(reportsDir, 0755)
+		err = os.Mkdir(reportsDir, 0o755)
 		require.NoError(t, err)
 
 		err = Check(Config{Trivy: Trivy{

@@ -960,5 +960,4 @@ func TestRequestHandler_GetMetadata(t *testing.T) {
 			wrapper.AssertExpectations(t)
 		})
 	}
-
 }

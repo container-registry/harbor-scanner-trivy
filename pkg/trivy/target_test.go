@@ -2,11 +2,12 @@ package trivy
 
 import (
 	"errors"
+	"testing"
+
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestValidateLayers(t *testing.T) {

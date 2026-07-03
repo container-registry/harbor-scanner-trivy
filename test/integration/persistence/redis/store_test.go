@@ -5,9 +5,10 @@ package redis
 import (
 	"context"
 	"fmt"
-	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
 	"testing"
 	"time"
+
+	"github.com/aquasecurity/harbor-scanner-trivy/pkg/http/api"
 
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/etc"
 	"github.com/aquasecurity/harbor-scanner-trivy/pkg/harbor"
@@ -109,7 +110,6 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err, "retrieve scan job should not fail")
 		require.Nil(t, j, "retrieved scan job should be nil, i.e. expired")
 	})
-
 }
 
 func getRedisURL(t *testing.T, ctx context.Context, redisC tc.Container) string {

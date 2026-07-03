@@ -58,7 +58,7 @@ func ensureDirExists(path, description string) error {
 	if !dirExists(path) {
 		logger.Warn(fmt.Sprintf("%s does not exist", description))
 		logger.Debug(fmt.Sprintf("Creating %s", description))
-		if err := os.MkdirAll(path, 0777); err != nil {
+		if err := os.MkdirAll(path, 0o777); err != nil {
 			return fmt.Errorf("creating %s: %w", description, err)
 		}
 	}

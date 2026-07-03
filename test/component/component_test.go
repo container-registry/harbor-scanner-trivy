@@ -3,9 +3,11 @@
 package component
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -22,13 +24,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var (
-	trivyScanner = harbor.Scanner{
-		Name:    "Trivy",
-		Vendor:  "Aqua Security",
-		Version: "0.72.0",
-	}
-)
+var trivyScanner = harbor.Scanner{
+	Name:    "Trivy",
+	Vendor:  "Aqua Security",
+	Version: "0.72.0",
+}
 
 const (
 	testNetwork = "component_test"
@@ -43,9 +43,11 @@ const (
 )
 
 const (
-	adapterImage = "aquasec/harbor-scanner-trivy:dev"
-	adapterPort  = "8080/tcp"
+	adapterPort = "8080/tcp"
 )
+
+// TEST_ADAPTER_IMAGE is set by `task test:component` to the locally built image tag.
+var adapterImage = cmp.Or(os.Getenv("TEST_ADAPTER_IMAGE"), "harbor-scanner-trivy:dev")
 
 type LogConsumer struct {
 	Msgs []string
@@ -66,7 +68,7 @@ func TestComponent(t *testing.T) {
 	ctx := context.TODO()
 	dp, err := tc.NewDockerProvider()
 	require.NoError(t, err)
-	nt, err := dp.CreateNetwork(ctx, tc.NetworkRequest{
+	nt, err := dp.CreateNetwork(ctx, tc.NetworkRequest{ //nolint:staticcheck // migrating to network.New is a separate change
 		Name: testNetwork,
 	})
 	require.NoError(t, err)
@@ -98,8 +100,8 @@ func TestComponent(t *testing.T) {
 				"REGISTRY_AUTH_HTPASSWD_REALM":  "Registry Realm",
 			},
 			Mounts: tc.ContainerMounts{
-				tc.BindMount(filepath.Join(baseDir, "data", "registry", "certs"), "/certs"),
-				tc.BindMount(filepath.Join(baseDir, "data", "registry", "auth"), "/auth"),
+				tc.BindMount(filepath.Join(baseDir, "data", "registry", "certs"), "/certs"), //nolint:staticcheck // migrating off BindMount is a separate change
+				tc.BindMount(filepath.Join(baseDir, "data", "registry", "auth"), "/auth"),   //nolint:staticcheck // migrating off BindMount is a separate change
 			},
 			WaitingFor: wait.ForLog("listening on [::]:5443"),
 		})
@@ -132,7 +134,7 @@ func TestComponent(t *testing.T) {
 	defer func() {
 		_ = adapterC.StopLogProducer()
 		if t.Failed() {
-			t.Logf("adatper logs\n%v", adapterLogs.Msgs)
+			t.Logf("adapter logs\n%v", adapterLogs.Msgs)
 		}
 	}()
 	adapterC.FollowOutput(adapterLogs)
