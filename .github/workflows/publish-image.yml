@@ -11,8 +11,10 @@ on:
         required: true
         type: string
       version:
-        required: true
+        description: Version to stamp into the binary; derived via git describe when empty
+        required: false
         type: string
+        default: ""
       registry_address:
         required: false
         type: string
@@ -32,7 +34,7 @@ on:
 jobs:
   build:
     name: Build and Push
-    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -41,23 +43,25 @@ jobs:
       REGISTRY_ADDRESS: ${{ inputs.registry_address }}
       REGISTRY_PROJECT: ${{ inputs.registry_project }}
       IMAGE_TAG: ${{ inputs.image_tag }}
-      VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ inputs.checkout_ref }}
+          # Full history so git describe can derive the version when none is given
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cached
-        with:
-          go-version-file: go.mod
-          go-sum-path: go.sum
+      - uses: ./.github/actions/setup
 
-      - name: Install Task
-        uses: ./.github/actions/setup-task
-        with:
-          version: 3.49.1
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${INPUT_VERSION}"
+          if [ -z "${version}" ]; then
+            version="$(git describe --tags --always)"
+          fi
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
 
       - name: Build binaries
         run: task build PLATFORMS=linux/amd64,linux/arm64 VERSION="${VERSION}"
@@ -97,7 +101,7 @@ jobs:
   sign:
     name: Sign Image
     needs: [build]
-    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write

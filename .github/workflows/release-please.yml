@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   release-please:
-    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
@@ -48,7 +48,7 @@ jobs:
     name: Publish Helm Chart
     needs: [release-please]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
@@ -60,10 +60,9 @@ jobs:
           ref: ${{ needs.release-please.outputs.tag_name }}
           persist-credentials: false
 
-      - name: Install Task
-        uses: ./.github/actions/setup-task
+      - uses: ./.github/actions/setup
         with:
-          version: 3.49.1
+          go: "false"
 
       - name: Log in to helm registry
         env:
@@ -87,7 +86,7 @@ jobs:
     name: Update Release Notes
     needs: [release-please, publish-image, publish-helm-chart]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
