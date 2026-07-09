@@ -257,6 +257,141 @@ func TestWrapper_Scan(t *testing.T) {
 
 		ambassador.AssertExpectations(t)
 	})
+
+	t.Run("bootc spdx sbom from rechunk metadata", func(t *testing.T) {
+		ambassador := ext.NewMockAmbassador()
+
+		fakeImage := &fake.FakeImage{}
+		fakeImage.ManifestReturns(&v1.Manifest{}, nil)
+		fakeImage.ConfigFileReturns(&v1.ConfigFile{
+			Config: v1.Config{
+				Labels: map[string]string{
+					"containers.bootc": "1",
+					"ostree.linux":     "7.0.14-201.fc44.x86_64",
+					"dev.hhd.rechunk.info": `{
+						"version": 2,
+						"uniq": "latest-44.20260704.1",
+						"revision": "66ae7b2f5e937b70cdacf86aaf0d7fbf38239266",
+						"packages": {
+							"bash": "5.3.9-3.fc44",
+							"glibc": "2.43-6.fc44"
+						}
+					}`,
+				},
+			},
+		}, nil)
+		ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(fakeImage, nil)
+
+		reportsDir, cacheDir := tmpDirs(t)
+		config := etc.Trivy{
+			CacheDir:   cacheDir,
+			ReportsDir: reportsDir,
+		}
+
+		imageRef := ImageRef{
+			Name: "bluefin@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
+			Auth: NoAuth{},
+		}
+
+		got, err := NewWrapper(config, ambassador).Scan(imageRef, ScanOption{Format: FormatSPDX})
+		require.NoError(t, err)
+
+		doc, ok := got.SBOM.(spdxDocument)
+		require.True(t, ok)
+		require.Equal(t, "SPDX-2.3", doc.SPDXVersion)
+		require.Len(t, doc.Packages, 2)
+		require.Equal(t, "bash", doc.Packages[0].Name)
+		require.Equal(t, "5.3.9-3.fc44", doc.Packages[0].VersionInfo)
+		require.Equal(t, "pkg:rpm/fedora/bash@5.3.9-3.fc44?arch=x86_64&distro=fedora-44", doc.Packages[0].ExternalRefs[0].ReferenceLocator)
+
+		ambassador.AssertNotCalled(t, "LookPath", mock.Anything)
+		ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
+		ambassador.AssertExpectations(t)
+	})
+
+	t.Run("bootc vulnerability scan uses generated sbom", func(t *testing.T) {
+		ambassador := ext.NewMockAmbassador()
+		ambassador.On("Environ").Return([]string{"HTTP_PROXY=http://someproxy:7777"})
+		ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+
+		fakeImage := &fake.FakeImage{}
+		fakeImage.ManifestReturns(&v1.Manifest{}, nil)
+		fakeImage.ConfigFileReturns(&v1.ConfigFile{
+			Config: v1.Config{
+				Labels: map[string]string{
+					"containers.bootc": "1",
+					"ostree.linux":     "7.0.14-201.fc44.x86_64",
+					"dev.hhd.rechunk.info": `{
+						"version": 2,
+						"uniq": "latest-44.20260704.1",
+						"revision": "66ae7b2f5e937b70cdacf86aaf0d7fbf38239266",
+						"packages": {
+							"bash": "5.3.9-3.fc44",
+							"glibc": "2.43-6.fc44"
+						}
+					}`,
+				},
+			},
+		}, nil)
+		ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(fakeImage, nil)
+
+		reportsDir, cacheDir := tmpDirs(t)
+		config := etc.Trivy{
+			CacheDir:         cacheDir,
+			ReportsDir:       reportsDir,
+			Scanners:         "vuln",
+			VulnType:         "os,library",
+			Severity:         "CRITICAL,MEDIUM",
+			SkipDBUpdate:     true,
+			SkipJavaDBUpdate: true,
+			Timeout:          10 * time.Second,
+		}
+
+		sbomPath := filepath.Join(cacheDir, "bootc-sbom.spdx.json")
+		ambassador.On("TempFile", cacheDir, mock.Anything).Return(os.Create(sbomPath))
+
+		reportPath := filepath.Join(reportsDir, "scan_report_vuln.json")
+		require.NoError(t, os.WriteFile(reportPath, []byte(expectedReportJSON), 0o644))
+		ambassador.On("TempFile", reportsDir, mock.Anything).Return(os.Open(reportPath))
+
+		ambassador.On("RunCmd", &exec.Cmd{
+			Path: "/usr/local/bin/trivy",
+			Env: []string{
+				"HTTP_PROXY=http://someproxy:7777",
+			},
+			Args: []string{
+				"/usr/local/bin/trivy",
+				"sbom",
+				"--no-progress",
+				"--severity",
+				"CRITICAL,MEDIUM",
+				"--vuln-type",
+				"os,library",
+				"--format",
+				"json",
+				"--output",
+				reportPath,
+				"--cache-dir",
+				cacheDir,
+				"--timeout",
+				"10s",
+				"--skip-db-update",
+				"--skip-java-db-update",
+				sbomPath,
+			},
+		}).Return([]byte{}, nil)
+
+		imageRef := ImageRef{
+			Name: "bluefin@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
+			Auth: NoAuth{},
+		}
+
+		got, err := NewWrapper(config, ambassador).Scan(imageRef, ScanOption{Format: FormatJSON})
+		require.NoError(t, err)
+		require.Equal(t, expectedReport, got)
+
+		ambassador.AssertExpectations(t)
+	})
 }
 
 func TestWrapper_GetVersion(t *testing.T) {

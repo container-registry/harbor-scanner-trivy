@@ -216,6 +216,20 @@ func (t ScanTarget) Auth() RegistryAuth {
 	}
 }
 
+func (t ScanTarget) configLabels() (map[string]string, error) {
+	if t.img == nil {
+		return nil, nil
+	}
+	config, err := t.img.ConfigFile()
+	if err != nil {
+		return nil, xerrors.Errorf("getting image config: %w", err)
+	}
+	if config == nil {
+		return nil, nil
+	}
+	return config.Config.Labels, nil
+}
+
 func (t ScanTarget) Clean() error {
 	switch t.kind {
 	case TargetSBOM:

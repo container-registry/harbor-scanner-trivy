@@ -74,11 +74,33 @@ func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
 	if err != nil {
 		return Report{}, xerrors.Errorf("creating scan target: %w", err)
 	}
-	defer func() {
+	defer func(target ScanTarget) {
 		if err = target.Clean(); err != nil {
 			logger.Warn("Error while removing sbom tmp file", slog.String("err", err.Error()))
 		}
-	}()
+	}(target)
+
+	if report, ok, err := bootcSBOMReport(target, opt.Format); err != nil {
+		return Report{}, err
+	} else if ok {
+		logger.Debug("Generated bootc SBOM from image package metadata")
+		return report, nil
+	}
+	if opt.Format == FormatJSON {
+		bootcTarget, ok, err := bootcVulnerabilityTarget(target, w.config.CacheDir, w.ambassador)
+		if err != nil {
+			return Report{}, err
+		}
+		if ok {
+			logger.Debug("Scanning bootc package metadata SBOM for vulnerabilities")
+			target = bootcTarget
+			defer func() {
+				if err = target.Clean(); err != nil {
+					logger.Warn("Error while removing bootc sbom tmp file", slog.String("err", err.Error()))
+				}
+			}()
+		}
+	}
 
 	reportFile, err := w.ambassador.TempFile(w.config.ReportsDir, "scan_report_*.json")
 	if err != nil {
