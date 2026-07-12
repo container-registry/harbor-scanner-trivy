@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
@@ -23,10 +24,15 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var trivyScanner = harbor.Scanner{
-	Name:    "Trivy",
-	Vendor:  "Aqua Security",
-	Version: "0.72.0",
+// The image stamps Scanner.Version as "<version> (<short-sha>)"; the sha
+// changes with every Trivy bump, so it is matched by pattern instead.
+var trivyVersionRegexp = regexp.MustCompile(`^0\.72\.0 \([0-9a-f]{8}\)$`)
+
+func assertTrivyScanner(t *testing.T, s harbor.Scanner) {
+	t.Helper()
+	assert.Equal(t, "Trivy", s.Name)
+	assert.Equal(t, "Aqua Security", s.Vendor)
+	assert.Regexp(t, trivyVersionRegexp, s.Version)
 }
 
 const (
@@ -183,7 +189,7 @@ func TestComponent(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, artifact, report.Artifact)
-		assert.Equal(t, trivyScanner, report.Scanner)
+		assertTrivyScanner(t, report.Scanner)
 		// TODO Adding asserts on CVEs is tricky as we do not have any control over upstream vulnerabilities database used by Trivy.
 		for _, v := range report.Vulnerabilities {
 			t.Logf("ID %s, Package: %s, Version: %s, Severity: %s", v.ID, v.Pkg, v.Version, v.Severity)
@@ -220,7 +226,7 @@ func TestComponent(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, artifact, report.Artifact)
-		assert.Equal(t, trivyScanner, report.Scanner)
+		assertTrivyScanner(t, report.Scanner)
 		assert.Equal(t, api.MediaTypeSPDX, report.MediaType)
 		assert.NotEmpty(t, report.SBOM)
 	})
