@@ -1,10 +1,13 @@
 package redis
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
@@ -28,9 +31,9 @@ func NewStore(cfg etc.RedisStore, rdb *redis.Client) persistence.Store {
 }
 
 func (s *store) Create(ctx context.Context, scanJob job.ScanJob) error {
-	bytes, err := json.Marshal(scanJob)
+	value, err := marshalCompressed(scanJob)
 	if err != nil {
-		return xerrors.Errorf("marshaling scan job: %w", err)
+		return err
 	}
 
 	key := s.keyForScanJob(scanJob.Key)
@@ -42,7 +45,7 @@ func (s *store) Create(ctx context.Context, scanJob job.ScanJob) error {
 		slog.Duration("expire", s.cfg.ScanJobTTL),
 	)
 
-	if err = s.rdb.SetNX(ctx, key, string(bytes), s.cfg.ScanJobTTL).Err(); err != nil {
+	if err = s.rdb.SetNX(ctx, key, value, s.cfg.ScanJobTTL).Err(); err != nil {
 		return xerrors.Errorf("creating scan job: %w", err)
 	}
 
@@ -50,9 +53,9 @@ func (s *store) Create(ctx context.Context, scanJob job.ScanJob) error {
 }
 
 func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
-	bytes, err := json.Marshal(scanJob)
+	value, err := marshalCompressed(scanJob)
 	if err != nil {
-		return xerrors.Errorf("marshaling scan job: %w", err)
+		return err
 	}
 
 	key := s.keyForScanJob(scanJob.Key)
@@ -64,7 +67,7 @@ func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
 		slog.Duration("expire", s.cfg.ScanJobTTL),
 	)
 
-	if err = s.rdb.SetXX(ctx, key, string(bytes), s.cfg.ScanJobTTL).Err(); err != nil {
+	if err = s.rdb.SetXX(ctx, key, value, s.cfg.ScanJobTTL).Err(); err != nil {
 		return xerrors.Errorf("updating scan job: %w", err)
 	}
 
@@ -80,8 +83,13 @@ func (s *store) Get(ctx context.Context, scanJobKey job.ScanJobKey) (*job.ScanJo
 		return nil, err
 	}
 
+	data, err := decompress([]byte(value))
+	if err != nil {
+		return nil, xerrors.Errorf("decompressing scan job: %w", err)
+	}
+
 	var scanJob job.ScanJob
-	if err = json.Unmarshal([]byte(value), &scanJob); err != nil {
+	if err = json.Unmarshal(data, &scanJob); err != nil {
 		return nil, xerrors.Errorf("unmarshaling scan job: %w", err)
 	}
 
@@ -114,10 +122,45 @@ func (s *store) UpdateReport(ctx context.Context, scanJobKey job.ScanJobKey, rep
 	scanJob, err := s.Get(ctx, scanJobKey)
 	if err != nil {
 		return err
+	} else if scanJob == nil {
+		return xerrors.Errorf("scan job (%s) not found", scanJobKey)
 	}
 
 	scanJob.Report = report
 	return s.update(ctx, *scanJob)
+}
+
+func marshalCompressed(scanJob job.ScanJob) ([]byte, error) {
+	data, err := json.Marshal(scanJob)
+	if err != nil {
+		return nil, xerrors.Errorf("marshaling scan job: %w", err)
+	}
+
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	if _, err = gw.Write(data); err != nil {
+		return nil, xerrors.Errorf("compressing scan job: %w", err)
+	}
+	if err = gw.Close(); err != nil {
+		return nil, xerrors.Errorf("compressing scan job: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// decompress gunzips value if it carries the gzip magic header. JSON cannot
+// start with 0x1f, so values written by older, non-compressing versions pass
+// through unchanged during a rolling upgrade.
+func decompress(value []byte) ([]byte, error) {
+	if len(value) < 2 || value[0] != 0x1f || value[1] != 0x8b {
+		return value, nil
+	}
+
+	gr, err := gzip.NewReader(bytes.NewReader(value))
+	if err != nil {
+		return nil, err
+	}
+	defer gr.Close()
+	return io.ReadAll(gr)
 }
 
 func (s *store) keyForScanJob(scanJobKey job.ScanJobKey) string {
