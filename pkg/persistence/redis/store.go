@@ -147,6 +147,11 @@ func marshalCompressed(scanJob job.ScanJob) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// maxDecompressedSize caps gunzip output at Redis's maximum value size, the
+// largest a legitimate pre-compression value could ever have been, guarding
+// against decompression bombs planted by a compromised Redis.
+const maxDecompressedSize = 512 << 20
+
 // decompress gunzips value if it carries the gzip magic header. JSON cannot
 // start with 0x1f, so values written by older, non-compressing versions pass
 // through unchanged during a rolling upgrade.
@@ -160,7 +165,15 @@ func decompress(value []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer gr.Close()
-	return io.ReadAll(gr)
+
+	data, err := io.ReadAll(io.LimitReader(gr, maxDecompressedSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxDecompressedSize {
+		return nil, xerrors.Errorf("decompressed value exceeds %d bytes", maxDecompressedSize)
+	}
+	return data, nil
 }
 
 func (s *store) keyForScanJob(scanJobKey job.ScanJobKey) string {

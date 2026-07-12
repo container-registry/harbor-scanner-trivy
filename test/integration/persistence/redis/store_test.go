@@ -3,6 +3,8 @@
 package redis
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -178,6 +180,29 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, j)
 		assert.Equal(t, job.Failed, j.Status)
+	})
+
+	t.Run("Rejects decompression bombs", func(t *testing.T) {
+		scanJobKey := job.ScanJobKey{
+			ID:       "bomb",
+			MIMEType: api.MimeTypeSecurityVulnerabilityReport,
+		}
+
+		// gzip of >512 MiB of zeros: ~500 KB stored, over the decompression cap
+		var bomb bytes.Buffer
+		gw := gzip.NewWriter(&bomb)
+		zeros := make([]byte, 1<<20)
+		for written := 0; written <= 512<<20; written += len(zeros) {
+			_, err := gw.Write(zeros)
+			require.NoError(t, err)
+		}
+		require.NoError(t, gw.Close())
+
+		key := fmt.Sprintf("%s:scan-job:%s", config.Namespace, scanJobKey.String())
+		require.NoError(t, pool.Set(ctx, key, bomb.Bytes(), config.ScanJobTTL).Err())
+
+		_, err := store.Get(ctx, scanJobKey)
+		require.ErrorContains(t, err, "exceeds")
 	})
 
 	t.Run("UpdateReport on missing job fails", func(t *testing.T) {
