@@ -1,6 +1,7 @@
 # Binary is pre-cross-compiled by `task build` into bin/linux-<arch>/.
-# TRIVY_VERSION is pinned as TRIVY_BASE_IMAGE_VERSION in versions.env and passed
-# by `task image`; there is deliberately no default so builds fail loudly without it.
+# TRIVY_VERSION (pinned as TRIVY_BASE_IMAGE_VERSION in versions.env) and
+# LPROBE_VERSION (pinned in versions.env) are passed by `task image`; there are
+# deliberately no defaults so builds fail loudly without them.
 ARG TRIVY_VERSION
 ARG LPROBE_VERSION
 
@@ -37,7 +38,13 @@ ENV TRIVY_VERSION="${TRIVY_VERSION} (${TRIVY_COMMIT})"
 
 EXPOSE 8080
 EXPOSE 8443
-HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD ["/lprobe", "-port", "8080", "-endpoint", "/probe/ready"]
+# Shell form so port and scheme follow SCANNER_API_SERVER_ADDR and the TLS
+# config at runtime (exec form gets no env expansion). mTLS via
+# SCANNER_API_SERVER_CLIENT_CAS still fails the probe: lprobe has no client
+# cert to present.
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD addr="${SCANNER_API_SERVER_ADDR:-:8080}"; \
+        /lprobe -port "${addr##*:}" -endpoint /probe/ready ${SCANNER_API_SERVER_TLS_CERTIFICATE:+-tls -tls-no-verify}
 
 USER scanner
 
