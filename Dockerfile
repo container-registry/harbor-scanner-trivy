@@ -2,6 +2,9 @@
 # TRIVY_VERSION is pinned as TRIVY_BASE_IMAGE_VERSION in versions.env and passed
 # by `task image`; there is deliberately no default so builds fail loudly without it.
 ARG TRIVY_VERSION
+ARG LPROBE_VERSION
+
+FROM ghcr.io/fivexl/lprobe:${LPROBE_VERSION} AS lprobe
 
 FROM aquasec/trivy:${TRIVY_VERSION}
 
@@ -15,8 +18,9 @@ LABEL org.opencontainers.image.title="harbor-scanner-trivy" \
       org.opencontainers.image.source="https://github.com/container-registry/harbor-scanner-trivy" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-RUN adduser -u 10000 -D -g '' scanner scanner
+RUN addgroup -S scanner && adduser -S -G scanner -h /home/scanner scanner
 
+COPY --from=lprobe /lprobe /lprobe
 COPY bin/linux-${TARGETARCH}/scanner-trivy /home/scanner/bin/scanner-trivy
 
 # Overwrite the base image's prebuilt trivy with our source-built binary
@@ -24,7 +28,13 @@ COPY bin/linux-${TARGETARCH}/scanner-trivy /home/scanner/bin/scanner-trivy
 # CVE-patchable via go mod overrides, same pattern as harbor-next.
 COPY bin/linux-${TARGETARCH}/trivy /usr/local/bin/trivy
 
+RUN chown -R scanner:scanner /home/scanner /usr/local/bin/trivy
+
 ENV TRIVY_VERSION=${TRIVY_VERSION}
+
+EXPOSE 8080
+EXPOSE 8443
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD ["/lprobe", "-port", "8080", "-endpoint", "/probe/ready"]
 
 USER scanner
 
