@@ -254,6 +254,7 @@ tasks:
         --builder {{.IMAGE_BUILDER}}
         --platform {{.PLATFORMS}}
         --build-arg TRIVY_VERSION={{.TRIVY_BASE_IMAGE_VERSION}}
+        --build-arg LPROBE_VERSION={{.LPROBE_VERSION}}
         -t {{.FULL_TAG}}
         {{.OUTPUT}}
         .
