@@ -147,10 +147,11 @@ func marshalCompressed(scanJob job.ScanJob) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// maxDecompressedSize caps gunzip output at Redis's maximum value size, the
-// largest a legitimate pre-compression value could ever have been, guarding
-// against decompression bombs planted by a compromised Redis.
-const maxDecompressedSize = 512 << 20
+// maxDecompressedSize guards against decompression bombs planted by a
+// compromised Redis. Reads allocate up to this much before rejecting, so it
+// must stay well below the adapter's memory sizing (Helm suggests a 512Mi
+// request); 64 MiB is ~28x the largest report observed in production.
+const maxDecompressedSize = 64 << 20
 
 // decompress gunzips value if it carries the gzip magic header. JSON cannot
 // start with 0x1f, so values written by older, non-compressing versions pass

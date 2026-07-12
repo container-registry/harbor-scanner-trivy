@@ -188,11 +188,11 @@ func TestStore(t *testing.T) {
 			MIMEType: api.MimeTypeSecurityVulnerabilityReport,
 		}
 
-		// gzip of >512 MiB of zeros: ~500 KB stored, over the decompression cap
+		// gzip of >64 MiB of zeros: ~64 KB stored, over the decompression cap
 		var bomb bytes.Buffer
 		gw := gzip.NewWriter(&bomb)
 		zeros := make([]byte, 1<<20)
-		for written := 0; written <= 512<<20; written += len(zeros) {
+		for written := 0; written <= 64<<20; written += len(zeros) {
 			_, err := gw.Write(zeros)
 			require.NoError(t, err)
 		}
