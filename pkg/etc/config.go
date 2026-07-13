@@ -42,6 +42,7 @@ type Trivy struct {
 	VEXSource         string        `env:"SCANNER_TRIVY_VEX_SOURCE"`
 	SkipVEXRepoUpdate bool          `env:"SCANNER_TRIVY_SKIP_VEX_REPO_UPDATE" envDefault:"false"`
 	Timeout           time.Duration `env:"SCANNER_TRIVY_TIMEOUT" envDefault:"5m0s"`
+	UseSBOMAccessory  bool          `env:"SCANNER_TRIVY_USE_SBOM_ACCESSORY" envDefault:"false"`
 }
 
 type API struct {

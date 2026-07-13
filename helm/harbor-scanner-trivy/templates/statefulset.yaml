@@ -88,6 +88,8 @@ spec:
                   key: gitHubToken
             - name: "SCANNER_TRIVY_INSECURE"
               value: {{ .Values.scanner.trivy.insecure | default false | quote }}
+            - name: "SCANNER_TRIVY_USE_SBOM_ACCESSORY"
+              value: {{ .Values.scanner.trivy.useSBOMAccessory | default false | quote }}
             - name: "SCANNER_STORE_REDIS_NAMESPACE"
               value: {{ .Values.scanner.store.redisNamespace | default "harbor.scanner.trivy:store" | quote }}
             - name: "SCANNER_STORE_REDIS_SCAN_JOB_TTL"

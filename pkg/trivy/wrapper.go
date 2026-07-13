@@ -67,12 +67,38 @@ func NewWrapper(config etc.Trivy, ambassador ext.Ambassador) Wrapper {
 }
 
 func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
+	report, usedAccessory, err := w.scan(imageRef, opt, w.useSBOMAccessory(opt))
+	if err != nil && usedAccessory {
+		slog.Warn("SBOM accessory scan failed, retrying as image scan",
+			slog.String("image_ref", imageRef.Name),
+			slog.String("err", err.Error()))
+		report, _, err = w.scan(imageRef, opt, false)
+	}
+	return report, err
+}
+
+// useSBOMAccessory reports whether the scan may be served from a pre-existing
+// SBOM accessory. Only vulnerability scans qualify: SBOM generation must read
+// the image, and secret/misconfig scanners need image content an SBOM lacks.
+func (w *wrapper) useSBOMAccessory(opt ScanOption) bool {
+	if !w.config.UseSBOMAccessory || opt.Format != FormatJSON {
+		return false
+	}
+	for _, s := range strings.Split(w.config.Scanners, ",") {
+		if strings.TrimSpace(s) != "vuln" {
+			return false
+		}
+	}
+	return true
+}
+
+func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool) (Report, bool, error) {
 	logger := slog.With(slog.String("image_ref", imageRef.Name))
 	logger.Debug("Started scanning")
 
-	target, err := newTarget(imageRef, w.config, w.ambassador)
+	target, err := newTarget(imageRef, w.config, w.ambassador, useSBOMAccessory)
 	if err != nil {
-		return Report{}, xerrors.Errorf("creating scan target: %w", err)
+		return Report{}, false, xerrors.Errorf("creating scan target: %w", err)
 	}
 	defer func() {
 		if err = target.Clean(); err != nil {
@@ -82,7 +108,7 @@ func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
 
 	reportFile, err := w.ambassador.TempFile(w.config.ReportsDir, "scan_report_*.json")
 	if err != nil {
-		return Report{}, xerrors.Errorf("creating scan report tmp file: %w", err)
+		return Report{}, target.fromAccessory, xerrors.Errorf("creating scan report tmp file: %w", err)
 	}
 	logger.Debug("Saving scan report to tmp file", slog.String("path", reportFile.Name()))
 	defer func() {
@@ -97,7 +123,7 @@ func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
 
 	cmd, err := w.prepareScanCmd(target, reportFile.Name(), opt)
 	if err != nil {
-		return Report{}, xerrors.Errorf("preparing scan command: %w", err)
+		return Report{}, target.fromAccessory, xerrors.Errorf("preparing scan command: %w", err)
 	}
 
 	logger.Debug("Exec command with args", slog.String("path", cmd.Path),
@@ -113,7 +139,7 @@ func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
 			slog.String("std_out", output),
 			slog.String("category", string(category)),
 		)
-		return Report{}, &ScanError{
+		return Report{}, target.fromAccessory, &ScanError{
 			Category: category,
 			ImageRef: targetName,
 			Detail:   output,
@@ -126,7 +152,8 @@ func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
 		slog.String("std_out", string(stdout)),
 	)
 
-	return w.parseReport(opt.Format, reportFile)
+	report, err := w.parseReport(opt.Format, reportFile)
+	return report, target.fromAccessory, err
 }
 
 func (w *wrapper) parseReport(format Format, reportFile io.Reader) (Report, error) {
