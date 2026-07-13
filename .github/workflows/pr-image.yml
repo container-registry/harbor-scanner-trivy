@@ -1,0 +1,128 @@
+---
+name: PR Preview Image
+
+on:
+  pull_request:
+    branches: [main]
+    # Allowlist: only build a preview when an input that actually reaches the
+    # image changes. The image is the adapter binary (cmd/pkg/go.mod) plus
+    # Trivy built from source at the versions.env pin, assembled by the
+    # Dockerfile via the Taskfile build/build:trivy/image tasks.
+    paths:
+      - "cmd/**"
+      - "pkg/**"
+      - "go.mod"
+      - "go.sum"
+      - "Dockerfile"
+      - "versions.env"
+      - "Taskfile.yml"
+      - ".github/workflows/pr-image.yml"
+      - ".github/workflows/publish-image.yml"
+      - ".github/actions/setup/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-image-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview-image:
+    name: Publish Preview Image
+    # Forked PRs cannot mint the GitHub OIDC token that Harbor's federated
+    # robot login exchanges, and dependabot runs get no id-token either.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-image.yml
+    with:
+      checkout_ref: ${{ github.event.pull_request.head.sha }}
+      image_tag: pr-${{ github.event.pull_request.number }}
+      # version omitted: publish-image derives it via git describe
+      registry_address: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
+      registry_project: ${{ vars.PR_REGISTRY_PROJECT || '8gcr-dev' }}
+
+  pr-comment:
+    name: Comment Preview Image Ref
+    needs: [preview-image]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      REGISTRY_ADDRESS: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
+      REGISTRY_PROJECT: ${{ vars.PR_REGISTRY_PROJECT || '8gcr-dev' }}
+      PREVIEW_TAG: pr-${{ github.event.pull_request.number }}
+      DIGEST: ${{ needs.preview-image.outputs.digest }}
+    steps:
+      - name: Create or update PR comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        env:
+          MARKER: "<!-- harbor-scanner-trivy-pr-preview -->"
+        with:
+          script: |
+            const marker = process.env.MARKER;
+            const image = `${process.env.REGISTRY_ADDRESS}/${process.env.REGISTRY_PROJECT}/harbor-scanner-trivy`;
+            const previewTag = process.env.PREVIEW_TAG;
+            const digest = process.env.DIGEST;
+            const repository = process.env.GITHUB_REPOSITORY;
+            const issueNumber = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+
+            const body = `${marker}
+            A preview image for this PR is available:
+
+            \`\`\`
+            ${image}:${previewTag}
+            \`\`\`
+
+            Digest: \`${digest}\`
+
+            Verify the preview image:
+
+            \`\`\`
+            cosign verify \\
+              --certificate-identity-regexp="https://github.com/${repository}/.github/workflows/publish-image.yml@.*" \\
+              --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \\
+              ${image}:${previewTag}
+            \`\`\`
+
+            Verify the SBOM attestation:
+
+            \`\`\`
+            cosign verify-attestation \\
+              --certificate-identity-regexp="https://github.com/${repository}/.github/workflows/publish-image.yml@.*" \\
+              --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \\
+              --type spdxjson \\
+              ${image}:${previewTag}
+            \`\`\``;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+
+            const existingComment = comments.find(comment =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.startsWith(marker)
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existingComment.id,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              body,
+            });
