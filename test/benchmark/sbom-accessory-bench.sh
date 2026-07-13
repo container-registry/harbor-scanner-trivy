@@ -10,7 +10,7 @@
 #
 # Usage: ./sbom-accessory-bench.sh [image ...]
 # Env:   PLATFORM (default linux/amd64), CACHE_DIR, OUT_DIR
-set -u
+set -u -o pipefail
 
 DEFAULT_IMAGES=(
   # node space

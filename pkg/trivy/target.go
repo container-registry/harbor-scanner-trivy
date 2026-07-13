@@ -334,6 +334,9 @@ func downloadSBOM(img v1.Image, cacheDir string, ambassador ext.Ambassador) (str
 	defer sbomFile.Close()
 
 	if _, err = io.Copy(sbomFile, r); err != nil {
+		// The caller may fall back to an image scan instead of failing the
+		// job, so the orphaned temp file would never be cleaned up otherwise.
+		_ = os.Remove(sbomFile.Name())
 		return "", xerrors.Errorf("copy layer to temp file: %w", err)
 	}
 
