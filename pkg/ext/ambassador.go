@@ -19,6 +19,7 @@ type Ambassador interface {
 	TempFile(string, string) (*os.File, error)
 	RunCmd(cmd *exec.Cmd) ([]byte, error)
 	RemoteImage(name.Reference, ...remote.Option) (v1.Image, error)
+	Referrers(name.Digest, ...remote.Option) (v1.ImageIndex, error)
 }
 
 type ambassador struct{}
@@ -41,4 +42,8 @@ func (a *ambassador) LookPath(file string) (string, error) {
 
 func (a *ambassador) RemoteImage(ref name.Reference, options ...remote.Option) (v1.Image, error) {
 	return remote.Image(ref, options...)
+}
+
+func (a *ambassador) Referrers(d name.Digest, options ...remote.Option) (v1.ImageIndex, error) {
+	return remote.Referrers(d, options...)
 }

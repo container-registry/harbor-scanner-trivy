@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
@@ -22,6 +23,13 @@ type Target string
 const (
 	TargetSBOM  Target = "sbom"
 	TargetImage Target = "image"
+
+	// HarborSBOMArtifactType identifies Harbor-generated SBOM accessory
+	// artifacts. Harbor sets it as the accessory manifest's config media type
+	// and reports it as the artifactType in OCI referrers responses.
+	HarborSBOMArtifactType = "application/vnd.goharbor.harbor.sbom.v1"
+
+	annotationCreated = "created"
 )
 
 // scannableLayerMediaTypes is the set of layer media types that Trivy can process.
@@ -43,13 +51,14 @@ var scannableLayerMediaTypes = map[string]struct{}{
 }
 
 type ScanTarget struct {
-	img      v1.Image
-	ref      ImageRef
-	kind     Target
-	filePath string // For SBOM
+	img           v1.Image
+	ref           ImageRef
+	kind          Target
+	filePath      string // For SBOM
+	fromAccessory bool   // SBOM discovered via referrers, not sent by Harbor
 }
 
-func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador) (ScanTarget, error) {
+func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, useSBOMAccessory bool) (ScanTarget, error) {
 	var nameOpts []name.Option
 	slog.Debug("newTarget",
 		slog.Bool("nonssl", imageRef.NonSSL),
@@ -132,12 +141,28 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador) (
 	}
 
 	switch m.ArtifactType {
-	case "application/vnd.goharbor.harbor.sbom.v1":
+	case HarborSBOMArtifactType:
 		target.kind = TargetSBOM
 		if target.filePath, err = downloadSBOM(img, config.CacheDir, ambassador); err != nil {
 			return ScanTarget{}, xerrors.Errorf("downloading SBOM: %w", err)
 		}
 	default:
+		if useSBOMAccessory {
+			if sbomImg, ok := findSBOMAccessory(ref, img, ambassador, authOpt, trOpt); ok {
+				filePath, err := downloadSBOM(sbomImg, config.CacheDir, ambassador)
+				if err == nil {
+					target.kind = TargetSBOM
+					target.filePath = filePath
+					target.fromAccessory = true
+					return target, nil
+				}
+				slog.Warn("Downloading SBOM accessory failed, scanning image instead",
+					slog.String("image_ref", imageRef.Name),
+					slog.String("err", err.Error()),
+				)
+			}
+		}
+
 		target.kind = TargetImage
 
 		// Validate that layers are scannable before invoking Trivy.
@@ -149,6 +174,68 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador) (
 	}
 
 	return target, nil
+}
+
+// findSBOMAccessory looks up an SBOM accessory attached to the scanned image
+// via the OCI referrers API. It returns false when the registry has no
+// referrers support, no SBOM accessory exists, or any lookup step fails --
+// the caller then proceeds with a regular image scan.
+func findSBOMAccessory(ref name.Reference, img v1.Image, ambassador ext.Ambassador, opts ...remote.Option) (v1.Image, bool) {
+	digest, err := img.Digest()
+	if err != nil {
+		slog.Warn("Computing image digest for SBOM accessory lookup failed",
+			slog.String("image_ref", ref.String()), slog.String("err", err.Error()))
+		return nil, false
+	}
+	subject := ref.Context().Digest(digest.String())
+
+	refOpts := append([]remote.Option{remote.WithFilter("artifactType", HarborSBOMArtifactType)}, opts...)
+	idx, err := ambassador.Referrers(subject, refOpts...)
+	if err != nil {
+		slog.Debug("Referrers lookup for SBOM accessory failed",
+			slog.String("image_ref", ref.String()), slog.String("err", err.Error()))
+		return nil, false
+	}
+
+	im, err := idx.IndexManifest()
+	if err != nil {
+		slog.Warn("Reading referrers index failed",
+			slog.String("image_ref", ref.String()), slog.String("err", err.Error()))
+		return nil, false
+	}
+
+	// Registries are not required to apply the artifactType filter, so filter
+	// client-side and prefer the most recently created accessory.
+	var latest *v1.Descriptor
+	var latestCreated time.Time
+	for i := range im.Manifests {
+		desc := &im.Manifests[i]
+		if desc.ArtifactType != HarborSBOMArtifactType {
+			continue
+		}
+		created, _ := time.Parse(time.RFC3339, desc.Annotations[annotationCreated])
+		if latest == nil || created.After(latestCreated) {
+			latest = desc
+			latestCreated = created
+		}
+	}
+	if latest == nil {
+		return nil, false
+	}
+
+	acc, err := ambassador.RemoteImage(subject.Context().Digest(latest.Digest.String()), opts...)
+	if err != nil {
+		slog.Warn("Fetching SBOM accessory manifest failed",
+			slog.String("image_ref", ref.String()),
+			slog.String("accessory_digest", latest.Digest.String()),
+			slog.String("err", err.Error()))
+		return nil, false
+	}
+
+	slog.Info("Using SBOM accessory instead of image scan",
+		slog.String("image_ref", ref.String()),
+		slog.String("accessory_digest", latest.Digest.String()))
+	return acc, true
 }
 
 // validateLayers checks that all layers in the manifest have media types that
@@ -247,6 +334,9 @@ func downloadSBOM(img v1.Image, cacheDir string, ambassador ext.Ambassador) (str
 	defer sbomFile.Close()
 
 	if _, err = io.Copy(sbomFile, r); err != nil {
+		// The caller may fall back to an image scan instead of failing the
+		// job, so the orphaned temp file would never be cleaned up otherwise.
+		_ = os.Remove(sbomFile.Name())
 		return "", xerrors.Errorf("copy layer to temp file: %w", err)
 	}
 

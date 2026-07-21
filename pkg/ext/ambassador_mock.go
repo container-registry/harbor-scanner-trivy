@@ -42,3 +42,11 @@ func (m *MockAmbassador) RemoteImage(ref name.Reference, options ...remote.Optio
 	args := m.Called(ref, options)
 	return args.Get(0).(v1.Image), args.Error(1)
 }
+
+func (m *MockAmbassador) Referrers(d name.Digest, options ...remote.Option) (v1.ImageIndex, error) {
+	args := m.Called(d, options)
+	if idx := args.Get(0); idx != nil {
+		return idx.(v1.ImageIndex), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
