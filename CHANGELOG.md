@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.40.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.39.1...v0.40.0) (2026-07-21)
+
+
+### Features
+
+* **build:** include Trivy commit hash in scanner metadata ([#35](https://github.com/container-registry/harbor-scanner-trivy/issues/35)) ([5e93741](https://github.com/container-registry/harbor-scanner-trivy/commit/5e9374182943fabb2cb9cd4448d8759b85728ccc))
+* Scan pre-existing SBOM accessory instead of image layers ([#38](https://github.com/container-registry/harbor-scanner-trivy/issues/38)) ([7d97d36](https://github.com/container-registry/harbor-scanner-trivy/commit/7d97d36b5a34e1335a7613143dcd366a33ddb16c))
+
+
+### Bug Fixes
+
+* **docker:** derive HEALTHCHECK port and scheme from server config ([#34](https://github.com/container-registry/harbor-scanner-trivy/issues/34)) ([55d74dc](https://github.com/container-registry/harbor-scanner-trivy/commit/55d74dcd67f98d13ced413b8cfec83c433dd7c0a))
+
 ## [0.39.1](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.39.0...v0.39.1) (2026-07-12)
 
 
