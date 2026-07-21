@@ -12,6 +12,7 @@ FROM aquasec/trivy:${TRIVY_VERSION}
 # An ARG declared before a FROM is outside of a build stage, so it must be
 # redeclared inside the stage to be usable after FROM.
 ARG TRIVY_VERSION
+ARG TRIVY_COMMIT=unknown
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.title="harbor-scanner-trivy" \
@@ -31,7 +32,9 @@ COPY bin/linux-${TARGETARCH}/trivy /usr/local/bin/trivy
 
 RUN chown -R scanner:scanner /home/scanner /usr/local/bin/trivy
 
-ENV TRIVY_VERSION=${TRIVY_VERSION}
+# Read by GetScannerMetadata() and surfaced as Scanner.Version in the Harbor
+# UI; the commit suffix pins the exact source the trivy binary was built from.
+ENV TRIVY_VERSION="${TRIVY_VERSION} (${TRIVY_COMMIT})"
 
 EXPOSE 8080
 EXPOSE 8443
