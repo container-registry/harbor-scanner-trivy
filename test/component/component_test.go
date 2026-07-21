@@ -26,7 +26,7 @@ import (
 
 // The image stamps Scanner.Version as "<version> (<short-sha>)"; the sha
 // changes with every Trivy bump, so it is matched by pattern instead.
-var trivyVersionRegexp = regexp.MustCompile(`^0\.72\.0 \([0-9a-f]{8}\)$`)
+var trivyVersionRegexp = regexp.MustCompile(`^0\.72\.0 \([0-9a-f]{8,}\)$`)
 
 func assertTrivyScanner(t *testing.T, s harbor.Scanner) {
 	t.Helper()
