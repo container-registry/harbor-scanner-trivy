@@ -167,8 +167,13 @@ func TestStore(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		reportSizeBefore, err := pool.StrLen(ctx, reportKey).Result()
+		reportBytesBefore, err := pool.Get(ctx, reportKey).Result()
 		require.NoError(t, err)
+
+		// Shorten both TTLs so the assertions below prove UpdateStatus re-arms
+		// them; freshly written keys would sit near the full TTL either way.
+		require.NoError(t, pool.Expire(ctx, jobKey, parseDuration(t, "3s")).Err())
+		require.NoError(t, pool.Expire(ctx, reportKey, parseDuration(t, "3s")).Err())
 
 		err = store.UpdateStatus(ctx, scanJobKey, job.Finished)
 		require.NoError(t, err)
@@ -177,15 +182,17 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		assert.Less(t, jobSize, int64(1024), "scan job key must hold only status/metadata, not the report")
 
-		reportSizeAfter, err := pool.StrLen(ctx, reportKey).Result()
+		reportBytesAfter, err := pool.Get(ctx, reportKey).Result()
 		require.NoError(t, err)
-		assert.Equal(t, reportSizeBefore, reportSizeAfter, "status flip must not rewrite the report blob")
+		assert.Equal(t, reportBytesBefore, reportBytesAfter, "status flip must not rewrite the report blob")
 
 		jobTTL, err := pool.TTL(ctx, jobKey).Result()
 		require.NoError(t, err)
 		reportTTL, err := pool.TTL(ctx, reportKey).Result()
 		require.NoError(t, err)
-		assert.InDelta(t, jobTTL.Seconds(), reportTTL.Seconds(), 1, "both keys should be re-armed to the same TTL")
+		assert.Greater(t, jobTTL.Seconds(), 5.0, "job key TTL should be re-armed to the full ScanJobTTL")
+		assert.Greater(t, reportTTL.Seconds(), 5.0, "report key TTL should be re-armed to the full ScanJobTTL")
+		assert.InDelta(t, jobTTL.Seconds(), reportTTL.Seconds(), 1, "both keys should carry the same TTL")
 
 		j, err := store.Get(ctx, scanJobKey)
 		require.NoError(t, err)

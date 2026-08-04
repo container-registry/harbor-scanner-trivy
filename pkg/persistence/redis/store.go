@@ -18,6 +18,27 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// Job and report writes must be conditional on the job key still existing and
+// re-arm both TTLs together, or a scan job expiring mid-update leaves either a
+// silently dropped status change (SET XX no-op) or an orphaned report blob.
+// Lua gives us that atomically; both keys always live on one instance because
+// the adapter only ever connects via a non-cluster client (see pkg/redisx).
+var (
+	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] job value, ARGV[2] TTL millis
+	updateJobScript = redis.NewScript(`
+		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+		redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+		redis.call('PEXPIRE', KEYS[2], ARGV[2])
+		return 1`)
+
+	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] report value, ARGV[2] TTL millis
+	updateReportScript = redis.NewScript(`
+		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+		redis.call('SET', KEYS[2], ARGV[1], 'PX', ARGV[2])
+		redis.call('PEXPIRE', KEYS[1], ARGV[2])
+		return 1`)
+)
+
 type store struct {
 	cfg etc.RedisStore
 	rdb *redis.Client
@@ -69,11 +90,13 @@ func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
 		slog.Duration("expire", s.cfg.ScanJobTTL),
 	)
 
-	pipe := s.rdb.Pipeline()
-	pipe.SetXX(ctx, key, value, s.cfg.ScanJobTTL)
-	pipe.Expire(ctx, s.keyForScanReport(scanJob.Key), s.cfg.ScanJobTTL)
-	if _, err = pipe.Exec(ctx); err != nil {
+	applied, err := updateJobScript.Run(ctx, s.rdb,
+		[]string{key, s.keyForScanReport(scanJob.Key)},
+		value, s.cfg.ScanJobTTL.Milliseconds()).Int()
+	if err != nil {
 		return xerrors.Errorf("updating scan job: %w", err)
+	} else if applied == 0 {
+		return xerrors.Errorf("scan job (%s) not found", scanJob.Key)
 	}
 
 	return nil
@@ -157,24 +180,18 @@ func (s *store) UpdateReport(ctx context.Context, scanJobKey job.ScanJobKey, rep
 	logger := storeLogger(scanJobKey)
 	logger.Debug("Updating reports for scan job")
 
-	jobKey := s.keyForScanJob(scanJobKey)
-	exists, err := s.rdb.Exists(ctx, jobKey).Result()
-	if err != nil {
-		return err
-	} else if exists == 0 {
-		return xerrors.Errorf("scan job (%s) not found", scanJobKey)
-	}
-
 	value, err := marshalCompressed(report)
 	if err != nil {
 		return xerrors.Errorf("marshaling scan report: %w", err)
 	}
 
-	pipe := s.rdb.Pipeline()
-	pipe.Set(ctx, s.keyForScanReport(scanJobKey), value, s.cfg.ScanJobTTL)
-	pipe.Expire(ctx, jobKey, s.cfg.ScanJobTTL)
-	if _, err = pipe.Exec(ctx); err != nil {
+	applied, err := updateReportScript.Run(ctx, s.rdb,
+		[]string{s.keyForScanJob(scanJobKey), s.keyForScanReport(scanJobKey)},
+		value, s.cfg.ScanJobTTL.Milliseconds()).Int()
+	if err != nil {
 		return xerrors.Errorf("updating scan report: %w", err)
+	} else if applied == 0 {
+		return xerrors.Errorf("scan job (%s) not found", scanJobKey)
 	}
 
 	return nil
