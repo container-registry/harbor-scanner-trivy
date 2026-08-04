@@ -131,13 +131,13 @@ func TestStore(t *testing.T) {
 		err = store.UpdateReport(ctx, scanJobKey, report)
 		require.NoError(t, err)
 
-		rawJSON, err := json.Marshal(job.ScanJob{Key: scanJobKey, Status: job.Queued, Report: report})
+		rawJSON, err := json.Marshal(report)
 		require.NoError(t, err)
 
-		storedSize, err := pool.StrLen(ctx, fmt.Sprintf("%s:scan-job:%s", config.Namespace, scanJobKey.String())).Result()
+		storedSize, err := pool.StrLen(ctx, fmt.Sprintf("%s:scan-report:%s", config.Namespace, scanJobKey.String())).Result()
 		require.NoError(t, err)
-		t.Logf("raw JSON: %d bytes, stored: %d bytes, ratio: %.1fx", len(rawJSON), storedSize, float64(len(rawJSON))/float64(storedSize))
-		assert.Less(t, storedSize, int64(len(rawJSON)/4), "stored value should be at least 4x smaller than raw JSON")
+		t.Logf("raw report JSON: %d bytes, stored: %d bytes, ratio: %.1fx", len(rawJSON), storedSize, float64(len(rawJSON))/float64(storedSize))
+		assert.Less(t, storedSize, int64(len(rawJSON)/4), "stored report should be at least 4x smaller than raw JSON")
 
 		j, err := store.Get(ctx, scanJobKey)
 		require.NoError(t, err)
@@ -148,6 +148,50 @@ func TestStore(t *testing.T) {
 		original, err := json.Marshal(report)
 		require.NoError(t, err)
 		assert.Equal(t, original, roundTripped, "report should round-trip byte-identical")
+	})
+
+	t.Run("Status flip does not rewrite the report blob", func(t *testing.T) {
+		scanJobKey := job.ScanJobKey{
+			ID:        "status-flip",
+			MIMEType:  api.MimeTypeSecuritySBOMReport,
+			MediaType: api.MediaTypeSPDX,
+		}
+		jobKey := fmt.Sprintf("%s:scan-job:%s", config.Namespace, scanJobKey.String())
+		reportKey := fmt.Sprintf("%s:scan-report:%s", config.Namespace, scanJobKey.String())
+
+		err := store.Create(ctx, job.ScanJob{Key: scanJobKey, Status: job.Pending})
+		require.NoError(t, err)
+		err = store.UpdateReport(ctx, scanJobKey, harbor.ScanReport{
+			MediaType: api.MediaTypeSPDX,
+			SBOM:      generateSPDXDocument(t, 2_000_000),
+		})
+		require.NoError(t, err)
+
+		reportSizeBefore, err := pool.StrLen(ctx, reportKey).Result()
+		require.NoError(t, err)
+
+		err = store.UpdateStatus(ctx, scanJobKey, job.Finished)
+		require.NoError(t, err)
+
+		jobSize, err := pool.StrLen(ctx, jobKey).Result()
+		require.NoError(t, err)
+		assert.Less(t, jobSize, int64(1024), "scan job key must hold only status/metadata, not the report")
+
+		reportSizeAfter, err := pool.StrLen(ctx, reportKey).Result()
+		require.NoError(t, err)
+		assert.Equal(t, reportSizeBefore, reportSizeAfter, "status flip must not rewrite the report blob")
+
+		jobTTL, err := pool.TTL(ctx, jobKey).Result()
+		require.NoError(t, err)
+		reportTTL, err := pool.TTL(ctx, reportKey).Result()
+		require.NoError(t, err)
+		assert.InDelta(t, jobTTL.Seconds(), reportTTL.Seconds(), 1, "both keys should be re-armed to the same TTL")
+
+		j, err := store.Get(ctx, scanJobKey)
+		require.NoError(t, err)
+		require.NotNil(t, j)
+		assert.Equal(t, job.Finished, j.Status)
+		assert.NotNil(t, j.Report.SBOM, "report must survive the status flip")
 	})
 
 	t.Run("Reads legacy uncompressed values", func(t *testing.T) {
@@ -180,6 +224,37 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, j)
 		assert.Equal(t, job.Failed, j.Status)
+		assert.Equal(t, legacyJob.Report, j.Report, "inline pre-split report must survive a status update")
+	})
+
+	t.Run("UpdateReport on a legacy combined value wins over the inline report", func(t *testing.T) {
+		scanJobKey := job.ScanJobKey{
+			ID:       "legacy-rescan",
+			MIMEType: api.MimeTypeSecurityVulnerabilityReport,
+		}
+		legacyJob := job.ScanJob{
+			Key:    scanJobKey,
+			Status: job.Pending,
+			Report: harbor.ScanReport{
+				Severity:        harbor.SevLow,
+				Vulnerabilities: []harbor.VulnerabilityItem{{ID: "CVE-2020-0001"}},
+			},
+		}
+		rawJSON, err := json.Marshal(legacyJob)
+		require.NoError(t, err)
+		key := fmt.Sprintf("%s:scan-job:%s", config.Namespace, scanJobKey.String())
+		require.NoError(t, pool.Set(ctx, key, string(rawJSON), config.ScanJobTTL).Err())
+
+		newReport := harbor.ScanReport{
+			Severity:        harbor.SevCritical,
+			Vulnerabilities: []harbor.VulnerabilityItem{{ID: "CVE-2026-9999"}},
+		}
+		require.NoError(t, store.UpdateReport(ctx, scanJobKey, newReport))
+
+		j, err := store.Get(ctx, scanJobKey)
+		require.NoError(t, err)
+		require.NotNil(t, j)
+		assert.Equal(t, newReport, j.Report, "separate report key must fully replace the inline report")
 	})
 
 	t.Run("Rejects decompression bombs", func(t *testing.T) {
