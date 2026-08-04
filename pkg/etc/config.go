@@ -1,6 +1,7 @@
 package etc
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -111,6 +112,10 @@ func GetConfig() (Config, error) {
 		}
 	}
 
+	if cfg.Trivy.Timeout <= 0 || cfg.Trivy.Timeout > maxTrivyTimeout {
+		return cfg, fmt.Errorf("SCANNER_TRIVY_TIMEOUT must be in (0, %s], got %s", maxTrivyTimeout, cfg.Trivy.Timeout)
+	}
+
 	if cfg.RedisStore.ScanJobTTL <= 0 {
 		if cfg.RedisStore.ScanJobTTL < 0 {
 			slog.Warn("Ignoring non-positive SCANNER_STORE_REDIS_SCAN_JOB_TTL, deriving from Trivy timeout",
@@ -121,6 +126,10 @@ func GetConfig() (Config, error) {
 
 	return cfg, nil
 }
+
+// maxTrivyTimeout bounds SCANNER_TRIVY_TIMEOUT to something sane; generous
+// beyond any real scan, and it keeps the TTL derivation from overflowing.
+const maxTrivyTimeout = 24 * time.Hour
 
 // deriveScanJobTTL sizes the scan job TTL from the Trivy timeout. The TTL is
 // re-armed on every store write, so it only has to outlive the write-free

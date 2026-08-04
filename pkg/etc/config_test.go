@@ -273,6 +273,14 @@ func TestScanJobTTLDerivation(t *testing.T) {
 			assert.Equal(t, tc.expectedTTL, config.RedisStore.ScanJobTTL)
 		})
 	}
+
+	for _, timeout := range []string{"-2s", "0", "25h"} {
+		t.Run("Rejects Trivy timeout "+timeout, func(t *testing.T) {
+			setEnvs(t, Envs{"SCANNER_TRIVY_TIMEOUT": timeout})
+			_, err := GetConfig()
+			require.ErrorContains(t, err, "SCANNER_TRIVY_TIMEOUT")
+		})
+	}
 }
 
 func setEnvs(t *testing.T, envs Envs) {
