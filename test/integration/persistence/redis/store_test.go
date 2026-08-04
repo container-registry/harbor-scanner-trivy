@@ -287,6 +287,37 @@ func TestStore(t *testing.T) {
 		require.ErrorContains(t, err, "exceeds")
 	})
 
+	t.Run("Zero TTL means no expiry", func(t *testing.T) {
+		noTTLStore := redis.NewStore(etc.RedisStore{
+			Namespace:  "harbor.scanner.trivy:store-nottl",
+			ScanJobTTL: 0,
+		}, pool)
+
+		scanJobKey := job.ScanJobKey{
+			ID:       "no-ttl",
+			MIMEType: api.MimeTypeSecurityVulnerabilityReport,
+		}
+		jobKey := fmt.Sprintf("harbor.scanner.trivy:store-nottl:scan-job:%s", scanJobKey.String())
+		reportKey := fmt.Sprintf("harbor.scanner.trivy:store-nottl:scan-report:%s", scanJobKey.String())
+		t.Cleanup(func() { pool.Del(ctx, jobKey, reportKey) })
+
+		require.NoError(t, noTTLStore.Create(ctx, job.ScanJob{Key: scanJobKey, Status: job.Queued}))
+		require.NoError(t, noTTLStore.UpdateReport(ctx, scanJobKey, harbor.ScanReport{Severity: harbor.SevHigh}))
+		require.NoError(t, noTTLStore.UpdateStatus(ctx, scanJobKey, job.Finished))
+
+		for _, key := range []string{jobKey, reportKey} {
+			ttl, err := pool.TTL(ctx, key).Result()
+			require.NoError(t, err)
+			assert.Equal(t, time.Duration(-1), ttl, "key %s should persist without TTL", key)
+		}
+
+		j, err := noTTLStore.Get(ctx, scanJobKey)
+		require.NoError(t, err)
+		require.NotNil(t, j)
+		assert.Equal(t, job.Finished, j.Status)
+		assert.Equal(t, harbor.SevHigh, j.Report.Severity)
+	})
+
 	t.Run("UpdateReport on missing job fails", func(t *testing.T) {
 		err := store.UpdateReport(ctx, job.ScanJobKey{
 			ID:       "does-not-exist",

@@ -23,19 +23,33 @@ import (
 // silently dropped status change (SET XX no-op) or an orphaned report blob.
 // Lua gives us that atomically; both keys always live on one instance because
 // the adapter only ever connects via a non-cluster client (see pkg/redisx).
+// A TTL of 0 must mean "no expiry", mirroring how go-redis treats a zero
+// expiration on SET (and how pre-split versions behaved).
 var (
 	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] job value, ARGV[2] TTL millis
 	updateJobScript = redis.NewScript(`
 		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
-		redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
-		redis.call('PEXPIRE', KEYS[2], ARGV[2])
+		local ttl = tonumber(ARGV[2])
+		if ttl == 0 then
+			redis.call('SET', KEYS[1], ARGV[1])
+			redis.call('PERSIST', KEYS[2])
+		else
+			redis.call('SET', KEYS[1], ARGV[1], 'PX', ttl)
+			redis.call('PEXPIRE', KEYS[2], ttl)
+		end
 		return 1`)
 
 	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] report value, ARGV[2] TTL millis
 	updateReportScript = redis.NewScript(`
 		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
-		redis.call('SET', KEYS[2], ARGV[1], 'PX', ARGV[2])
-		redis.call('PEXPIRE', KEYS[1], ARGV[2])
+		local ttl = tonumber(ARGV[2])
+		if ttl == 0 then
+			redis.call('SET', KEYS[2], ARGV[1])
+			redis.call('PERSIST', KEYS[1])
+		else
+			redis.call('SET', KEYS[2], ARGV[1], 'PX', ttl)
+			redis.call('PEXPIRE', KEYS[1], ttl)
+		end
 		return 1`)
 )
 
@@ -92,7 +106,7 @@ func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
 
 	applied, err := updateJobScript.Run(ctx, s.rdb,
 		[]string{key, s.keyForScanReport(scanJob.Key)},
-		value, s.cfg.ScanJobTTL.Milliseconds()).Int()
+		value, s.ttlMillis()).Int()
 	if err != nil {
 		return xerrors.Errorf("updating scan job: %w", err)
 	} else if applied == 0 {
@@ -187,7 +201,7 @@ func (s *store) UpdateReport(ctx context.Context, scanJobKey job.ScanJobKey, rep
 
 	applied, err := updateReportScript.Run(ctx, s.rdb,
 		[]string{s.keyForScanJob(scanJobKey), s.keyForScanReport(scanJobKey)},
-		value, s.cfg.ScanJobTTL.Milliseconds()).Int()
+		value, s.ttlMillis()).Int()
 	if err != nil {
 		return xerrors.Errorf("updating scan report: %w", err)
 	} else if applied == 0 {
@@ -242,6 +256,17 @@ func decompress(value []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("decompressed value exceeds %d bytes", maxDecompressedSize)
 	}
 	return data, nil
+}
+
+// ttlMillis converts ScanJobTTL for the Lua scripts. Sub-millisecond positive
+// durations round up to 1ms because PX 0 is a Redis error, while an exact 0
+// keeps its go-redis meaning of "no expiry" (handled in the scripts).
+func (s *store) ttlMillis() int64 {
+	ms := s.cfg.ScanJobTTL.Milliseconds()
+	if ms == 0 && s.cfg.ScanJobTTL > 0 {
+		return 1
+	}
+	return ms
 }
 
 func (s *store) keyForScanJob(scanJobKey job.ScanJobKey) string {
