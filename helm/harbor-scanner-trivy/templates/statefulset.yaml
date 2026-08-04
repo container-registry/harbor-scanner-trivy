@@ -92,8 +92,10 @@ spec:
               value: {{ .Values.scanner.trivy.useSBOMAccessory | default false | quote }}
             - name: "SCANNER_STORE_REDIS_NAMESPACE"
               value: {{ .Values.scanner.store.redisNamespace | default "harbor.scanner.trivy:store" | quote }}
+            {{- with .Values.scanner.store.redisScanJobTTL }}
             - name: "SCANNER_STORE_REDIS_SCAN_JOB_TTL"
-              value: {{ .Values.scanner.store.redisScanJobTTL | default "1h" | quote }}
+              value: {{ . | quote }}
+            {{- end }}
             - name: "SCANNER_JOB_QUEUE_REDIS_NAMESPACE"
               value: {{ .Values.scanner.jobQueue.redisNamespace | default "harbor.scanner.trivy:job-queue" | quote }}
             - name: "SCANNER_JOB_QUEUE_WORKER_CONCURRENCY"

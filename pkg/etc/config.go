@@ -61,8 +61,9 @@ func (c *API) IsTLSEnabled() bool {
 }
 
 type RedisStore struct {
-	Namespace  string        `env:"SCANNER_STORE_REDIS_NAMESPACE" envDefault:"harbor.scanner.trivy:data-store"`
-	ScanJobTTL time.Duration `env:"SCANNER_STORE_REDIS_SCAN_JOB_TTL" envDefault:"1h"`
+	Namespace string `env:"SCANNER_STORE_REDIS_NAMESPACE" envDefault:"harbor.scanner.trivy:data-store"`
+	// Defaulted in GetConfig from the Trivy timeout; see deriveScanJobTTL.
+	ScanJobTTL time.Duration `env:"SCANNER_STORE_REDIS_SCAN_JOB_TTL"`
 }
 
 type JobQueue struct {
@@ -110,5 +111,22 @@ func GetConfig() (Config, error) {
 		}
 	}
 
+	if cfg.RedisStore.ScanJobTTL <= 0 {
+		if cfg.RedisStore.ScanJobTTL < 0 {
+			slog.Warn("Ignoring non-positive SCANNER_STORE_REDIS_SCAN_JOB_TTL, deriving from Trivy timeout",
+				slog.Duration("scan_job_ttl", cfg.RedisStore.ScanJobTTL))
+		}
+		cfg.RedisStore.ScanJobTTL = deriveScanJobTTL(cfg.Trivy.Timeout)
+	}
+
 	return cfg, nil
+}
+
+// deriveScanJobTTL sizes the scan job TTL from the Trivy timeout. The TTL is
+// re-armed on every store write, so it only has to outlive the write-free
+// window: the adapter-side queue wait plus the trivy run, both bounded by the
+// timeout (2x covers a maximal scan queued behind another), plus slack for
+// Harbor's report poll to fetch the finished report.
+func deriveScanJobTTL(trivyTimeout time.Duration) time.Duration {
+	return 2*trivyTimeout + 3*time.Second
 }
