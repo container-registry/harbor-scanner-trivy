@@ -161,8 +161,9 @@ scanner:
   store:
     ## redisNamespace the namespace for keys in the Redis store
     redisNamespace: "harbor.scanner.trivy:store"
-    ## redisScanJobTTL the time to live for persisting scan jobs and associated scan reports
-    redisScanJobTTL: "1h"
+    ## redisScanJobTTL the time to live for persisting scan jobs and associated scan reports.
+    ## When unset, the scanner derives it from the Trivy timeout (2x timeout + 3s).
+    redisScanJobTTL: ""
   jobQueue:
     ## redisNamespace the namespace for keys in the scan jobs queue backed by Redis
     redisNamespace: "harbor.scanner.trivy:job-queue"

@@ -87,7 +87,7 @@ func TestGetConfig(t *testing.T) {
 				},
 				RedisStore: RedisStore{
 					Namespace:  "harbor.scanner.trivy:data-store",
-					ScanJobTTL: parseDuration(t, "1h"),
+					ScanJobTTL: parseDuration(t, "10m3s"),
 				},
 				JobQueue: JobQueue{
 					Namespace:         "harbor.scanner.trivy:job-queue",
@@ -127,7 +127,7 @@ func TestGetConfig(t *testing.T) {
 				},
 				RedisStore: RedisStore{
 					Namespace:  "harbor.scanner.trivy:data-store",
-					ScanJobTTL: parseDuration(t, "1h"),
+					ScanJobTTL: parseDuration(t, "10m3s"),
 				},
 				JobQueue: JobQueue{
 					Namespace:         "harbor.scanner.trivy:job-queue",
@@ -233,6 +233,52 @@ func TestGetConfig(t *testing.T) {
 			config, err := GetConfig()
 			assert.Equal(t, tc.expectedError, err)
 			assert.Equal(t, tc.expectedConfig, config)
+		})
+	}
+}
+
+func TestScanJobTTLDerivation(t *testing.T) {
+	testCases := []struct {
+		name        string
+		envs        Envs
+		expectedTTL time.Duration
+	}{
+		{
+			name:        "Derives 2x Trivy timeout plus 3s when unset",
+			envs:        Envs{"SCANNER_TRIVY_TIMEOUT": "10m"},
+			expectedTTL: parseDuration(t, "20m3s"),
+		},
+		{
+			name:        "Explicit TTL wins over derivation",
+			envs:        Envs{"SCANNER_TRIVY_TIMEOUT": "10m", "SCANNER_STORE_REDIS_SCAN_JOB_TTL": "1h"},
+			expectedTTL: parseDuration(t, "1h"),
+		},
+		{
+			name:        "Non-positive TTL falls back to derivation",
+			envs:        Envs{"SCANNER_STORE_REDIS_SCAN_JOB_TTL": "-5m"},
+			expectedTTL: parseDuration(t, "10m3s"),
+		},
+		{
+			name:        "Zero TTL falls back to derivation",
+			envs:        Envs{"SCANNER_STORE_REDIS_SCAN_JOB_TTL": "0"},
+			expectedTTL: parseDuration(t, "10m3s"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			setEnvs(t, tc.envs)
+			config, err := GetConfig()
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedTTL, config.RedisStore.ScanJobTTL)
+		})
+	}
+
+	for _, timeout := range []string{"-2s", "0", "25h"} {
+		t.Run("Rejects Trivy timeout "+timeout, func(t *testing.T) {
+			setEnvs(t, Envs{"SCANNER_TRIVY_TIMEOUT": timeout})
+			_, err := GetConfig()
+			require.ErrorContains(t, err, "SCANNER_TRIVY_TIMEOUT")
 		})
 	}
 }
