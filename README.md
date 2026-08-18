@@ -54,7 +54,7 @@ commits are cherry-picked back into this fork twice a day by
 ## Performance
 
 - **Scan reports are gzip-compressed in Redis** ([#31]) - stored reports shrink about 7x (5.3x-17.2x depending on the report).
-- **The report lives in its own Redis key** ([#43]) - a 3,119-artifact "Scan All" finishes 30% faster and peaks at 274 MB instead of 1,020 MB, roughly 18x below the pre-compression baseline in [#28].
+- **The report lives in its own Redis key** ([#43]) - a 3,119-artifact "Scan All" finishes 30% faster and peaks at 274 MB, roughly 18x below the pre-compression baseline in [#28].
 - **Vulnerability scans can be served from an existing SBOM accessory** ([#38], opt-in) - 6x to 35x faster, with identical findings and a fallback to a full image scan.
 
 Hot-path Go benchmarks guard against regressions ([#12]): `go test -bench=. -benchmem ./pkg/trivy/... ./pkg/scan/...`.
@@ -91,7 +91,7 @@ cosign verify \
 
 ## Release flow
 
-Releases are fully automated. **Never push a `v*` tag by hand.** Full detail in [docs/RELEASES.md](docs/RELEASES.md).
+Releases are fully automated. Full detail in [docs/RELEASES.md](docs/RELEASES.md).
 
 ```
 conventional PR title -> squash merge to main -> release-please opens "chore: release X.Y.Z"
