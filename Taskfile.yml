@@ -8,6 +8,7 @@
 #   task build PLATFORMS=linux/amd64,linux/arm64
 #   task image                               # CI: multi-arch push, local: native push
 #   task image:local                         # local image for component tests (--load)
+#   task image:verify IMAGE_TAG=vX.Y.Z       # assert a pushed image has every platform
 ---
 version: '3'
 
@@ -322,6 +323,75 @@ tasks:
     cmds:
       - task: image
         vars: {PUSH: "false"}
+
+  image:verify:
+    desc: "Verify a pushed image index carries exactly IMAGE_PLATFORMS (IMAGE_REF=... or IMAGE_TAG=... to select)"
+    vars:
+      IMAGE_TAG: '{{.IMAGE_TAG | default .VERSION}}'
+      IMAGE_REF: '{{.IMAGE_REF | default (printf "%s/%s/%s:%s" .REGISTRY_ADDRESS .REGISTRY_PROJECT .IMAGE_NAME .IMAGE_TAG)}}'
+      PLATFORMS: '{{.PLATFORMS | default .IMAGE_PLATFORMS}}'
+    preconditions:
+      - sh: docker buildx version >/dev/null 2>&1
+        msg: "docker buildx is required to inspect a published image index"
+      - sh: command -v jq >/dev/null 2>&1
+        msg: "jq is required to inspect a published image index"
+    cmds:
+      - cmd: |
+          reference='{{.IMAGE_REF}}'
+          # grep exits 1 on an all-empty list, which errexit would turn into a
+          # silent abort before the guard below can say what is wrong.
+          expected=$(printf '%s' '{{.PLATFORMS}}' | tr ',' '\n' | tr -d '[:blank:]' | grep -v '^$' | sort -u || true)
+          if [ -z "${expected}" ]; then
+            echo "No expected platforms given (PLATFORMS/IMAGE_PLATFORMS is empty)" >&2
+            exit 1
+          fi
+
+          if ! raw=$(docker buildx imagetools inspect --raw "${reference}" 2>&1); then
+            echo "Cannot inspect ${reference}: ${raw}" >&2
+            exit 1
+          fi
+
+          if ! media_type=$(printf '%s' "${raw}" | jq -r '.mediaType // ""' 2>/dev/null); then
+            echo "Manifest of ${reference} is not valid JSON" >&2
+            exit 1
+          fi
+          if [ "${media_type}" != "application/vnd.oci.image.index.v1+json" ]; then
+            echo "Not a multi-arch OCI image index: ${reference} (mediaType: ${media_type:-none})" >&2
+            exit 1
+          fi
+
+          # buildx records provenance/SBOM attestations as unknown/unknown entries
+          # of the index; they are attachments, not platforms.
+          actual=$(printf '%s' "${raw}" \
+            | jq -r '.manifests[]? | "\(.platform.os // "?")/\(.platform.architecture // "?")" | select(. != "unknown/unknown")' \
+            | sort)
+          if [ -z "${actual}" ]; then
+            echo "No platform manifests in ${reference}" >&2
+            exit 1
+          fi
+
+          failed=0
+          for platform in ${expected}; do
+            printf '%s\n' "${actual}" | grep -Fqx "${platform}" || {
+              echo "Missing ${platform} manifest in ${reference}" >&2
+              failed=1
+            }
+          done
+          for platform in ${actual}; do
+            printf '%s\n' "${expected}" | grep -Fqx "${platform}" || {
+              echo "Unexpected ${platform} manifest in ${reference}" >&2
+              failed=1
+            }
+          done
+          duplicates=$(printf '%s\n' "${actual}" | uniq -d)
+          if [ -n "${duplicates}" ]; then
+            echo "Duplicate platform manifests in ${reference}: $(printf '%s' "${duplicates}" | tr '\n' ' ')" >&2
+            failed=1
+          fi
+          [ "${failed}" -eq 0 ] || exit 1
+
+          echo "Verified ${reference}: $(printf '%s' "${actual}" | tr '\n' ' ')"
+        silent: true
 
   # ============================================================================
   # Helm Chart
