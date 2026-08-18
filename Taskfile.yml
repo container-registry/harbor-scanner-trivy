@@ -101,28 +101,53 @@ tasks:
       PLATFORM: '{{index .MATCH 0}}'
       GOOS: '{{index (splitList "-" (index .MATCH 0)) 0}}'
       GOARCH: '{{index (splitList "-" (index .MATCH 0)) 1}}'
+      # The `module@version` entries of trivy-cve-overrides.txt, comments
+      # stripped and sorted, so the same string doubles as the cache key below.
+      CVE_OVERRIDES:
+        sh: >-
+          awk '{sub(/#.*/, ""); gsub(/^[ \t]+|[ \t]+$/, "")} NF'
+          {{.ROOT_DIR}}/trivy-cve-overrides.txt | sort | tr '\n' ' ' | sed 's/ *$//'
     # Unlike the adapter binary, the trivy build is fully determined by the
-    # pinned version, so a version stamp makes local rebuilds no-ops.
+    # pinned version and the override list, so stamping both makes local
+    # rebuilds no-ops while still rebuilding when either changes.
     status:
       - test -x bin/{{.PLATFORM}}/trivy
       - test "$(cat bin/{{.PLATFORM}}/.trivy-version 2>/dev/null)" = "{{.TRIVY_BASE_IMAGE_VERSION}}"
       - test -s bin/{{.PLATFORM}}/.trivy-commit
+      - test "$(cat bin/{{.PLATFORM}}/.trivy-overrides 2>/dev/null)" = "{{.CVE_OVERRIDES}}"
     cmds:
       - cmd: mkdir -p bin/{{.PLATFORM}}
         silent: true
       # Mirrors trivy's own goreleaser build (ldflags, CGO_ENABLED=0,
       # GOEXPERIMENT=jsonv2) so the binary is equivalent to the official one
-      # but built by us, which keeps CVE overrides possible via go mod edit.
+      # but built by us, which is what makes the CVE overrides below possible.
       - |
         TRIVY_DIR=$(mktemp -d)
         trap 'rm -rf "$TRIVY_DIR"' EXIT
         git clone --branch v{{.TRIVY_BASE_IMAGE_VERSION}} --depth 1 https://github.com/aquasecurity/trivy.git "$TRIVY_DIR"
         cd "$TRIVY_DIR"
+        for require in {{.CVE_OVERRIDES}}; do
+          go mod edit -require "$require"
+        done
+        # -e so unrelated package-load errors in trivy's testdata don't abort
+        # the tidy; a broken override still surfaces, either as a dropped
+        # requirement below or as a failing go build (errexit fails the task).
+        go mod tidy -e
+        for require in {{.CVE_OVERRIDES}}; do
+          module=${require%@*}
+          selected=$(go list -m "$module" | awk '{print $2}') || {
+            echo "CVE override $require is no longer part of trivy's module graph - drop or update it in trivy-cve-overrides.txt" >&2
+            exit 1
+          }
+          echo "  override $module: pinned=${require##*@} selected=$selected"
+        done
         GOEXPERIMENT=jsonv2 CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -trimpath \
           -ldflags "-s -w -extldflags '-static' -X github.com/aquasecurity/trivy/pkg/version/app.ver={{.TRIVY_BASE_IMAGE_VERSION}}" \
           -o "{{.ROOT_DIR}}/bin/{{.PLATFORM}}/trivy" ./cmd/trivy
         git rev-parse --short=8 HEAD > "{{.ROOT_DIR}}/bin/{{.PLATFORM}}/.trivy-commit"
       - cmd: echo "{{.TRIVY_BASE_IMAGE_VERSION}}" > bin/{{.PLATFORM}}/.trivy-version
+        silent: true
+      - cmd: echo "{{.CVE_OVERRIDES}}" > bin/{{.PLATFORM}}/.trivy-overrides
         silent: true
 
   dist:binaries:
