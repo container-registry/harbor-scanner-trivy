@@ -5,6 +5,7 @@
 * [Set up Local Development Environment](#set-up-local-development-environment)
 * [Build](#build)
 * [Run Tests](#run-tests)
+* [Check for Vulnerabilities](#check-for-vulnerabilities)
 * [Test Against a Local Harbor](#test-against-a-local-harbor)
 * [Commit Conventions](#commit-conventions)
 
@@ -54,6 +55,37 @@ task test              # unit tests with race detection and coverage
 task test:integration  # integration tests (requires Docker and the trivy CLI in PATH)
 task test:component    # component tests (requires Docker; builds the image first)
 task lint              # golangci-lint
+```
+
+## Check for Vulnerabilities
+
+Scan the module dependency graph with the pinned [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck):
+
+```
+task vuln-check
+```
+
+CI runs the same scan through `task vuln-report`, which stores the raw JSON in
+`vulnerability-check/` and renders it into markdown. Run it locally to see exactly what CI
+reports:
+
+```
+task vuln-report                       # writes vulnerability-check/report.md and comment.md
+cat vulnerability-check/report.md      # every finding
+cat vulnerability-check/comment.md     # only findings with a published fix
+```
+
+`report.md` goes to the workflow job summary and `comment.md` becomes a sticky pull request
+comment that is updated on every re-run and removed once nothing fixable is left. Findings do
+not fail the job; only a govulncheck run that could not produce a usable report does, which
+`task vuln-report:check` verifies.
+
+The renderer lives in [`tools/govulncheck-report`](tools/govulncheck-report) and can also be
+pointed at a report you produced yourself:
+
+```
+govulncheck -format json ./... > govulncheck.json
+go run ./tools/govulncheck-report -json govulncheck.json -mode fixable
 ```
 
 ## Test Against a Local Harbor
