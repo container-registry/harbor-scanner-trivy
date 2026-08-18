@@ -101,12 +101,13 @@ tasks:
       PLATFORM: '{{index .MATCH 0}}'
       GOOS: '{{index (splitList "-" (index .MATCH 0)) 0}}'
       GOARCH: '{{index (splitList "-" (index .MATCH 0)) 1}}'
-      # The `module@version` entries of trivy-cve-overrides.txt, comments
-      # stripped and sorted, so the same string doubles as the cache key below.
+      # The `<module> <audited> <required>` records of trivy-cve-overrides.txt,
+      # comments stripped, fields collapsed to single spaces and sorted, so the
+      # same string doubles as the cache key in status: below.
       CVE_OVERRIDES:
         sh: >-
-          awk '{sub(/#.*/, ""); gsub(/^[ \t]+|[ \t]+$/, "")} NF'
-          {{.ROOT_DIR}}/trivy-cve-overrides.txt | sort | tr '\n' ' ' | sed 's/ *$//'
+          awk '{sub(/#.*/, "")} NF {$1 = $1; print}'
+          {{.ROOT_DIR}}/trivy-cve-overrides.txt | sort | tr '\n' '|' | sed 's/|$//'
     # Unlike the adapter binary, the trivy build is fully determined by the
     # pinned version and the override list, so stamping both makes local
     # rebuilds no-ops while still rebuilding when either changes.
@@ -126,21 +127,48 @@ tasks:
         trap 'rm -rf "$TRIVY_DIR"' EXIT
         git clone --branch v{{.TRIVY_BASE_IMAGE_VERSION}} --depth 1 https://github.com/aquasecurity/trivy.git "$TRIVY_DIR"
         cd "$TRIVY_DIR"
-        for require in {{.CVE_OVERRIDES}}; do
-          go mod edit -require "$require"
-        done
-        # -e so unrelated package-load errors in trivy's testdata don't abort
-        # the tidy; a broken override still surfaces, either as a dropped
-        # requirement below or as a failing go build (errexit fails the task).
-        go mod tidy -e
-        for require in {{.CVE_OVERRIDES}}; do
-          module=${require%@*}
+        # Written to a file because the loops below redirect from it: in a
+        # pipeline the while-read body is a subshell, where `exit 1` would end
+        # the subshell rather than fail the build.
+        echo '{{.CVE_OVERRIDES}}' | tr '|' '\n' > "$TRIVY_DIR/.cve-overrides"
+        # Assert the audited version first, on the pristine tree and before any
+        # edit perturbs the graph. An entry whose module has moved is stale for
+        # this tag: applying it could pin below what upstream already ships, or
+        # do nothing at all, and either way the advisory needs re-checking.
+        while read -r module audited required; do
           selected=$(go list -m "$module" | awk '{print $2}') || {
-            echo "CVE override $require is no longer part of trivy's module graph - drop or update it in trivy-cve-overrides.txt" >&2
+            echo "CVE override: $module is not in the module graph of trivy v{{.TRIVY_BASE_IMAGE_VERSION}} - drop it from trivy-cve-overrides.txt" >&2
             exit 1
           }
-          echo "  override $module: pinned=${require##*@} selected=$selected"
-        done
+          if [ "$selected" != "$audited" ]; then
+            echo "CVE override: trivy v{{.TRIVY_BASE_IMAGE_VERSION}} selects $module $selected, but trivy-cve-overrides.txt was audited against $audited - re-check the advisories and update or drop the entry" >&2
+            exit 1
+          fi
+          # A required version below the audited one would pin the module down
+          # rather than up, and go mod edit -require would happily do it.
+          if [ "$(printf '%s\n%s\n' "$audited" "$required" | sort -V | tail -n1)" != "$required" ]; then
+            echo "CVE override: $module requires $required, which is not above the audited $audited - that would downgrade the module" >&2
+            exit 1
+          fi
+        done < "$TRIVY_DIR/.cve-overrides"
+        while read -r module audited required; do
+          go mod edit -require "$module@$required"
+        done < "$TRIVY_DIR/.cve-overrides"
+        # -e so unrelated package-load errors in trivy's testdata don't abort
+        # the tidy; a broken override still surfaces, either in the check below
+        # or as a failing go build (errexit fails the task either way).
+        go mod tidy -e
+        while read -r module audited required; do
+          selected=$(go list -m "$module" | awk '{print $2}') || {
+            echo "CVE override: $module dropped out of the module graph after go mod tidy" >&2
+            exit 1
+          }
+          if [ "$selected" = "$audited" ]; then
+            echo "CVE override: $module is still at the vulnerable $audited after go mod tidy - the override did not apply" >&2
+            exit 1
+          fi
+          echo "  override $module: $audited -> $selected (requires $required)"
+        done < "$TRIVY_DIR/.cve-overrides"
         GOEXPERIMENT=jsonv2 CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -trimpath \
           -ldflags "-s -w -extldflags '-static' -X github.com/aquasecurity/trivy/pkg/version/app.ver={{.TRIVY_BASE_IMAGE_VERSION}}" \
           -o "{{.ROOT_DIR}}/bin/{{.PLATFORM}}/trivy" ./cmd/trivy
