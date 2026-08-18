@@ -5,7 +5,7 @@
 # Harbor Scanner Adapter for Trivy
 
 Translates the [Harbor] scanner API into [Trivy] commands, so Harbor can report vulnerabilities and SBOMs for the
-images it stores. It is the default vulnerability scanner in Harbor >= 2.2.
+images it stores using Trivy. It is the default vulnerability scanner in Harbor >= 2.2.
 
 This repository is a fork of [goharbor/harbor-scanner-trivy], maintained by [container-registry.com].
 
@@ -28,8 +28,9 @@ This repository is a fork of [goharbor/harbor-scanner-trivy], maintained by [con
 Upstream ships the adapter that Harbor bundles, on Harbor's release cadence. We run Harbor as a service and needed
 three things that cadence and scope do not cover:
 
-1. **Scan throughput and memory.** A bulk "Scan All" over a few thousand artifacts pushed the shared Redis to
-   4.83 GiB and OOM'd it. Fixing that meant changing how scan reports are stored, not how they are produced.
+1. **Scan throughput and memory.** A bulk "Scan All" over a few thousand artifacts filled the Redis instance
+   the adapter shares with Harbor: 4.83 GiB peak, OOM-killed, Harbor down with it ([#28]). Fixing that meant
+   changing how scan reports are stored, not how they are produced.
 2. **The Trivy binary itself.** Upstream consumes the prebuilt `aquasec/trivy` binary. We compile Trivy from source
    at the pinned version, which makes its dependencies patchable via `go mod` overrides when a CVE lands before
    Aqua cuts a release.
@@ -52,10 +53,8 @@ commits are cherry-picked back into this fork twice a day by
 
 ## Performance
 
-Three changes, each measured before it was merged.
-
 **Scan reports are gzip-compressed in Redis** ([#31]). Vulnerability and SBOM reports are repetitive JSON blobs of
-up to 2.3 MB per job. Measured end-to-end against a real Harbor:
+up to 2.3 MB per job. Stored versus decompressed size, end to end against Harbor:
 
 | Report | Stored | Decompressed | Ratio |
 |---|---|---|---|
@@ -65,8 +64,8 @@ up to 2.3 MB per job. Measured end-to-end against a real Harbor:
 | `alpine:3.19` SBOM | 2.9 KB | 27.5 KB | 9.4x |
 
 **The report moved into its own Redis key** ([#43]), so a status flip no longer reads and rewrites a multi-MB blob.
-The job key stays under 1 KiB. Measured on `8gears.container-registry.com` over **3,119 artifacts**, against the
-previous release:
+The job key stays under 1 KiB. On `8gears.container-registry.com`, **3,119 artifacts**, against the previous
+release:
 
 | | Before | After | Change |
 |---|---|---|---|
@@ -323,6 +322,7 @@ maintained under [goharbor](https://github.com/goharbor/harbor-scanner-trivy). T
 [gh-rate-limit]: https://github.com/aquasecurity/trivy#github-rate-limiting
 [docker-dns]: https://docs.docker.com/config/containers/container-networking/#dns-services
 
+[#28]: https://github.com/container-registry/harbor-scanner-trivy/issues/28
 [#12]: https://github.com/container-registry/harbor-scanner-trivy/pull/12
 [#31]: https://github.com/container-registry/harbor-scanner-trivy/pull/31
 [#38]: https://github.com/container-registry/harbor-scanner-trivy/pull/38
