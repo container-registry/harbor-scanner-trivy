@@ -24,7 +24,9 @@
    task setup
    ```
 
-Tool and base-image version pins live in [`versions.env`](versions.env).
+Tool and base-image version pins live in [`versions.env`](versions.env). The dependency
+versions forced onto the Trivy CLI we build from source live in
+[`trivy-cve-overrides.txt`](trivy-cve-overrides.txt), which documents how to re-check them.
 Run `task --list` to see all available tasks and `task info` for the build configuration.
 
 ## Build
