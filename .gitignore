@@ -12,3 +12,6 @@ coverage.txt
 # Directory Cache Files
 .DS_Store
 thumbs.db
+
+# govulncheck reports (task vuln-report)
+vulnerability-check/
