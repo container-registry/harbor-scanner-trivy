@@ -89,6 +89,18 @@ cosign verify-attestation \
   8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z
 ```
 
+Verify the published architectures:
+
+```sh
+task image:verify IMAGE_TAG=vX.Y.Z
+```
+
+The publish workflow runs the same check on the pushed digest, so a build that
+loses an architecture fails the release instead of shipping. The task asserts
+the reference is an OCI image index whose platforms are exactly
+`IMAGE_PLATFORMS` (`linux/amd64,linux/arm64`); `IMAGE_REF=...` verifies an
+arbitrary reference, `PLATFORMS=...` a different expectation.
+
 ## Required Configuration
 
 | Name | Type | Required | Purpose |
