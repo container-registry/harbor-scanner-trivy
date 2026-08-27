@@ -28,6 +28,7 @@ This repository is a fork of [goharbor/harbor-scanner-trivy], maintained by [con
 Upstream ships the adapter that Harbor bundles, on Harbor's release cadence. We run Harbor as a service and needed
 three things that cadence and scope do not cover:
 
+<<<<<<< HEAD
 1. **Scan throughput and memory.** A bulk "Scan All" over a few thousand artifacts filled the Redis instance
    the adapter shares with Harbor: 4.83 GiB peak, OOM-killed, Harbor down with it ([#28]). Fixing that meant
    changing how scan reports are stored, not how they are produced.
@@ -36,6 +37,25 @@ three things that cadence and scope do not cover:
    Aqua cuts a release.
 3. **Our own release train.** Signed, attested, multi-arch artifacts published on demand rather than when the next
    Harbor version ships.
+=======
+| Harbor                   | Trivy Adapter | Trivy           |
+|--------------------------|---------------|-----------------|
+| harbor v2.15.3           | v0.39.0       | [trivy v0.74.0] |
+| harbor v2.15.2           | v0.38.0       | [trivy v0.72.0] |
+| harbor v2.15.1           | v0.36.0       | [trivy v0.70.0] |
+| harbor v2.15.0           | v0.35.1       | [trivy v0.69.3] |
+| harbor v2.14.2           | v0.34.2       | [trivy v0.68.2] |
+| harbor v2.14.1           | v0.34.0       | [trivy v0.66.0] |
+| harbor v2.14.0           | v0.34.0       | [trivy v0.66.0] |
+| harbor v2.13.4           | v0.34.2       | [trivy v0.68.2] |
+| harbor v2.13.2           | v0.33.2       | [trivy v0.64.1] |
+| harbor v2.13.1           | v0.33.1       | [trivy v0.62.1] |
+| harbor v2.13.0           | v0.33.0-rc.2  | [trivy v0.61.0] |
+| harbor v2.12.3           | v0.32.4       | [trivy v0.61.1] |
+| harbor v2.12.2           | v0.32.3       | [trivy v0.58.2] |
+| harbor v2.12.1           | v0.32.2       | [trivy v0.57.1] |
+| harbor v2.12.0           | v0.32.0       | [trivy v0.56.1] |
+>>>>>>> 0d19ba5 (chore: bump harbor-scanner-trivy to v0.39.0 and Trivy to v0.74.0)
 
 Nothing here is a protocol fork: the Harbor scanner API, the report format and the findings are unchanged. Upstream
 commits are cherry-picked back into this fork twice a day by

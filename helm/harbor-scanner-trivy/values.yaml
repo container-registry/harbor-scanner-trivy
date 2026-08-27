@@ -2,9 +2,15 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
+<<<<<<< HEAD
   registry: 8gears.container-registry.com
   repository: 8gcr/harbor-scanner-trivy
   tag: v0.40.0 # x-release-please-version
+=======
+  registry: docker.io
+  repository: goharbor/harbor-scanner-trivy
+  tag: v0.39.0
+>>>>>>> 0d19ba5 (chore: bump harbor-scanner-trivy to v0.39.0 and Trivy to v0.74.0)
   pullPolicy: IfNotPresent
 
 replicaCount: 1

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Binary is pre-cross-compiled by `task build` into bin/linux-<arch>/.
 # TRIVY_VERSION (pinned as TRIVY_BASE_IMAGE_VERSION in versions.env) and
 # LPROBE_VERSION (pinned in versions.env) are passed by `task image`; there are
@@ -6,6 +7,10 @@ ARG TRIVY_VERSION
 ARG LPROBE_VERSION
 
 FROM ghcr.io/fivexl/lprobe:${LPROBE_VERSION} AS lprobe
+=======
+# That's the only place where you're supposed to specify version of Trivy.
+ARG TRIVY_VERSION=0.74.0
+>>>>>>> 0d19ba5 (chore: bump harbor-scanner-trivy to v0.39.0 and Trivy to v0.74.0)
 
 FROM aquasec/trivy:${TRIVY_VERSION}
 
