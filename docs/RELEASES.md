@@ -8,12 +8,12 @@ instance, config, manifest, changelog and tag namespace:
 | Line | Covers | Tag | Config / manifest | Changelog |
 |------|--------|-----|-------------------|-----------|
 | Adapter | everything except `helm/`, `.github/`, `docs/`, `taskfile/` | `vX.Y.Z` | `release-please-config.json` / `.release-please-manifest.json` | `CHANGELOG.md` |
-| Helm chart | `helm/harbor-scanner-trivy/` | `chart-vX.Y.Z` | `release-please-config-chart.json` / `.release-please-manifest-chart.json` | `helm/harbor-scanner-trivy/CHANGELOG.md` |
+| Helm chart | `deploy/chart/` | `chart-vX.Y.Z` | `release-please-config-chart.json` / `.release-please-manifest-chart.json` | `deploy/chart/CHANGELOG.md` |
 
 They are separate so a chart fix does not force an adapter release that
 republishes an identical image, and an adapter release does not republish an
 unchanged chart. The two are linked in one direction only: the adapter line owns
-`appVersion` in `helm/harbor-scanner-trivy/Chart.yaml` (via the
+`appVersion` in `deploy/chart/Chart.yaml` (via the
 `x-release-please-version` marker), the chart line owns `version`. Both are
 driven by the same `Release Please` workflow on every push to `main`.
 
@@ -27,7 +27,7 @@ Release state is defined by:
 
 1. PRs are squash-merged to `main` with conventional commit titles. The PR title becomes the commit release-please parses, so the repository must allow **squash merging only** (disable merge commits and rebase merging).
 2. On every push to `main`, the `Release Please` workflow opens or updates a release PR **per line**, for whichever line has releasable commits:
-   - `chore: release X.Y.Z` bumps `.release-please-manifest.json`, updates `CHANGELOG.md`, and stamps `appVersion` into `helm/harbor-scanner-trivy/Chart.yaml`.
+   - `chore: release X.Y.Z` bumps `.release-please-manifest.json`, updates `CHANGELOG.md`, and stamps `appVersion` into `deploy/chart/Chart.yaml`.
    - `chore: release harbor-scanner-trivy chart X.Y.Z` bumps `.release-please-manifest-chart.json`, updates the chart's `CHANGELOG.md`, and stamps `version` into `Chart.yaml`.
 3. Squash-merging a release PR creates its tag (`vX.Y.Z` or `chart-vX.Y.Z`) and GitHub Release.
 4. An **adapter** release then automatically:
@@ -70,7 +70,7 @@ Use `upstream:` for changes synced from `goharbor/harbor-scanner-trivy`.
 
 The same rules apply to both lines. Which line a commit lands on is decided by
 its paths: the adapter line ignores `.github/`, `docs/`, `helm/` and `taskfile/`;
-the chart line only sees `helm/harbor-scanner-trivy/`. A commit touching both
+the chart line only sees `deploy/chart/`. A commit touching both
 opens both release PRs. Use `ci:` for workflow-only changes.
 
 Scope chart commits explicitly - `feat(chart):`, `fix(chart):` - so the two
@@ -142,7 +142,7 @@ Artifact Hub listing (one-off): add the repository at
 [artifacthub.io](https://artifacthub.io) as kind *Helm*, URL
 `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy`, then put
 the ID it assigns into `repositoryID` in
-`helm/harbor-scanner-trivy/artifacthub-repo.yml` to enable the verified-publisher
+`deploy/chart/artifacthub-repo.yml` to enable the verified-publisher
 badge.
 
 There is no registry password anywhere: publish jobs authenticate keyless through
@@ -175,7 +175,7 @@ Before merging an adapter release PR:
 
 Before merging a chart release PR:
 
-1. `helm/harbor-scanner-trivy/CHANGELOG.md` and `Chart.yaml` (`version`) show the new chart version.
+1. `deploy/chart/CHANGELOG.md` and `Chart.yaml` (`version`) show the new chart version.
 2. `Chart.yaml` `appVersion` points at an adapter version that is already published.
 3. `release-as` is **not** still pinned in `release-please-config-chart.json`. It
    pins the first chart release at `1.0.0`, and must be removed after that

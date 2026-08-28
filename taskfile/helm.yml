@@ -8,7 +8,7 @@
 version: '3'
 
 vars:
-  CHART_DIR: helm/harbor-scanner-trivy
+  CHART_DIR: deploy/chart
   CHART_NAME: harbor-scanner-trivy
   # Values used by the render-and-scan tasks. The chart installs with no
   # required values, so this is deliberately empty; it exists as the one place

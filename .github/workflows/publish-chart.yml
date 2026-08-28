@@ -156,16 +156,16 @@ jobs:
       - name: Add the per-release Artifact Hub images annotation
         # Shared with the chart-ci dry run, so this path is exercised on every
         # chart PR rather than first on release day.
-        run: .github/scripts/chart-annotate-images.sh helm/harbor-scanner-trivy "${REGISTRY_ADDRESS}" "${REGISTRY_PROJECT}"
+        run: .github/scripts/chart-annotate-images.sh deploy/chart "${REGISTRY_ADDRESS}" "${REGISTRY_PROJECT}"
 
       - name: Validate Artifact Hub metadata
-        run: ah lint --kind helm --path helm/harbor-scanner-trivy
+        run: ah lint --kind helm --path deploy/chart
 
       - name: Package chart
         # VERSION comes from the validated release tag. appVersion is left as
         # committed, so the default image tag resolves to an adapter release
         # that has already been published.
-        run: helm package helm/harbor-scanner-trivy --version "${VERSION}" --destination dist
+        run: helm package deploy/chart --version "${VERSION}" --destination dist
 
       - name: Push chart
         id: push
@@ -194,7 +194,7 @@ jobs:
         # artifacthub-repo.yml rides next to the chart as its own OCI artifact
         # under the artifacthub.io tag; Artifact Hub reads it for ownership and
         # the verified-publisher badge. It is .helmignore'd out of the package.
-        working-directory: helm/harbor-scanner-trivy
+        working-directory: deploy/chart
         run: |
           oras push "${REGISTRY_ADDRESS}/${REGISTRY_PROJECT}/charts/harbor-scanner-trivy:artifacthub.io" \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
@@ -226,7 +226,7 @@ jobs:
             echo "  --version ${VERSION} --namespace harbor --create-namespace"
             echo "\`\`\`"
             echo ""
-            echo "Chart \`${VERSION}\` defaults to adapter \`$(grep -E '^appVersion:' helm/harbor-scanner-trivy/Chart.yaml | awk '{print $2}' | tr -d '\"')\`."
+            echo "Chart \`${VERSION}\` defaults to adapter \`$(grep -E '^appVersion:' deploy/chart/Chart.yaml | awk '{print $2}' | tr -d '\"')\`."
             echo ""
             echo "**Verify the chart signature:**"
             echo ""

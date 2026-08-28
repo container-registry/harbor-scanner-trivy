@@ -55,9 +55,9 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      release_created: ${{ steps.release.outputs['helm/harbor-scanner-trivy--release_created'] }}
-      tag_name: ${{ steps.release.outputs['helm/harbor-scanner-trivy--tag_name'] }}
-      version: ${{ steps.release.outputs['helm/harbor-scanner-trivy--version'] }}
+      release_created: ${{ steps.release.outputs['deploy/chart--release_created'] }}
+      tag_name: ${{ steps.release.outputs['deploy/chart--tag_name'] }}
+      version: ${{ steps.release.outputs['deploy/chart--version'] }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7  # v5.0.0
         id: release

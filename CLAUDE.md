@@ -58,7 +58,7 @@ go test -v -tags=integration -run TestName ./test/integration/...
 - `pkg/etc/` -- configuration via environment variables (all prefixed `SCANNER_`), parsed with `caarlos0/env/v6`
 - `pkg/harbor/` -- Harbor domain models (ScanRequest, ScanReport, Severity, etc.)
 - `pkg/mock/` -- testify mocks for interfaces
-- `helm/harbor-scanner-trivy/` -- the Helm chart: `values.schema.json` closes the
+- `deploy/chart/` -- the Helm chart: `values.schema.json` closes the
   root so unknown keys fail the render, `templates/validate-values.yaml` holds the
   cross-field guards a schema cannot express, `tests/` is a helm-unittest suite,
   and `ci/` + `example/` are values scenarios CI renders on every change

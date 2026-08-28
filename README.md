@@ -257,7 +257,7 @@ requests get a higher limit.
 
 - [Architecture](./docs/ARCHITECTURE.md) - deployment topology.
 - [Releases](./docs/RELEASES.md) - full release process, artifacts and maintainer checklist.
-- [Helm chart](./helm/harbor-scanner-trivy/README.md) - chart values.
+- [Helm chart](./deploy/chart/README.md) - chart values.
 
 ## Contributing
 

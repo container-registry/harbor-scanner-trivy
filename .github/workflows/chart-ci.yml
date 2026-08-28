@@ -4,7 +4,7 @@ name: Chart CI
 on:
   pull_request:
     paths:
-      - "helm/**"
+      - "deploy/chart/**"
       - "taskfile/helm.yml"
       - "versions.env"
       - ".github/workflows/chart-ci.yml"
@@ -13,7 +13,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "helm/**"
+      - "deploy/chart/**"
       - "taskfile/helm.yml"
       - ".github/workflows/chart-ci.yml"
       - ".github/scripts/chart-annotate-images.sh"

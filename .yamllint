@@ -6,8 +6,8 @@ rules:
   truthy: disable
 
 ignore: |
-  # Go template syntax is not valid YAML. Everything else under helm/ - values,
-  # Chart.yaml, ci/ and example/ scenarios - is linted here, and again by
+  # Go template syntax is not valid YAML. Everything else under deploy/chart -
+  # values, Chart.yaml, ci/ and example/ scenarios - is linted here, and again by
   # `ct lint` with chart-testing's own config.
-  /helm/harbor-scanner-trivy/templates/
-  /helm/harbor-scanner-trivy/tests/__snapshot__/
+  /deploy/chart/templates/
+  /deploy/chart/tests/__snapshot__/

@@ -43,12 +43,12 @@ annotations:
   artifacthub.io/operator: "false"
   artifacthub.io/signKey: |
     fingerprint: keyless (Sigstore / Fulcio)
-    url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/helm/harbor-scanner-trivy/README.md#verifying-the-chart-signature
+    url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/README.md#verifying-the-chart-signature
   artifacthub.io/links: |
     - name: Chart source
-      url: https://github.com/container-registry/harbor-scanner-trivy/tree/main/helm/harbor-scanner-trivy
+      url: https://github.com/container-registry/harbor-scanner-trivy/tree/main/deploy/chart
     - name: Chart migration guide
-      url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/helm/harbor-scanner-trivy/docs/MIGRATION.md
+      url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/docs/MIGRATION.md
     - name: Adapter architecture
       url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/docs/ARCHITECTURE.md
     - name: Harbor
