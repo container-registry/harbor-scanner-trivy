@@ -1,0 +1,106 @@
+---
+# The Trivy scan cache: which backend the adapter is told to use, and the
+# combinations that cannot work. `fs` is a single BoltDB file with an exclusive
+# process lock, so it bounds both the disk and the achievable concurrency.
+suite: scan cache
+release:
+  name: t
+templates:
+  - statefulset.yaml
+tests:
+  - it: defaults to a size-capped fs cache
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: "fs"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_MAX_SIZE
+            value: "3GiB"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_TTL
+            value: "168h"
+
+  - it: keeps Redis TLS settings out of a filesystem cache
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_REDIS_TLS
+            value: "false"
+
+  - it: allows the cap to be disabled
+    set:
+      trivy.cacheMaxSize: "0"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_MAX_SIZE
+            value: "0"
+
+  - it: passes the memory backend through
+    set:
+      trivy.cacheBackend: memory
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: "memory"
+
+  - it: passes a Redis backend with its TTL and TLS material
+    set:
+      trivy.cacheBackend: rediss://scan-cache:6379/0
+      trivy.cacheTTL: 24h
+      trivy.cacheRedisTLS: true
+      trivy.cacheRedisCACert: /certs/ca.crt
+      trivy.cacheRedisCert: /certs/tls.crt
+      trivy.cacheRedisKey: /certs/tls.key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: "rediss://scan-cache:6379/0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_TTL
+            value: "24h"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_REDIS_TLS
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_REDIS_CA
+            value: /certs/ca.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_REDIS_CERT
+            value: /certs/tls.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_REDIS_KEY
+            value: /certs/tls.key
+
+  - it: lets several workers share a Redis cache
+    set:
+      trivy.cacheBackend: redis://scan-cache:6379/0
+      jobQueue.workerConcurrency: 4
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_JOB_QUEUE_WORKER_CONCURRENCY
+            value: "4"

@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
+      - "helm/**"
+      - "taskfile/helm.yml"
       - "LICENSE"
       - "NOTICE"
   push:
@@ -13,6 +15,8 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
+      - "helm/**"
+      - "taskfile/helm.yml"
       - "LICENSE"
       - "NOTICE"
   schedule:
@@ -114,20 +118,6 @@ jobs:
           go: "false"
       - name: Run YAML lint
         run: task lint:yaml
-
-  helm-lint:
-    name: Helm Lint
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-        with:
-          go: "false"
-      - name: Lint Helm chart
-        run: task helm:lint
 
   vuln-check:
     name: govulncheck

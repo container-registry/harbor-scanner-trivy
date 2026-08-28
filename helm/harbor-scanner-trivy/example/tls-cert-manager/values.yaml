@@ -1,0 +1,36 @@
+---
+api:
+  tls:
+    enabled: true
+    # Written by the Certificate in extraManifests below.
+    existingSecret: harbor-scanner-trivy-tls
+    # Mutual TLS: only Harbor, holding a cert from this CA, may call the API.
+    # clientCAs:
+    #   existingConfigMap: harbor-ca-bundle
+    #   keys:
+    #     - ca.crt
+
+extraManifests:
+  # tpl-rendered, so .Release and .Values are available.
+  - |
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: {{ .Release.Name }}-tls
+      namespace: {{ .Release.Namespace }}
+    spec:
+      secretName: harbor-scanner-trivy-tls
+      duration: 2160h
+      renewBefore: 360h
+      privateKey:
+        algorithm: ECDSA
+        size: 256
+      # Harbor connects to the Service name, so it must be a SAN.
+      dnsNames:
+        - {{ .Release.Name }}-harbor-scanner-trivy
+        - {{ .Release.Name }}-harbor-scanner-trivy.{{ .Release.Namespace }}
+        - {{ .Release.Name }}-harbor-scanner-trivy.{{ .Release.Namespace }}.svc
+      issuerRef:
+        name: harbor-ca-issuer
+        kind: Issuer
+        group: cert-manager.io

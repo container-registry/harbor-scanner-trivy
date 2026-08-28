@@ -1,0 +1,11 @@
+---
+# A values file the doctor must stay silent about.
+redis:
+  existingSecret: harbor-scanner-trivy-redis
+trivy:
+  existingSecret: harbor-scanner-trivy-github
+  cacheBackend: redis://scan-cache:6379/0
+jobQueue:
+  workerConcurrency: 4
+persistence:
+  enabled: true

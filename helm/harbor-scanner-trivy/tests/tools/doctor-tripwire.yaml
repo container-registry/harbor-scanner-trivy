@@ -1,0 +1,30 @@
+---
+# Every finding the doctor knows how to make. All of it renders fine and passes
+# the schema, which is the point: these are the mistakes only a human would
+# otherwise catch.
+replicaCount: 1
+jobQueue:
+  workerConcurrency: 8
+persistence:
+  enabled: false
+trivy:
+  skipUpdate: true
+  gitHubToken: ghp_inline
+  insecure: true
+  dbRepository: ghcr.io/aquasecurity/trivy-db
+redis:
+  url: redis://:hunter2@redis:6379/5
+api:
+  tls:
+    enabled: true
+    certificate: CERT
+    key: KEY
+global:
+  imageRegistry: registry.internal
+imageCredentials:
+  create: true
+  username: u
+  password: p
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

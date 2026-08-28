@@ -1,0 +1,9 @@
+---
+# The URL (password included) is read from a Secret you own, so it never
+# reaches the pod spec.
+redis:
+  existingSecret: harbor-scanner-trivy-redis
+  existingSecretKey: url
+  pool:
+    maxActive: 10
+    maxIdle: 10

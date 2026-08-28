@@ -1,0 +1,5 @@
+---
+# Chart defaults, unchanged. `ct lint` installs this as its own scenario, so it
+# stays empty on purpose: anything set here would stop the defaults from being
+# the thing under test.
+{}

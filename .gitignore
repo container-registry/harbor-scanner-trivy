@@ -12,3 +12,7 @@ coverage.txt
 # Directory Cache Files
 .DS_Store
 thumbs.db
+
+# Python bytecode from the chart tooling
+__pycache__/
+*.pyc

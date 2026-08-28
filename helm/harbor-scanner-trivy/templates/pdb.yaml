@@ -1,0 +1,26 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "harbor-scanner-trivy.fullname" . }}
+  namespace: {{ include "harbor-scanner-trivy.namespace" . }}
+  labels:
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" dict)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "harbor-scanner-trivy.selectorLabels" . | nindent 6 }}
+  {{- with .Values.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ . }}
+  {{- end }}
+  {{- with .Values.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ . }}
+  {{- end }}
+  {{- with .Values.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,109 @@
+---
+suite: defaults
+release:
+  name: t
+  namespace: harbor
+templates:
+  - statefulset.yaml
+tests:
+  - it: renders a single-replica StatefulSet with the fullname
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: t-harbor-scanner-trivy
+      - equal:
+          path: metadata.namespace
+          value: harbor
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.serviceName
+          value: t-harbor-scanner-trivy
+
+  - it: keeps the immutable selector free of the chart version
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: harbor-scanner-trivy
+            app.kubernetes.io/instance: t
+
+  - it: hardens the pod and container security contexts
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 10000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: does not mount a ServiceAccount token
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: mounts /tmp so a read-only root filesystem still allows Trivy to unpack layers
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+
+  - it: sets all three probes on the api-server port
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /probe/healthy
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /probe/ready
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: api-server
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+
+  - it: drops a probe set to null
+    set:
+      probes.startup: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - exists:
+          path: spec.template.spec.containers[0].livenessProbe
+
+  - it: rolls the pods when chart-managed config material changes
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: changes the config checksum when the inlined GitHub token changes
+    set:
+      trivy.gitHubToken: ghp_example
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/config"]
+          # sha256 of "|||" - the default, all four inputs empty
+          value: 9b2b0f7d0e3a6b0e1e2d5b7a0f6c0d3e4a5b6c7d8e9f0a1b2c3d4e5f60718293

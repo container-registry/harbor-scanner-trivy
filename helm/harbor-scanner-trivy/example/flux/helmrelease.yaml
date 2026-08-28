@@ -1,0 +1,50 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: harbor-scanner-trivy
+  namespace: harbor
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: harbor-scanner-trivy
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  # Report and correct manual edits to the release's objects.
+  driftDetection:
+    mode: enabled
+  values:
+    # Digest-pinned: a floating tag would make the running image drift away
+    # from what Git says without any Git change.
+    image:
+      digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+    redis:
+      existingSecret: harbor-scanner-trivy-redis
+      existingSecretKey: url
+
+    trivy:
+      existingSecret: harbor-scanner-trivy-github
+      existingSecretKey: token
+
+    persistence:
+      enabled: true
+      size: 20Gi
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+
+    metrics:
+      serviceMonitor:
+        enabled: true
+        labels:
+          release: kube-prometheus-stack

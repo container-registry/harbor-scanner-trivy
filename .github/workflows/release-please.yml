@@ -42,48 +42,46 @@ jobs:
       registry_address: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
       registry_project: ${{ vars.REGISTRY_PROJECT || '8gcr' }}
 
-  publish-helm-chart:
-    name: Publish Helm Chart
-    needs: [release-please]
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+  release-please-chart:
+    name: Release Please (chart)
+    # The Helm chart has its own release line, scoped to helm/ by its own config
+    # and manifest, so a chart fix does not force an adapter release (and an
+    # adapter release does not republish an unchanged chart). Kept as a SEPARATE
+    # release-please instance rather than a second package in the adapter
+    # manifest: adding a package switches every output to the "<path>--<name>"
+    # form, which would break the adapter jobs that read the unprefixed outputs.
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      # Mint the OIDC token Harbor's federated robot login exchanges
-      id-token: write
-    env:
-      REGISTRY_ADDRESS: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
-      REGISTRY_PROJECT: ${{ vars.REGISTRY_PROJECT || '8gcr' }}
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs['helm/harbor-scanner-trivy--release_created'] }}
+      tag_name: ${{ steps.release.outputs['helm/harbor-scanner-trivy--tag_name'] }}
+      version: ${{ steps.release.outputs['helm/harbor-scanner-trivy--version'] }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7  # v5.0.0
+        id: release
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
-          persist-credentials: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config-chart.json
+          manifest-file: .release-please-manifest-chart.json
 
-      - uses: ./.github/actions/setup
-        with:
-          go: "false"
-
-      - name: Log in to helm registry
-        run: |
-          # Keyless: exchange the GitHub OIDC token; Harbor maps it to a
-          # federated robot via claim rules, the username is ignored
-          response=$(curl -sSf -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://${REGISTRY_ADDRESS}")
-          token=$(jq -r '.value' <<<"${response}")
-          echo "::add-mask::${token}"
-          helm registry login "${REGISTRY_ADDRESS}" \
-            --username jwt \
-            --password-stdin <<< "${token}"
-
-      - name: Package and push chart
-        run: |
-          task helm:package \
-            REGISTRY_ADDRESS="${REGISTRY_ADDRESS}" \
-            REGISTRY_PROJECT="${REGISTRY_PROJECT}"
-          task helm:push \
-            REGISTRY_ADDRESS="${REGISTRY_ADDRESS}" \
-            REGISTRY_PROJECT="${REGISTRY_PROJECT}"
+  publish-helm-chart:
+    name: Publish Helm Chart
+    # Driven by the chart's own release line, not the adapter's. The chart
+    # references the adapter image by its appVersion, which a prior adapter
+    # release must already have published, so this does not wait on the image
+    # build.
+    needs: [release-please-chart]
+    if: ${{ needs.release-please-chart.outputs.release_created == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-chart.yml
+    with:
+      tag_name: ${{ needs.release-please-chart.outputs.tag_name }}
+      registry_address: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
+      registry_project: ${{ vars.REGISTRY_PROJECT || '8gcr' }}
 
   publish-binaries:
     name: Publish Release Binaries
@@ -125,7 +123,7 @@ jobs:
 
   update-release-notes:
     name: Update Release Notes
-    needs: [release-please, publish-image, publish-helm-chart, publish-binaries]
+    needs: [release-please, publish-image, publish-binaries]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     permissions:
@@ -182,10 +180,16 @@ jobs:
             echo ""
             echo "## Helm Chart"
             echo ""
+            # The chart has its own release line (chart-v* tags), so no chart
+            # version is pinned here: it would go stale the moment either line
+            # moves without the other.
+            echo "The chart is released separately - see the [\`chart-v*\` releases](https://github.com/${GH_REPO}/releases?q=chart-v)."
+            echo "To deploy this adapter version with the latest chart:"
+            echo ""
             echo "\`\`\`sh"
             echo "helm install harbor-scanner-trivy \\"
             echo "  oci://${REGISTRY}/charts/harbor-scanner-trivy \\"
-            echo "  --version ${VERSION}"
+            echo "  --set image.tag=${TAG_NAME}"
             echo "\`\`\`"
             echo ""
             echo "## Binaries"

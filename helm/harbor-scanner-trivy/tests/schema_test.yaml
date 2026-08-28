@@ -1,0 +1,68 @@
+---
+# values.schema.json is enforced by Helm itself on template/install/lint, and it
+# is the first thing a bad value hits. These cover the shapes that would
+# otherwise reach the adapter as an unparsable env var, plus the closed root.
+suite: values schema
+release:
+  name: t
+templates:
+  - statefulset.yaml
+tests:
+  - it: rejects an unknown top-level key
+    set:
+      thisKeyDoesNotExist: 1
+    asserts:
+      - failedTemplate:
+          errorPattern: "additional properties 'thisKeyDoesNotExist' not allowed"
+
+  - it: rejects a Trivy timeout that is not a Go duration
+    set:
+      trivy.timeout: 5minutes
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/trivy/timeout'"
+
+  - it: rejects a scan job TTL that is not a Go duration
+    set:
+      store.redisScanJobTTL: abc
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/store/redisScanJobTTL'"
+
+  - it: accepts an empty scan job TTL, which defers to the adapter's derived default
+    set:
+      store.redisScanJobTTL: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_STORE_REDIS_SCAN_JOB_TTL
+          any: true
+
+  - it: rejects an unknown severity
+    set:
+      trivy.severity: NOPE
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/trivy/severity'"
+
+  - it: rejects a malformed image digest
+    set:
+      image.digest: sha256:short
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/image/digest'"
+
+  - it: rejects a scan cache backend that is neither fs, memory, nor a Redis URL
+    set:
+      trivy.cacheBackend: postgres://db:5432
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/trivy/cacheBackend'"
+
+  - it: rejects a non-Redis URL as the adapter's own store
+    set:
+      redis.url: http://example.com
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/redis/url'"

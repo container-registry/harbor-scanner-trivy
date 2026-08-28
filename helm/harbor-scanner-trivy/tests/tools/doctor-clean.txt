@@ -1,0 +1,2 @@
+== tests/tools/doctor-clean.yaml
+   no findings

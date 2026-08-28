@@ -1,0 +1,179 @@
+---
+name: Chart CI
+
+on:
+  pull_request:
+    paths:
+      - "helm/**"
+      - "taskfile/helm.yml"
+      - "versions.env"
+      - ".github/workflows/chart-ci.yml"
+      - ".github/actions/setup/**"
+      - ".github/scripts/chart-annotate-images.sh"
+  push:
+    branches: [main]
+    paths:
+      - "helm/**"
+      - "taskfile/helm.yml"
+      - ".github/workflows/chart-ci.yml"
+      - ".github/scripts/chart-annotate-images.sh"
+
+permissions:
+  contents: read
+  # Upload the chart's Trivy SARIF to the Security tab
+  security-events: write
+
+concurrency:
+  group: chart-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chart-quality:
+    name: Chart Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load version pins
+        # Helm homes: keep all helm state in the always-writable runner temp
+        # rather than a possibly root-owned ~/.cache.
+        run: |
+          grep -E '^[A-Z_0-9]+=' versions.env >> "$GITHUB_ENV"
+          {
+            echo "HELM_CACHE_HOME=${RUNNER_TEMP}/helm/cache"
+            echo "HELM_CONFIG_HOME=${RUNNER_TEMP}/helm/config"
+            echo "HELM_DATA_HOME=${RUNNER_TEMP}/helm/data"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Task
+        uses: ./.github/actions/setup
+        with:
+          go: "false"
+
+      - name: Install Helm
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2  # v5.0.0
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install helm-unittest
+        # --verify=false: Helm 4 verifies plugin provenance by default, and
+        # git-sourced plugins ship none.
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest.git --version "${HELM_UNITTEST_VERSION}" --verify=false
+
+      - name: Install Node
+        # For ajv-cli via npx (strict schema compile); the taskfile falls back
+        # to Docker only when npx is absent.
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: ${{ env.NODE_IMAGE_VERSION }}
+
+      - name: Install chart tools
+        # Binaries rather than `docker run -v`: a bind mount resolves on the
+        # Docker host, which is not the runner workspace when the daemon is
+        # remote. Every download is checksum-verified where upstream publishes
+        # checksums.
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64|amd64) goarch="amd64"; trivy_arch="64bit" ;;
+            aarch64|arm64) goarch="arm64"; trivy_arch="ARM64" ;;
+            *) echo "::error::unsupported architecture: $(uname -m)"; exit 1 ;;
+          esac
+          bin="${RUNNER_TEMP}/bin"
+          mkdir -p "${bin}"
+
+          # helm-docs
+          curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_$( [ "${goarch}" = amd64 ] && echo x86_64 || echo arm64 ).tar.gz" \
+            | tar -xz -C "${bin}" helm-docs
+
+          # chart-testing, plus the python deps its lint step shells out to
+          ct_dir="${RUNNER_TEMP}/ct"
+          mkdir -p "${ct_dir}"
+          curl -fsSL "https://github.com/helm/chart-testing/releases/download/v${CT_VERSION}/chart-testing_${CT_VERSION}_linux_${goarch}.tar.gz" \
+            | tar -xz -C "${ct_dir}"
+          mv "${ct_dir}/ct" "${bin}/ct"
+          {
+            echo "CT_LINT_CONF=${ct_dir}/etc/lintconf.yaml"
+            echo "CT_CHART_YAML_SCHEMA=${ct_dir}/etc/chart_schema.yaml"
+          } >> "$GITHUB_ENV"
+          # PIP_BREAK_SYSTEM_PACKAGES: Debian's PEP 668 guard refuses --user
+          # installs; honored by new pip, ignored by old, and the runner is
+          # ephemeral either way.
+          export PIP_BREAK_SYSTEM_PACKAGES=1
+          python3 -m pip install --user --quiet yamale yamllint pyyaml
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+          # kube-linter
+          curl -fsSL "https://github.com/stackrox/kube-linter/releases/download/v${KUBE_LINTER_VERSION}/kube-linter-linux_${goarch}.tar.gz" \
+            | tar -xz -C "${bin}" kube-linter
+
+          # Artifact Hub CLI (checksum-verified)
+          ah_archive="ah_${AH_VERSION}_linux_${goarch}.tar.gz"
+          ah_base="https://github.com/artifacthub/hub/releases/download/v${AH_VERSION}"
+          curl -fsSL "${ah_base}/${ah_archive}" -o "${RUNNER_TEMP}/${ah_archive}"
+          curl -fsSL "${ah_base}/ah_${AH_VERSION}_checksums.txt" -o "${RUNNER_TEMP}/ah_checksums.txt"
+          (cd "${RUNNER_TEMP}" && grep "  ${ah_archive}$" ah_checksums.txt | sha256sum -c -)
+          tar -xzf "${RUNNER_TEMP}/${ah_archive}" -C "${bin}" ah
+
+          # trivy (checksum-verified)
+          trivy_archive="trivy_${TRIVY_BASE_IMAGE_VERSION}_Linux-${trivy_arch}.tar.gz"
+          trivy_base="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_BASE_IMAGE_VERSION}"
+          curl -fsSL "${trivy_base}/${trivy_archive}" -o "${RUNNER_TEMP}/${trivy_archive}"
+          curl -fsSL "${trivy_base}/trivy_${TRIVY_BASE_IMAGE_VERSION}_checksums.txt" -o "${RUNNER_TEMP}/trivy_checksums.txt"
+          (cd "${RUNNER_TEMP}" && grep "  ${trivy_archive}$" trivy_checksums.txt | sha256sum -c -)
+          tar -xzf "${RUNNER_TEMP}/${trivy_archive}" -C "${bin}" trivy
+
+          echo "${bin}" >> "$GITHUB_PATH"
+
+      # helm lint + ct lint + kube-linter + Artifact Hub metadata + schema
+      - name: Lint
+        run: task helm:lint
+
+      - name: Render default values
+        run: task helm:template
+
+      - name: Unit tests
+        run: task helm:unittest
+
+      - name: Chart tooling golden tests
+        run: task helm:tools:test
+
+      - name: Values doctor
+        run: task helm:values-doctor
+
+      # Two client-side renders must match exactly - this is what Argo CD does
+      # on every sync, and any diff is perpetual drift.
+      - name: GitOps determinism
+        run: task helm:gitops-determinism
+
+      - name: Render examples
+        run: task helm:examples
+
+      - name: Chart README in sync with values.yaml
+        run: task helm:docs:check
+
+      - name: Trivy misconfiguration scan
+        run: task helm:trivy
+
+      # Findings below the HIGH/CRITICAL gate still reach the Security tab.
+      - name: Trivy SARIF report
+        if: always()
+        run: task helm:trivy:report
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38  # v4.37.4
+        with:
+          sarif_file: trivy-chart.sarif
+          category: helm-chart
+
+      # Everything the release job does before it talks to the registry, so the
+      # release-only packaging path is exercised on every chart PR rather than
+      # first on release day.
+      - name: Release packaging dry run
+        env:
+          REGISTRY_ADDRESS: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
+          REGISTRY_PROJECT: ${{ vars.REGISTRY_PROJECT || '8gcr' }}
+        run: task helm:release:dry-run

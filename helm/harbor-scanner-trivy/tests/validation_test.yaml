@@ -1,0 +1,161 @@
+---
+# Every guard in templates/validate-values.yaml. These are the mistakes that
+# would otherwise surface as a CrashLoopBackOff, a Pending pod, or a silently
+# wrong scan, so each one has to keep failing the render.
+suite: value validation
+release:
+  name: t
+templates:
+  - validate-values.yaml
+tests:
+  - it: accepts the defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: refuses TLS with no certificate material
+    set:
+      api.tls.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "api.tls.enabled requires either api.tls.existingSecret, or both api.tls.certificate and api.tls.key."
+
+  - it: refuses two competing TLS sources
+    set:
+      api.tls.enabled: true
+      api.tls.existingSecret: s
+      api.tls.certificate: c
+      api.tls.key: k
+    asserts:
+      - failedTemplate:
+          errorMessage: "Set either api.tls.existingSecret or api.tls.certificate/api.tls.key, not both."
+
+  - it: refuses two competing client CA sources
+    set:
+      api.tls.enabled: true
+      api.tls.existingSecret: s
+      api.tls.clientCAs.existingSecret: a
+      api.tls.clientCAs.existingConfigMap: b
+    asserts:
+      - failedTemplate:
+          errorMessage: "Set either api.tls.clientCAs.existingSecret or api.tls.clientCAs.existingConfigMap, not both."
+
+  - it: refuses client CAs without TLS
+    set:
+      api.tls.clientCAs.existingSecret: a
+    asserts:
+      - failedTemplate:
+          errorMessage: "api.tls.clientCAs requires api.tls.enabled: client certificates are only verified on a TLS listener."
+
+  - it: refuses mutual TLS without named CA keys
+    set:
+      api.tls.enabled: true
+      api.tls.existingSecret: s
+      api.tls.clientCAs.existingSecret: a
+      api.tls.clientCAs.keys: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "api.tls.clientCAs.keys must name at least one key in the CA Secret/ConfigMap; the chart cannot enumerate them at render time."
+
+  - it: refuses an empty Redis URL with no Secret to read it from
+    set:
+      redis.url: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "Set redis.url, or redis.existingSecret to read the URL from a Secret."
+
+  - it: refuses two competing ignore-policy sources
+    set:
+      trivy.ignorePolicy: "package trivy"
+      trivy.existingIgnorePolicyConfigMap: cm
+    asserts:
+      - failedTemplate:
+          errorMessage: "Set either trivy.ignorePolicy or trivy.existingIgnorePolicyConfigMap, not both."
+
+  - it: refuses a PDB with both minAvailable and maxUnavailable
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.minAvailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "podDisruptionBudget accepts minAvailable or maxUnavailable, not both."
+
+  - it: refuses a PDB with neither
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.maxUnavailable: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "podDisruptionBudget.enabled requires either minAvailable or maxUnavailable."
+
+  - it: refuses an inverted autoscaling range
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 9
+      autoscaling.maxReplicas: 5
+    asserts:
+      - failedTemplate:
+          errorMessage: "autoscaling.minReplicas must not exceed autoscaling.maxReplicas."
+
+  - it: refuses autoscaling with no metric to scale on
+    set:
+      autoscaling.enabled: true
+      autoscaling.targetCPUUtilizationPercentage: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "autoscaling.enabled requires at least one metric: targetCPUUtilizationPercentage, targetMemoryUtilizationPercentage, or autoscaling.metrics."
+
+  - it: refuses one shared claim across several replicas
+    set:
+      persistence.existingClaim: pvc
+      replicaCount: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: "persistence.existingClaim shares one volume across all replicas; use it only with a single replica, or drop it so the StatefulSet provisions a claim per pod."
+
+  - it: refuses one shared claim behind an autoscaler that can exceed one replica
+    set:
+      persistence.existingClaim: pvc
+      autoscaling.enabled: true
+      autoscaling.maxReplicas: 4
+    asserts:
+      - failedTemplate:
+          errorMessage: "persistence.existingClaim shares one volume across all replicas; use it only with a single replica, or drop it so the StatefulSet provisions a claim per pod."
+
+  - it: accepts one shared claim with a single replica
+    set:
+      persistence.existingClaim: pvc
+      replicaCount: 1
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: refuses a ServiceMonitor scraping an endpoint that is switched off
+    set:
+      metrics.enabled: false
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "metrics.serviceMonitor.enabled requires metrics.enabled: the adapter would serve no /metrics endpoint to scrape."
+
+  - it: refuses several workers on the single-writer fs cache
+    set:
+      jobQueue.workerConcurrency: 4
+    asserts:
+      - failedTemplate:
+          errorMessage: "jobQueue.workerConcurrency above 1 needs trivy.cacheBackend set to a redis:// URL or memory; the fs scan cache admits one scan at a time."
+
+  - it: refuses a Redis cache whose keys never expire
+    set:
+      trivy.cacheBackend: redis://scan-cache:6379/0
+      trivy.cacheTTL: 0s
+    asserts:
+      - failedTemplate:
+          errorMessage: "trivy.cacheTTL must be greater than zero with a Redis scan cache; at zero Trivy writes keys that never expire."
+
+  - it: refuses a Sentinel URL Trivy cannot dial
+    set:
+      trivy.cacheBackend: redis+sentinel://sentinel:26379/mymaster/0
+    asserts:
+      - failedTemplate:
+          errorMessage: "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://."

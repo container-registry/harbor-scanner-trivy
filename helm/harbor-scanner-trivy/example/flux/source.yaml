@@ -1,0 +1,19 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: harbor-scanner-trivy
+  namespace: harbor
+spec:
+  interval: 1h
+  url: oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy
+  ref:
+    # Exact chart version. A range here would let Flux move the release on its
+    # own, which is the opposite of what GitOps is for.
+    tag: 1.0.0
+  # The chart is cosign-signed keylessly by the release workflow.
+  verify:
+    provider: cosign
+    matchOIDCIdentity:
+      - issuer: "^https://token\\.actions\\.githubusercontent\\.com$"
+        subject: "^https://github\\.com/container-registry/harbor-scanner-trivy/\\.github/workflows/publish-chart\\.yml@refs/heads/main$"

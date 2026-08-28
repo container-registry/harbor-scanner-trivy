@@ -2,15 +2,45 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "harbor-scanner-trivy.fullname" . }}
+  namespace: {{ include "harbor-scanner-trivy.namespace" . }}
   labels:
-{{ include "harbor-scanner-trivy.labels" . | indent 4 }}
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" .Values.service.annotations)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
 spec:
-  type: {{ .Values.service.type | default "ClusterIP" }}
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.clusterIP }}
+  clusterIP: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.service.sessionAffinity }}
+  sessionAffinity: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
-    app.kubernetes.io/name: {{ include "harbor-scanner-trivy.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "harbor-scanner-trivy.selectorLabels" . | nindent 4 }}
   ports:
     - name: api-server
       protocol: TCP
-      port: {{ .Values.service.port | default 8080 }}
-      targetPort: {{ .Values.service.port | default 8080 }}
+      port: {{ .Values.service.port }}
+      targetPort: api-server
+      {{- if and .Values.service.nodePort (has .Values.service.type (list "NodePort" "LoadBalancer")) }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}

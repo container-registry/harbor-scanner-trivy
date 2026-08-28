@@ -1,0 +1,707 @@
+matches the GitOps render (external secrets, digest-pinned image, TLS):
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+    spec:
+      ports:
+        - name: api-server
+          port: 8080
+          protocol: TCP
+          targetPort: api-server
+      selector:
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/name: harbor-scanner-trivy
+      type: ClusterIP
+  2: |
+    apiVersion: v1
+    automountServiceAccountToken: false
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+  3: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+    spec:
+      persistentVolumeClaimRetentionPolicy:
+        whenDeleted: Retain
+        whenScaled: Retain
+      podManagementPolicy: OrderedReady
+      replicas: 1
+      revisionHistoryLimit: 10
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: harbor-scanner-trivy
+          app.kubernetes.io/name: harbor-scanner-trivy
+      serviceName: harbor-scanner-trivy
+      template:
+        metadata:
+          annotations:
+            checksum/config: ba011a4212ff7e3b75c2d6e5e84cf2d97acefd7220253075cf4b17ae5ec2e996
+          labels:
+            app.kubernetes.io/component: scanner-adapter
+            app.kubernetes.io/instance: harbor-scanner-trivy
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: harbor-scanner-trivy
+            app.kubernetes.io/part-of: harbor
+            app.kubernetes.io/version: v0.40.0
+            helm.sh/chart: harbor-scanner-trivy-1.0.0
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - env:
+                - name: SCANNER_LOG_LEVEL
+                  value: info
+                - name: SCANNER_API_SERVER_ADDR
+                  value: :8080
+                - name: SCANNER_API_SERVER_READ_TIMEOUT
+                  value: 15s
+                - name: SCANNER_API_SERVER_WRITE_TIMEOUT
+                  value: 15s
+                - name: SCANNER_API_SERVER_IDLE_TIMEOUT
+                  value: 60s
+                - name: SCANNER_API_SERVER_METRICS_ENABLED
+                  value: "true"
+                - name: SCANNER_API_SERVER_TLS_CERTIFICATE
+                  value: /certs/tls.crt
+                - name: SCANNER_API_SERVER_TLS_KEY
+                  value: /certs/tls.key
+                - name: SCANNER_TRIVY_CACHE_DIR
+                  value: /home/scanner/.cache/trivy
+                - name: SCANNER_TRIVY_REPORTS_DIR
+                  value: /home/scanner/.cache/reports
+                - name: SCANNER_TRIVY_CACHE_BACKEND
+                  value: fs
+                - name: SCANNER_TRIVY_CACHE_TTL
+                  value: 168h
+                - name: SCANNER_TRIVY_CACHE_MAX_SIZE
+                  value: 3GiB
+                - name: SCANNER_TRIVY_DEBUG_MODE
+                  value: "false"
+                - name: SCANNER_TRIVY_VULN_TYPE
+                  value: os,library
+                - name: SCANNER_TRIVY_SECURITY_CHECKS
+                  value: vuln
+                - name: SCANNER_TRIVY_IGNORE_UNFIXED
+                  value: "false"
+                - name: SCANNER_TRIVY_SKIP_UPDATE
+                  value: "false"
+                - name: SCANNER_TRIVY_SKIP_JAVA_DB_UPDATE
+                  value: "false"
+                - name: SCANNER_TRIVY_DB_REPOSITORY
+                  value: ghcr.io/aquasecurity/trivy-db
+                - name: SCANNER_TRIVY_JAVA_DB_REPOSITORY
+                  value: ghcr.io/aquasecurity/trivy-java-db
+                - name: SCANNER_TRIVY_OFFLINE_SCAN
+                  value: "false"
+                - name: SCANNER_TRIVY_INSECURE
+                  value: "false"
+                - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
+                  value: "false"
+                - name: SCANNER_TRIVY_IGNORE_POLICY
+                  value: /home/scanner/opa/policy.rego
+                - name: SCANNER_TRIVY_GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: token
+                      name: harbor-scanner-trivy-github
+                - name: SCANNER_STORE_REDIS_NAMESPACE
+                  value: harbor.scanner.trivy:data-store
+                - name: SCANNER_JOB_QUEUE_REDIS_NAMESPACE
+                  value: harbor.scanner.trivy:job-queue
+                - name: SCANNER_JOB_QUEUE_WORKER_CONCURRENCY
+                  value: "1"
+                - name: SCANNER_REDIS_URL
+                  valueFrom:
+                    secretKeyRef:
+                      key: url
+                      name: harbor-scanner-trivy-redis
+                - name: SCANNER_REDIS_POOL_MAX_ACTIVE
+                  value: "5"
+                - name: SCANNER_REDIS_POOL_MAX_IDLE
+                  value: "5"
+                - name: SCANNER_REDIS_POOL_IDLE_TIMEOUT
+                  value: 5m
+                - name: SCANNER_REDIS_POOL_CONNECTION_TIMEOUT
+                  value: 1s
+                - name: SCANNER_REDIS_POOL_READ_TIMEOUT
+                  value: 1s
+                - name: SCANNER_REDIS_POOL_WRITE_TIMEOUT
+                  value: 1s
+              envFrom:
+                - configMapRef:
+                    name: harbor-scanner-trivy-env
+              image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 10
+                httpGet:
+                  path: /probe/healthy
+                  port: api-server
+                  scheme: HTTPS
+                periodSeconds: 10
+                timeoutSeconds: 3
+              name: main
+              ports:
+                - containerPort: 8080
+                  name: api-server
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /probe/ready
+                  port: api-server
+                  scheme: HTTPS
+                periodSeconds: 10
+                timeoutSeconds: 3
+              resources:
+                limits:
+                  memory: 1Gi
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                privileged: false
+                readOnlyRootFilesystem: true
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /probe/healthy
+                  port: api-server
+                  scheme: HTTPS
+                periodSeconds: 2
+                timeoutSeconds: 3
+              volumeMounts:
+                - mountPath: /tmp
+                  name: tmp
+                - mountPath: /home/scanner/.cache
+                  name: data
+                - mountPath: /certs
+                  name: certs
+                  readOnly: true
+                - mountPath: /home/scanner/opa
+                  name: ignore-policy
+                  readOnly: true
+          runtimeClassName: gvisor
+          securityContext:
+            fsGroup: 10000
+            runAsGroup: 10000
+            runAsNonRoot: true
+            runAsUser: 10000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: harbor-scanner-trivy
+          terminationGracePeriodSeconds: 60
+          volumes:
+            - emptyDir: {}
+              name: tmp
+            - name: certs
+              secret:
+                secretName: harbor-scanner-trivy-tls
+            - configMap:
+                name: harbor-scanner-trivy-ignore-policy
+              name: ignore-policy
+      volumeClaimTemplates:
+        - metadata:
+            labels:
+              app.kubernetes.io/component: scanner-adapter
+              app.kubernetes.io/instance: harbor-scanner-trivy
+              app.kubernetes.io/managed-by: Helm
+              app.kubernetes.io/name: harbor-scanner-trivy
+              app.kubernetes.io/part-of: harbor
+              app.kubernetes.io/version: v0.40.0
+              helm.sh/chart: harbor-scanner-trivy-1.0.0
+            name: data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+            storageClassName: fast-ssd
+matches the default render:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+    spec:
+      ports:
+        - name: api-server
+          port: 8080
+          protocol: TCP
+          targetPort: api-server
+      selector:
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/name: harbor-scanner-trivy
+      type: ClusterIP
+  2: |
+    apiVersion: v1
+    automountServiceAccountToken: false
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+  3: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+    spec:
+      podManagementPolicy: OrderedReady
+      replicas: 1
+      revisionHistoryLimit: 10
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: harbor-scanner-trivy
+          app.kubernetes.io/name: harbor-scanner-trivy
+      serviceName: harbor-scanner-trivy
+      template:
+        metadata:
+          annotations:
+            checksum/config: 108cf91da7933b7c06918dce36512723631e64213fc95e6e3790b4abf4fa8215
+          labels:
+            app.kubernetes.io/component: scanner-adapter
+            app.kubernetes.io/instance: harbor-scanner-trivy
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: harbor-scanner-trivy
+            app.kubernetes.io/part-of: harbor
+            app.kubernetes.io/version: v0.40.0
+            helm.sh/chart: harbor-scanner-trivy-1.0.0
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - env:
+                - name: SCANNER_LOG_LEVEL
+                  value: info
+                - name: SCANNER_API_SERVER_ADDR
+                  value: :8080
+                - name: SCANNER_API_SERVER_READ_TIMEOUT
+                  value: 15s
+                - name: SCANNER_API_SERVER_WRITE_TIMEOUT
+                  value: 15s
+                - name: SCANNER_API_SERVER_IDLE_TIMEOUT
+                  value: 60s
+                - name: SCANNER_API_SERVER_METRICS_ENABLED
+                  value: "true"
+                - name: SCANNER_TRIVY_CACHE_DIR
+                  value: /home/scanner/.cache/trivy
+                - name: SCANNER_TRIVY_REPORTS_DIR
+                  value: /home/scanner/.cache/reports
+                - name: SCANNER_TRIVY_CACHE_BACKEND
+                  value: fs
+                - name: SCANNER_TRIVY_CACHE_TTL
+                  value: 168h
+                - name: SCANNER_TRIVY_CACHE_MAX_SIZE
+                  value: 3GiB
+                - name: SCANNER_TRIVY_DEBUG_MODE
+                  value: "false"
+                - name: SCANNER_TRIVY_VULN_TYPE
+                  value: os,library
+                - name: SCANNER_TRIVY_SECURITY_CHECKS
+                  value: vuln
+                - name: SCANNER_TRIVY_SEVERITY
+                  value: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+                - name: SCANNER_TRIVY_IGNORE_UNFIXED
+                  value: "false"
+                - name: SCANNER_TRIVY_TIMEOUT
+                  value: 5m0s
+                - name: SCANNER_TRIVY_SKIP_UPDATE
+                  value: "false"
+                - name: SCANNER_TRIVY_SKIP_JAVA_DB_UPDATE
+                  value: "false"
+                - name: SCANNER_TRIVY_DB_REPOSITORY
+                  value: ghcr.io/aquasecurity/trivy-db
+                - name: SCANNER_TRIVY_JAVA_DB_REPOSITORY
+                  value: ghcr.io/aquasecurity/trivy-java-db
+                - name: SCANNER_TRIVY_OFFLINE_SCAN
+                  value: "false"
+                - name: SCANNER_TRIVY_INSECURE
+                  value: "false"
+                - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
+                  value: "false"
+                - name: SCANNER_STORE_REDIS_NAMESPACE
+                  value: harbor.scanner.trivy:data-store
+                - name: SCANNER_JOB_QUEUE_REDIS_NAMESPACE
+                  value: harbor.scanner.trivy:job-queue
+                - name: SCANNER_JOB_QUEUE_WORKER_CONCURRENCY
+                  value: "1"
+                - name: SCANNER_REDIS_URL
+                  value: redis://harbor-harbor-redis:6379
+                - name: SCANNER_REDIS_POOL_MAX_ACTIVE
+                  value: "5"
+                - name: SCANNER_REDIS_POOL_MAX_IDLE
+                  value: "5"
+                - name: SCANNER_REDIS_POOL_IDLE_TIMEOUT
+                  value: 5m
+                - name: SCANNER_REDIS_POOL_CONNECTION_TIMEOUT
+                  value: 1s
+                - name: SCANNER_REDIS_POOL_READ_TIMEOUT
+                  value: 1s
+                - name: SCANNER_REDIS_POOL_WRITE_TIMEOUT
+                  value: 1s
+              image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v0.40.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 10
+                httpGet:
+                  path: /probe/healthy
+                  port: api-server
+                periodSeconds: 10
+                timeoutSeconds: 3
+              name: main
+              ports:
+                - containerPort: 8080
+                  name: api-server
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /probe/ready
+                  port: api-server
+                periodSeconds: 10
+                timeoutSeconds: 3
+              resources:
+                limits:
+                  memory: 1Gi
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                privileged: false
+                readOnlyRootFilesystem: true
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /probe/healthy
+                  port: api-server
+                periodSeconds: 2
+                timeoutSeconds: 3
+              volumeMounts:
+                - mountPath: /tmp
+                  name: tmp
+                - mountPath: /home/scanner/.cache
+                  name: data
+          securityContext:
+            fsGroup: 10000
+            runAsGroup: 10000
+            runAsNonRoot: true
+            runAsUser: 10000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: harbor-scanner-trivy
+          terminationGracePeriodSeconds: 60
+          volumes:
+            - emptyDir: {}
+              name: tmp
+      volumeClaimTemplates:
+        - metadata:
+            labels:
+              app.kubernetes.io/component: scanner-adapter
+              app.kubernetes.io/instance: harbor-scanner-trivy
+              app.kubernetes.io/managed-by: Helm
+              app.kubernetes.io/name: harbor-scanner-trivy
+              app.kubernetes.io/part-of: harbor
+              app.kubernetes.io/version: v0.40.0
+              helm.sh/chart: harbor-scanner-trivy-1.0.0
+            name: data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+matches the multi-replica render:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+    spec:
+      ports:
+        - name: api-server
+          port: 8080
+          protocol: TCP
+          targetPort: api-server
+      selector:
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/name: harbor-scanner-trivy
+      type: ClusterIP
+  2: |
+    apiVersion: v1
+    automountServiceAccountToken: false
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+  3: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app.kubernetes.io/component: scanner-adapter
+        app.kubernetes.io/instance: harbor-scanner-trivy
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: harbor-scanner-trivy
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: v0.40.0
+        helm.sh/chart: harbor-scanner-trivy-1.0.0
+      name: harbor-scanner-trivy
+      namespace: harbor
+    spec:
+      podManagementPolicy: Parallel
+      revisionHistoryLimit: 10
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: harbor-scanner-trivy
+          app.kubernetes.io/name: harbor-scanner-trivy
+      serviceName: harbor-scanner-trivy
+      template:
+        metadata:
+          annotations:
+            checksum/config: 108cf91da7933b7c06918dce36512723631e64213fc95e6e3790b4abf4fa8215
+          labels:
+            app.kubernetes.io/component: scanner-adapter
+            app.kubernetes.io/instance: harbor-scanner-trivy
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: harbor-scanner-trivy
+            app.kubernetes.io/part-of: harbor
+            app.kubernetes.io/version: v0.40.0
+            helm.sh/chart: harbor-scanner-trivy-1.0.0
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - env:
+                - name: SCANNER_LOG_LEVEL
+                  value: info
+                - name: SCANNER_API_SERVER_ADDR
+                  value: :8080
+                - name: SCANNER_API_SERVER_READ_TIMEOUT
+                  value: 15s
+                - name: SCANNER_API_SERVER_WRITE_TIMEOUT
+                  value: 15s
+                - name: SCANNER_API_SERVER_IDLE_TIMEOUT
+                  value: 60s
+                - name: SCANNER_API_SERVER_METRICS_ENABLED
+                  value: "true"
+                - name: SCANNER_TRIVY_CACHE_DIR
+                  value: /home/scanner/.cache/trivy
+                - name: SCANNER_TRIVY_REPORTS_DIR
+                  value: /home/scanner/.cache/reports
+                - name: SCANNER_TRIVY_CACHE_BACKEND
+                  value: redis://harbor-scan-cache:6379/0
+                - name: SCANNER_TRIVY_CACHE_TTL
+                  value: 168h
+                - name: SCANNER_TRIVY_CACHE_MAX_SIZE
+                  value: 3GiB
+                - name: SCANNER_TRIVY_CACHE_REDIS_TLS
+                  value: "false"
+                - name: SCANNER_TRIVY_DEBUG_MODE
+                  value: "false"
+                - name: SCANNER_TRIVY_VULN_TYPE
+                  value: os,library
+                - name: SCANNER_TRIVY_SECURITY_CHECKS
+                  value: vuln
+                - name: SCANNER_TRIVY_SEVERITY
+                  value: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+                - name: SCANNER_TRIVY_IGNORE_UNFIXED
+                  value: "false"
+                - name: SCANNER_TRIVY_TIMEOUT
+                  value: 5m0s
+                - name: SCANNER_TRIVY_SKIP_UPDATE
+                  value: "false"
+                - name: SCANNER_TRIVY_SKIP_JAVA_DB_UPDATE
+                  value: "false"
+                - name: SCANNER_TRIVY_DB_REPOSITORY
+                  value: ghcr.io/aquasecurity/trivy-db
+                - name: SCANNER_TRIVY_JAVA_DB_REPOSITORY
+                  value: ghcr.io/aquasecurity/trivy-java-db
+                - name: SCANNER_TRIVY_OFFLINE_SCAN
+                  value: "false"
+                - name: SCANNER_TRIVY_INSECURE
+                  value: "false"
+                - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
+                  value: "false"
+                - name: SCANNER_STORE_REDIS_NAMESPACE
+                  value: harbor.scanner.trivy:data-store
+                - name: SCANNER_JOB_QUEUE_REDIS_NAMESPACE
+                  value: harbor.scanner.trivy:job-queue
+                - name: SCANNER_JOB_QUEUE_WORKER_CONCURRENCY
+                  value: "4"
+                - name: SCANNER_REDIS_URL
+                  value: redis://harbor-harbor-redis:6379
+                - name: SCANNER_REDIS_POOL_MAX_ACTIVE
+                  value: "5"
+                - name: SCANNER_REDIS_POOL_MAX_IDLE
+                  value: "5"
+                - name: SCANNER_REDIS_POOL_IDLE_TIMEOUT
+                  value: 5m
+                - name: SCANNER_REDIS_POOL_CONNECTION_TIMEOUT
+                  value: 1s
+                - name: SCANNER_REDIS_POOL_READ_TIMEOUT
+                  value: 1s
+                - name: SCANNER_REDIS_POOL_WRITE_TIMEOUT
+                  value: 1s
+              image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v0.40.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 10
+                httpGet:
+                  path: /probe/healthy
+                  port: api-server
+                periodSeconds: 10
+                timeoutSeconds: 3
+              name: main
+              ports:
+                - containerPort: 8080
+                  name: api-server
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /probe/ready
+                  port: api-server
+                periodSeconds: 10
+                timeoutSeconds: 3
+              resources:
+                limits:
+                  memory: 2Gi
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                privileged: false
+                readOnlyRootFilesystem: true
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /probe/healthy
+                  port: api-server
+                periodSeconds: 2
+                timeoutSeconds: 3
+              volumeMounts:
+                - mountPath: /tmp
+                  name: tmp
+                - mountPath: /home/scanner/.cache
+                  name: data
+          securityContext:
+            fsGroup: 10000
+            runAsGroup: 10000
+            runAsNonRoot: true
+            runAsUser: 10000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: harbor-scanner-trivy
+          terminationGracePeriodSeconds: 60
+          topologySpreadConstraints:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: harbor-scanner-trivy
+              maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+          volumes:
+            - emptyDir: {}
+              name: tmp
+      volumeClaimTemplates:
+        - metadata:
+            labels:
+              app.kubernetes.io/component: scanner-adapter
+              app.kubernetes.io/instance: harbor-scanner-trivy
+              app.kubernetes.io/managed-by: Helm
+              app.kubernetes.io/name: harbor-scanner-trivy
+              app.kubernetes.io/part-of: harbor
+              app.kubernetes.io/version: v0.40.0
+              helm.sh/chart: harbor-scanner-trivy-1.0.0
+            name: data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi

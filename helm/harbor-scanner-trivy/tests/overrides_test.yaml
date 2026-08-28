@@ -1,0 +1,165 @@
+---
+# The deep-merge escape hatches for fields the chart does not template. The
+# merge only runs when an override is set, so these also guard that the opt-in
+# path does not disturb what the chart already rendered.
+suite: merge escape hatches
+release:
+  name: t
+templates:
+  - statefulset.yaml
+tests:
+  - it: reaches StatefulSet spec fields the chart does not template
+    set:
+      statefulSetSpecOverrides:
+        minReadySeconds: 10
+        persistentVolumeClaimRetentionPolicy:
+          whenDeleted: Delete
+          whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 10
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      # The merge must not disturb what the chart rendered
+      - equal:
+          path: spec.serviceName
+          value: t-harbor-scanner-trivy
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: reaches pod spec fields the chart does not template
+    set:
+      podSpecOverrides:
+        runtimeClassName: gvisor
+        enableServiceLinks: false
+        shareProcessNamespace: true
+    asserts:
+      - equal:
+          path: spec.template.spec.runtimeClassName
+          value: gvisor
+      - equal:
+          path: spec.template.spec.enableServiceLinks
+          value: false
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: t-harbor-scanner-trivy
+
+  - it: wins over a field the chart does set
+    set:
+      podSpecOverrides:
+        terminationGracePeriodSeconds: 300
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 300
+
+  - it: reaches container fields the chart does not template
+    set:
+      containerOverrides:
+        workingDir: /home/scanner
+        terminationMessagePolicy: FallbackToLogsOnError
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].workingDir
+          value: /home/scanner
+      - equal:
+          path: spec.template.spec.containers[0].terminationMessagePolicy
+          value: FallbackToLogsOnError
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: main
+
+  - it: merges only the adapter container and leaves sidecars alone
+    set:
+      containerOverrides:
+        workingDir: /home/scanner
+      sidecars:
+        - name: helper
+          image: busybox
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
+      - equal:
+          path: spec.template.spec.containers[0].workingDir
+          value: /home/scanner
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: helper
+      - notExists:
+          path: spec.template.spec.containers[1].workingDir
+
+  - it: reaches volume claim template fields the chart does not template
+    set:
+      persistence.claimSpecOverrides:
+        volumeMode: Filesystem
+        selector:
+          matchLabels:
+            tier: fast
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.volumeMode
+          value: Filesystem
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.selector.matchLabels.tier
+          value: fast
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 5Gi
+
+  - it: ignores claim overrides when there is no claim template
+    set:
+      persistence.enabled: false
+      persistence.claimSpecOverrides:
+        volumeMode: Filesystem
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: preserves the full env list through the merge
+    set:
+      podSpecOverrides:
+        runtimeClassName: gvisor
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_REDIS_URL
+            value: "redis://harbor-harbor-redis:6379"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_API_SERVER_ADDR
+            value: ":8080"
+
+  - it: combines every hatch at once
+    set:
+      statefulSetSpecOverrides:
+        minReadySeconds: 5
+      podSpecOverrides:
+        runtimeClassName: gvisor
+      containerOverrides:
+        workingDir: /tmp
+      persistence.claimSpecOverrides:
+        volumeMode: Block
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.runtimeClassName
+          value: gvisor
+      - equal:
+          path: spec.template.spec.containers[0].workingDir
+          value: /tmp
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.volumeMode
+          value: Block

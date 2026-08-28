@@ -1,0 +1,20 @@
+# Trivy misconfiguration suppressions for the rendered chart.
+#
+# The CI gate is `--severity HIGH,CRITICAL`, and the default render currently
+# has none, so this file holds no suppressions. It is not empty of purpose: the
+# LOW/MEDIUM findings below are deliberate, and anyone lowering the threshold
+# should read this before silencing them.
+#
+#   KSV-0011  CPU not limited. Deliberate. Throttling a Trivy scan makes it
+#             slow, not safe, and the scan is already bounded by trivy.timeout.
+#             Set resources.limits.cpu if your platform requires one.
+#   KSV-0020  Runs with UID <= 10000. The adapter runs as exactly 10000, which
+#             is what the image's /home/scanner tree is owned by. Raising it
+#             would re-chown every existing cache volume on upgrade.
+#   KSV-0021  Runs with GID <= 10000. Same reason; fsGroup must match the
+#             volume owner or the Trivy cache is unwritable.
+#   KSV-0110  Workloads in the default namespace. An artifact of scanning a
+#             `helm template` render with no --namespace, not of the chart.
+#   KSV-0125  Restrict container images to trusted registries. The default
+#             registry is ours; air-gapped users repoint it with
+#             global.imageRegistry.

@@ -1,0 +1,230 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+The adapter implements Harbor's scanner adapter API: Harbor posts a scan
+request, the adapter queues it in Redis, a worker shells out to the `trivy` CLI,
+and the result is transformed into a Harbor vulnerability report or SBOM. It is
+the scanner behind Harbor's Interrogation Services.
+
+## Prerequisites
+
+- Kubernetes >= 1.28
+- A Redis reachable from the cluster. Harbor's own Redis is the usual choice;
+  give the adapter its own database number (Harbor uses `0`-`4`).
+- A Harbor >= 2.2 to register the scanner with.
+- A StorageClass, unless you set `persistence.enabled: false` and accept
+  re-downloading the Trivy DB on every restart.
+- Egress to `ghcr.io` for the Trivy databases, or a mirror - see
+  [`example/air-gapped/`](example/air-gapped/).
+
+## Install
+
+```sh
+helm install harbor-scanner-trivy \
+  oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy \
+  --namespace harbor --create-namespace
+```
+
+Then register the scanner in Harbor under **Administration -> Interrogation
+Services -> Scanners -> NEW SCANNER**, using the endpoint the chart prints on
+install:
+
+```
+http://harbor-scanner-trivy.harbor.svc:8080
+```
+
+The defaults assume Harbor's own Redis at `redis://harbor-harbor-redis:6379`.
+Point `redis.url` at yours, or read the whole URL out of a Secret with
+`redis.existingSecret` (see [`example/external-redis/`](example/external-redis/)).
+
+## What this chart gives you
+
+- **Secrets stay yours.** Every credential has an `existingSecret` form -
+  the GitHub token, the Redis URL (password included), the TLS keypair - so
+  nothing sensitive has to live in a values file or in Git.
+- **Deterministic renders.** Nothing is generated at render time, so Argo CD and
+  Flux see no drift. CI renders the GitOps values twice and fails on any diff.
+- **Fail-fast validation.** A closed `values.schema.json` rejects unknown or
+  malformed keys, and render-time guards catch the cross-field mistakes a schema
+  cannot express - TLS enabled with no certificate, a PDB with no budget, one
+  RWO claim shared across replicas. They fail `helm template`, not the cluster.
+- **Probes as data.** The full Kubernetes probe specs are values, with a startup
+  probe that lets a cold Trivy DB download take its time without a liveness
+  restart loop. The chart injects `scheme: HTTPS` when you turn TLS on.
+- **The whole production surface.** ServiceAccount, PodDisruptionBudget, HPA,
+  ServiceMonitor, NetworkPolicy, scheduling constraints, sidecars, init
+  containers, and `extraManifests` - each off by default and independently
+  switchable.
+- **No dead ends.** Every adapter setting is reachable through `config` /
+  `secret` without a chart change, and every Kubernetes field the chart does not
+  template is reachable through the merge hatches below.
+
+## Configuring the adapter
+
+The adapter is configured entirely by environment variables, so `config` reaches
+all of it - including settings added after this chart version:
+
+```yaml
+config:
+  scanner:
+    trivy:
+      timeout: 10m0s
+      severity: [HIGH, CRITICAL]
+    log:
+      level: debug
+```
+
+Nested keys join with `_` and are uppercased, lists join with `,`, so that
+renders `SCANNER_TRIVY_TIMEOUT`, `SCANNER_TRIVY_SEVERITY` and
+`SCANNER_LOG_LEVEL` into a ConfigMap consumed with `envFrom`. No prefix is
+imposed, so `HTTP_PROXY` and friends are reachable the same way.
+
+`secret` takes the identical notation but renders into a Secret, so the values
+never enter the pod spec. Credential-shaped keys in `config` are refused at
+render time.
+
+Precedence, lowest to highest:
+
+```
+chart defaults  <  config / secret  <  extraEnv
+```
+
+Kubernetes evaluates `envFrom` before `env`, so a chart-set variable would
+otherwise beat your `config`. The chart drops its own entry for any name you
+claim, which is what makes the middle of that chain work.
+
+## Escape hatches
+
+The chart cannot template every field of a StatefulSet. Four deep-merge hooks
+cover what it does not expose, and yours wins on conflict:
+
+| Value | Merges into | For example |
+|-------|-------------|-------------|
+| `statefulSetSpecOverrides` | `.spec` | `minReadySeconds`, `persistentVolumeClaimRetentionPolicy`, `ordinals` |
+| `podSpecOverrides` | `.spec.template.spec` | `runtimeClassName`, `hostNetwork`, `enableServiceLinks`, `nodeName` |
+| `containerOverrides` | the adapter container | `workingDir`, `terminationMessagePolicy`, `resizePolicy` |
+| `persistence.claimSpecOverrides` | the claim template `.spec` | `selector`, `volumeMode`, `dataSource` |
+
+The merge only runs when one is set, so the default render stays in template
+order; opting in re-marshals the object (sorted keys, still deterministic).
+`extraManifests` covers anything that is a separate object rather than a field.
+
+## Sizing
+
+The Trivy vulnerability DB is downloaded on first start and refreshed every 12
+hours. Two settings follow from that:
+
+- **Keep `persistence.enabled`.** Without a volume the DB lives in an
+  `emptyDir` and every pod restart re-downloads roughly a gigabyte - slow, and a
+  quick way to hit GitHub's anonymous rate limit of 60 requests/hour. Set
+  `trivy.gitHubToken` (or `trivy.existingSecret`) to raise that to 5000/hour.
+- **Raise memory before raising `jobQueue.workerConcurrency`.** Each concurrent
+  scan runs its own Trivy process with the DB loaded, so worker count multiplies
+  the memory footprint. `replicaCount` scales throughput the same way, at one
+  cache volume per replica.
+
+## TLS
+
+`api.tls.enabled` switches the listener to HTTPS; Harbor must then be registered
+with an `https://` endpoint and must trust the issuing CA. Prefer
+`api.tls.existingSecret` - it takes a cert-manager `Certificate` Secret
+directly. Setting `api.tls.clientCAs` additionally makes the adapter *require* a
+client certificate, so Harbor has to present one. See
+[`example/tls-cert-manager/`](example/tls-cert-manager/).
+
+## Verifying the chart signature
+
+Chart releases are cosign-signed keylessly by the release workflow, with no
+long-lived key to manage:
+
+```sh
+cosign verify \
+  --certificate-identity-regexp '^https://github\.com/container-registry/harbor-scanner-trivy/\.github/workflows/publish-chart\.yml@refs/heads/main$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy:{{ .Version }}
+```
+
+Flux can enforce the same check on every reconcile - see
+[`example/flux/`](example/flux/).
+
+## Troubleshooting
+
+**The scanner shows as unhealthy in Harbor.** Harbor calls `/api/v1/metadata`.
+Check the adapter answers from inside the cluster, then check Harbor can reach
+that exact URL - a TLS-enabled adapter registered with an `http://` endpoint
+fails here, and so does an `https://` endpoint whose CA Harbor does not trust.
+
+```sh
+kubectl -n harbor exec sts/harbor-scanner-trivy -- \
+  wget -qO- http://localhost:8080/probe/ready
+```
+
+**Scans stay queued forever.** The worker takes jobs off a Redis queue, so this
+is almost always Redis: wrong URL, wrong database, or a password that never
+arrived. The adapter logs the failure at startup.
+
+```sh
+kubectl -n harbor logs sts/harbor-scanner-trivy | grep -i redis
+```
+
+**The pod restarts during its first minutes.** The startup probe allows 60s
+(30 failures x 2s) for the initial Trivy DB download. On a slow link, raise
+`probes.startup.failureThreshold` rather than the liveness settings.
+
+**`x509: certificate signed by unknown authority`.** The registry, Redis or DB
+source is behind a private CA. Use `extraCA` - see
+[`example/private-ca/`](example/private-ca/). Do not reach for `trivy.insecure`,
+which disables verification everywhere.
+
+**GitHub rate limit on the DB download.** Anonymous downloads get 60
+requests/hour. Set `trivy.existingSecret` with a token for 5000/hour, and keep
+`persistence.enabled` so the DB is not re-fetched on every restart.
+
+**Permission denied on `/home/scanner/.cache`.** The cache volume is not owned
+by the pod's `fsGroup`. On OpenShift see [`example/openshift/`](example/openshift/);
+elsewhere check that your StorageClass honours `fsGroup`.
+
+**A values key stopped working after an upgrade.** The schema root is closed, so
+an unknown key fails the render by name. Check
+[`docs/MIGRATION.md`](docs/MIGRATION.md).
+
+## Uninstalling
+
+```sh
+helm uninstall harbor-scanner-trivy --namespace harbor
+```
+
+The cache PVCs are created by a StatefulSet volume claim template, so Helm does
+not delete them. That is deliberate - it makes an uninstall/reinstall cheap.
+Remove them explicitly when you mean it:
+
+```sh
+kubectl -n harbor delete pvc -l app.kubernetes.io/name=harbor-scanner-trivy
+```
+
+Remove the scanner registration in Harbor as well, or it keeps pointing at a
+Service that no longer exists.
+
+## Upgrading from the pre-1.0 chart
+
+Chart 1.0.0 restructured the values. The old `scanner.*` tree is gone, secrets
+moved to the `existingSecret` family, and probes became data. See
+[`docs/MIGRATION.md`](docs/MIGRATION.md) for a value-by-value mapping.
+
+## Examples
+
+See [`example/`](example/) - Harbor integration, external Redis, cert-manager
+TLS, FluxCD, and air-gapped installs. CI renders all of them on every change.
+
+{{ template "chart.maintainersSection" . }}
+
+{{ template "chart.sourcesSection" . }}
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}

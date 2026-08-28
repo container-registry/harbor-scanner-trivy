@@ -1,2 +1,29 @@
-You should be able to access your scanner adapter installation within
-the cluster at {{ if .Values.scanner.api.tlsEnabled }}https{{ else }}http{{ end }}://{{ include "harbor-scanner-trivy.fullname" . }}.{{ .Release.Namespace }}:{{ .Values.service.port }}
+{{ .Chart.Name }} {{ .Chart.Version }} (adapter {{ .Values.image.tag | default .Chart.AppVersion }}) is installed as release {{ .Release.Name }}.
+
+Register the adapter in Harbor under Administration -> Interrogation Services ->
+Scanners -> NEW SCANNER, with the endpoint:
+
+  {{ ternary "https" "http" (ne (include "harbor-scanner-trivy.tls.enabled" .) "") }}://{{ include "harbor-scanner-trivy.fullname" . }}.{{ include "harbor-scanner-trivy.namespace" . }}.svc:{{ .Values.service.port }}
+{{ if include "harbor-scanner-trivy.tls.mtlsEnabled" . }}
+  The adapter requires a client certificate (api.tls.clientCAs is set), so
+  Harbor must be configured to present one.
+{{ end }}
+Check that it answers:
+
+  kubectl -n {{ include "harbor-scanner-trivy.namespace" . }} run scanner-probe --rm -it --restart=Never --image=curlimages/curl -- \
+    curl -sS{{ if include "harbor-scanner-trivy.tls.enabled" . }} -k{{ end }} {{ ternary "https" "http" (ne (include "harbor-scanner-trivy.tls.enabled" .) "") }}://{{ include "harbor-scanner-trivy.fullname" . }}.{{ include "harbor-scanner-trivy.namespace" . }}.svc:{{ .Values.service.port }}/api/v1/metadata
+{{ if not .Values.persistence.enabled }}
+WARNING: persistence is disabled. The Trivy vulnerability DB lives in an
+emptyDir, so every pod restart re-downloads it - which is both slow and a fast
+way to hit the GitHub rate limit.
+{{ end }}
+{{- if and (not .Values.redis.existingSecret) (regexMatch "^redis(\\+sentinel)?://[^/@]*:[^/@]+@" .Values.redis.url) }}
+WARNING: redis.url embeds a password, which is now visible in the pod spec to
+anyone who can read Pods in this namespace. Move the URL into a Secret and set
+redis.existingSecret instead.
+{{- end }}
+{{- if and .Values.trivy.gitHubToken (not .Values.trivy.existingSecret) }}
+NOTE: trivy.gitHubToken was inlined into values and is stored in the
+chart-managed Secret {{ include "harbor-scanner-trivy.fullname" . }}. For GitOps, put it in your own
+Secret and set trivy.existingSecret.
+{{- end }}

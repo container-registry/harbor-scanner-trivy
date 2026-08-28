@@ -1,0 +1,168 @@
+---
+suite: extension points
+release:
+  name: t
+tests:
+  - it: appends extraEnv last so it overrides a chart-set variable of the same name
+    templates:
+      - statefulset.yaml
+    set:
+      extraEnv:
+        - name: SCANNER_LOG_LEVEL
+          value: debug
+        - name: MY_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: s
+              key: k
+    asserts:
+      # Kubernetes resolves duplicate env names to the last entry, so the
+      # override only works while extraEnv stays at the end of the list.
+      - equal:
+          path: spec.template.spec.containers[0].env[-1].name
+          value: MY_SECRET
+      - equal:
+          path: spec.template.spec.containers[0].env[-2]
+          value:
+            name: SCANNER_LOG_LEVEL
+            value: debug
+
+  - it: mounts extra volumes and sidecars
+    templates:
+      - statefulset.yaml
+    set:
+      extraVolumes:
+        - name: extra
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: extra
+          mountPath: /extra
+      sidecars:
+        - name: helper
+          image: busybox
+      initContainers:
+        - name: seed
+          image: "busybox:{{ .Release.Name }}"
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: helper
+      # initContainers go through tpl, so they can reference the release
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "busybox:t"
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra
+            emptyDir: {}
+
+  - it: renders extra manifests, templating string entries
+    templates:
+      - extra-manifests.yaml
+    set:
+      extraManifests:
+        - |
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: {{ .Release.Name }}-extra
+          data:
+            k: v
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: t-extra
+
+  - it: renders an inline ignore policy into a ConfigMap and points Trivy at it
+    templates:
+      - configmap-ignore-policy.yaml
+    set:
+      trivy.ignorePolicy: |
+        package trivy
+        default ignore = false
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: t-harbor-scanner-trivy-ignore-policy
+      - matchRegex:
+          path: data["policy.rego"]
+          pattern: "package trivy"
+
+  - it: mounts an externally owned ignore policy without creating a ConfigMap
+    templates:
+      - statefulset.yaml
+    set:
+      trivy.existingIgnorePolicyConfigMap: my-policy
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: ignore-policy
+            configMap:
+              name: my-policy
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_IGNORE_POLICY
+            value: /home/scanner/opa/policy.rego
+
+  - it: sets no ignore policy env when no policy is configured
+    templates:
+      - statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_IGNORE_POLICY
+          any: true
+
+  - it: emits proxy variables only when they are set
+    templates:
+      - statefulset.yaml
+    set:
+      proxy.httpProxy: http://proxy:3128
+      proxy.noProxy: .svc,.cluster.local
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTP_PROXY
+            value: http://proxy:3128
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+          any: true
+
+  - it: follows the log level for Trivy debug mode unless told otherwise
+    templates:
+      - statefulset.yaml
+    set:
+      logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "true"
+
+  - it: honours an explicit Trivy debug mode over the log level
+    templates:
+      - statefulset.yaml
+    set:
+      logLevel: debug
+      trivy.debugMode: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "false"

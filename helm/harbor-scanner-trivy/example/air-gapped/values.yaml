@@ -1,0 +1,26 @@
+---
+global:
+  # Preserves the repository path: registry.internal/8gcr/harbor-scanner-trivy
+  imageRegistry: registry.internal
+
+trivy:
+  # Mirrored OCI copies of the Trivy databases.
+  dbRepository: registry.internal/trivy-db
+  javaDBRepository: registry.internal/trivy-java-db
+  # No external calls while resolving dependencies during a scan.
+  offlineScan: true
+  # The mirror serves the DB, so downloads stay on. Flip these to true only if
+  # you seed the cache volume yourself - see the README.
+  skipUpdate: false
+  skipJavaDBUpdate: false
+
+# No egress to GitHub means the GitHub token is pointless; leaving it unset
+# keeps the Secret out of the release entirely.
+persistence:
+  enabled: true
+  size: 20Gi
+
+proxy:
+  httpProxy: ""
+  httpsProxy: ""
+  noProxy: ""

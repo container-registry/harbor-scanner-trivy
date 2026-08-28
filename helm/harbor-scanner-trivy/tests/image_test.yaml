@@ -1,0 +1,68 @@
+---
+suite: image resolution
+release:
+  name: t
+templates:
+  - statefulset.yaml
+tests:
+  - it: defaults the tag to the chart appVersion
+    chart:
+      appVersion: v9.9.9
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v9.9.9
+
+  - it: prefers an explicit tag over appVersion
+    set:
+      image.tag: v1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v1.2.3
+
+  - it: prefers a digest over any tag
+    set:
+      image.tag: v1.2.3
+      image.digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: 8gears.container-registry.com/8gcr/harbor-scanner-trivy@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  - it: lets global.imageRegistry repoint the image while preserving the repository path
+    set:
+      global.imageRegistry: registry.internal
+      image.tag: v1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.internal/8gcr/harbor-scanner-trivy:v1.2.3
+
+  - it: renders a bare repository when no registry is configured
+    set:
+      image.registry: ""
+      image.tag: v1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: 8gcr/harbor-scanner-trivy:v1.2.3
+
+  - it: merges global and per-image pull secrets without duplicates
+    set:
+      global.imagePullSecrets:
+        - shared
+      image.pullSecrets:
+        - name: shared
+        - name: local
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: shared
+            - name: local
+
+  - it: omits imagePullSecrets when there are none
+    asserts:
+      - notExists:
+          path: spec.template.spec.imagePullSecrets

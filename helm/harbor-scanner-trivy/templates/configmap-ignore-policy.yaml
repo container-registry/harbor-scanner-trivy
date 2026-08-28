@@ -1,0 +1,16 @@
+{{- if and .Values.trivy.ignorePolicy (not .Values.trivy.existingIgnorePolicyConfigMap) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-ignore-policy" (include "harbor-scanner-trivy.fullname" .) }}
+  namespace: {{ include "harbor-scanner-trivy.namespace" . }}
+  labels:
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" dict)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+data:
+  {{ .Values.trivy.ignorePolicyKey }}: |
+    {{- .Values.trivy.ignorePolicy | nindent 4 }}
+{{- end }}

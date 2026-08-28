@@ -18,10 +18,18 @@ task test:component     # Component tests (build tag: component, requires Docker
 task lint               # golangci-lint (Docker); task lint:local uses a pinned binary
 task image:local        # Build local Docker image (harbor-scanner-trivy:<version>)
 task run                # Run locally with debug logging on :8080
+task helm:ci            # Full Helm chart quality gate (what chart-ci.yml runs)
+task helm:unittest      # helm unittest only
+task helm:docs          # Regenerate the chart README from values.yaml
 ```
 
 Tool and base-image pins live in `versions.env` (loaded by Taskfile via dotenv).
-Releases are automated with release-please; never push `v*` tags manually (see docs/RELEASES.md).
+Chart tasks live in `taskfile/helm.yml`, included under the `helm:` namespace.
+
+Releases are automated with release-please. There are **two independent release
+lines** - the adapter (`vX.Y.Z`) and the Helm chart (`chart-vX.Y.Z`), each with
+its own config, manifest and changelog. Never push `v*` or `chart-v*` tags
+manually (see docs/RELEASES.md).
 
 Run a single test:
 ```bash
@@ -50,6 +58,10 @@ go test -v -tags=integration -run TestName ./test/integration/...
 - `pkg/etc/` -- configuration via environment variables (all prefixed `SCANNER_`), parsed with `caarlos0/env/v6`
 - `pkg/harbor/` -- Harbor domain models (ScanRequest, ScanReport, Severity, etc.)
 - `pkg/mock/` -- testify mocks for interfaces
+- `helm/harbor-scanner-trivy/` -- the Helm chart: `values.schema.json` closes the
+  root so unknown keys fail the render, `templates/validate-values.yaml` holds the
+  cross-field guards a schema cannot express, `tests/` is a helm-unittest suite,
+  and `ci/` + `example/` are values scenarios CI renders on every change
 
 **API endpoints:**
 - `POST /api/v1/scan` -- submit scan request
@@ -65,3 +77,10 @@ go test -v -tags=integration -run TestName ./test/integration/...
 - Redis is the sole persistence and job queue backend (Pub/Sub for queue, key-value for job state).
 - `go.mod` has a `replace` directive: `google/go-containerregistry` is replaced with a fork (`knqyf263/go-containerregistry`) for custom registry auth handling.
 - Version info (`version`, `commit`, `date`) is injected via ldflags at build time by `task build`.
+- The chart generates nothing at render time (no `randAlphaNum`), so GitOps
+  engines see no drift; every credential has an `existingSecret` form. CI proves
+  it by rendering `ci/gitops-values.yaml` twice and diffing.
+- Adding a value means touching four places: `values.yaml` (with a `# --`
+  helm-docs comment), `values.schema.json`, a test in `tests/`, and the README
+  via `task helm:docs`. `task helm:lint:schema` fails on drift between the first
+  two.

@@ -1,0 +1,185 @@
+---
+suite: extra CA trust and registry credentials
+release:
+  name: t
+tests:
+  - it: mounts nothing and sets no SSL_CERT_DIR by default
+    templates:
+      - statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-ca
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_DIR
+          any: true
+
+  - it: keeps the system bundle in SSL_CERT_DIR alongside the mount
+    templates:
+      - statefulset.yaml
+    set:
+      extraCA.existingSecret: corp-ca
+    asserts:
+      # Go REPLACES its default directory list when SSL_CERT_DIR is set, so
+      # dropping /etc/ssl/certs here would break every public TLS call - the
+      # Trivy DB download from ghcr.io first.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_DIR
+            value: "/etc/ssl/certs:/etc/scanner-trivy/extra-ca"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-ca
+            mountPath: /etc/scanner-trivy/extra-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-ca
+            secret:
+              secretName: corp-ca
+
+  - it: takes the bundle from a ConfigMap
+    templates:
+      - statefulset.yaml
+    set:
+      extraCA.existingConfigMap: corp-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-ca
+            configMap:
+              name: corp-ca
+
+  - it: mounts only the named keys when asked
+    templates:
+      - statefulset.yaml
+    set:
+      extraCA.existingSecret: corp-ca
+      extraCA.keys:
+        - root.crt
+        - intermediate.crt
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[?(@.name=="extra-ca")].secret.items
+          value:
+            - key: root.crt
+              path: root.crt
+            - key: intermediate.crt
+              path: intermediate.crt
+
+  - it: lets config claim SSL_CERT_DIR like any other variable
+    templates:
+      - statefulset.yaml
+    set:
+      extraCA.existingSecret: corp-ca
+      config:
+        ssl_cert_dir: /custom
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_DIR
+          any: true
+
+  - it: refuses two competing CA sources
+    templates:
+      - validate-values.yaml
+    set:
+      extraCA.existingSecret: a
+      extraCA.existingConfigMap: b
+    asserts:
+      - failedTemplate:
+          errorMessage: "Set either extraCA.existingSecret or extraCA.existingConfigMap, not both."
+
+  - it: creates no pull Secret by default
+    templates:
+      - secret-image-pull.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: builds a dockerconfigjson Secret and references it
+    templates:
+      - secret-image-pull.yaml
+    set:
+      imageCredentials.create: true
+      imageCredentials.username: u
+      imageCredentials.password: p
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: type
+          value: kubernetes.io/dockerconfigjson
+      - equal:
+          path: metadata.name
+          value: t-harbor-scanner-trivy-registry
+      # {"auths":{"8gears.container-registry.com":{"username":"u","password":"p","email":"","auth":"dTpw"}}}
+      - equal:
+          path: data[".dockerconfigjson"]
+          value: eyJhdXRocyI6eyI4Z2VhcnMuY29udGFpbmVyLXJlZ2lzdHJ5LmNvbSI6eyJ1c2VybmFtZSI6InUiLCJwYXNzd29yZCI6InAiLCJlbWFpbCI6IiIsImF1dGgiOiJkVHB3In19fQ==
+
+  - it: adds the generated Secret to imagePullSecrets without losing referenced ones
+    templates:
+      - statefulset.yaml
+    set:
+      imageCredentials.create: true
+      imageCredentials.username: u
+      imageCredentials.password: p
+      image.pullSecrets:
+        - name: existing
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: t-harbor-scanner-trivy-registry
+            - name: existing
+
+  - it: refuses incomplete registry credentials
+    templates:
+      - validate-values.yaml
+    set:
+      imageCredentials.create: true
+      imageCredentials.username: u
+    asserts:
+      - failedTemplate:
+          errorMessage: "imageCredentials.create requires imageCredentials.username and imageCredentials.password."
+
+  - it: sets the StatefulSet's own annotations without touching the pods
+    templates:
+      - statefulset.yaml
+    set:
+      statefulSetAnnotations:
+        argocd.argoproj.io/sync-wave: "1"
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "1"
+      - notExists:
+          path: spec.template.metadata.annotations["argocd.argoproj.io/sync-wave"]
+
+  - it: sets dual-stack fields on the Service
+    templates:
+      - service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv4
+            - IPv6

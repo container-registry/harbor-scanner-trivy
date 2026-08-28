@@ -1,0 +1,148 @@
+{{/*
+Duration and enum shapes are not re-checked here: values.schema.json is applied
+by Helm itself on template/install/lint and rejects them first, so a guard for
+them would be unreachable. This file is only for the cross-field rules a JSON
+schema cannot express.
+*/}}
+
+{{/*
+Render-time guards. Every failure here is a mistake that would otherwise reach
+the cluster as a CrashLoopBackOff, a Pending pod, or a silently misconfigured
+scan, so it fails `helm template` instead.
+*/}}
+
+{{- if .Values.api.tls.enabled }}
+{{- if not (or .Values.api.tls.existingSecret (and .Values.api.tls.certificate .Values.api.tls.key)) }}
+{{- fail "api.tls.enabled requires either api.tls.existingSecret, or both api.tls.certificate and api.tls.key." }}
+{{- end }}
+{{- if and .Values.api.tls.existingSecret (or .Values.api.tls.certificate .Values.api.tls.key) }}
+{{- fail "Set either api.tls.existingSecret or api.tls.certificate/api.tls.key, not both." }}
+{{- end }}
+{{- end }}
+
+{{- if and .Values.api.tls.clientCAs.existingSecret .Values.api.tls.clientCAs.existingConfigMap }}
+{{- fail "Set either api.tls.clientCAs.existingSecret or api.tls.clientCAs.existingConfigMap, not both." }}
+{{- end }}
+
+{{- if and (not .Values.api.tls.enabled) (or .Values.api.tls.clientCAs.existingSecret .Values.api.tls.clientCAs.existingConfigMap) }}
+{{- fail "api.tls.clientCAs requires api.tls.enabled: client certificates are only verified on a TLS listener." }}
+{{- end }}
+
+{{- if include "harbor-scanner-trivy.tls.mtlsEnabled" . }}
+{{- if not .Values.api.tls.clientCAs.keys }}
+{{- fail "api.tls.clientCAs.keys must name at least one key in the CA Secret/ConfigMap; the chart cannot enumerate them at render time." }}
+{{- end }}
+{{- end }}
+
+{{- if and .Values.trivy.existingSecret (not .Values.trivy.existingSecretKey) }}
+{{- fail "trivy.existingSecretKey must name the key holding the GitHub token in trivy.existingSecret." }}
+{{- end }}
+
+{{- if and .Values.redis.existingSecret (not .Values.redis.existingSecretKey) }}
+{{- fail "redis.existingSecretKey must name the key holding the Redis URL in redis.existingSecret." }}
+{{- end }}
+
+{{- if and (not .Values.redis.existingSecret) (not .Values.redis.url) }}
+{{- fail "Set redis.url, or redis.existingSecret to read the URL from a Secret." }}
+{{- end }}
+
+{{- if and .Values.trivy.ignorePolicy .Values.trivy.existingIgnorePolicyConfigMap }}
+{{- fail "Set either trivy.ignorePolicy or trivy.existingIgnorePolicyConfigMap, not both." }}
+{{- end }}
+
+{{- if and .Values.podDisruptionBudget.enabled (and .Values.podDisruptionBudget.minAvailable .Values.podDisruptionBudget.maxUnavailable) }}
+{{- fail "podDisruptionBudget accepts minAvailable or maxUnavailable, not both." }}
+{{- end }}
+
+{{- if and .Values.podDisruptionBudget.enabled (not (or .Values.podDisruptionBudget.minAvailable .Values.podDisruptionBudget.maxUnavailable)) }}
+{{- fail "podDisruptionBudget.enabled requires either minAvailable or maxUnavailable." }}
+{{- end }}
+
+{{- if .Values.autoscaling.enabled }}
+{{- if gt (int .Values.autoscaling.minReplicas) (int .Values.autoscaling.maxReplicas) }}
+{{- fail "autoscaling.minReplicas must not exceed autoscaling.maxReplicas." }}
+{{- end }}
+{{- if and (not .Values.autoscaling.targetCPUUtilizationPercentage) (not .Values.autoscaling.targetMemoryUtilizationPercentage) (not .Values.autoscaling.metrics) }}
+{{- fail "autoscaling.enabled requires at least one metric: targetCPUUtilizationPercentage, targetMemoryUtilizationPercentage, or autoscaling.metrics." }}
+{{- end }}
+{{- end }}
+
+{{/*
+A single RWO claim cannot back several replicas, and the StatefulSet would keep
+every pod after the first Pending forever.
+*/}}
+{{- if and .Values.persistence.enabled .Values.persistence.existingClaim }}
+{{- $replicas := ternary (int .Values.autoscaling.maxReplicas) (int .Values.replicaCount) .Values.autoscaling.enabled }}
+{{- if gt $replicas 1 }}
+{{- fail "persistence.existingClaim shares one volume across all replicas; use it only with a single replica, or drop it so the StatefulSet provisions a claim per pod." }}
+{{- end }}
+{{- end }}
+
+{{/*
+The fs scan cache is one BoltDB file with an exclusive process lock, so a second
+concurrent scan in the same pod does not wait, it fails. Redis has no expiry at
+TTL 0, which grows the instance without bound.
+*/}}
+{{- $cacheBackend := toString .Values.trivy.cacheBackend }}
+{{- if contains "+sentinel://" $cacheBackend }}
+{{- fail "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://." }}
+{{- end }}
+
+{{- if and (eq $cacheBackend "fs") (gt (int .Values.jobQueue.workerConcurrency) 1) }}
+{{- fail "jobQueue.workerConcurrency above 1 needs trivy.cacheBackend set to a redis:// URL or memory; the fs scan cache admits one scan at a time." }}
+{{- end }}
+
+{{- if and (hasPrefix "redis" $cacheBackend) (regexMatch "^0+(\\.0+)?(ns|us|ms|s|m|h)?$" (toString .Values.trivy.cacheTTL)) }}
+{{- fail "trivy.cacheTTL must be greater than zero with a Redis scan cache; at zero Trivy writes keys that never expire." }}
+{{- end }}
+
+{{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) }}
+{{- fail "metrics.serviceMonitor.enabled requires metrics.enabled: the adapter would serve no /metrics endpoint to scrape." }}
+{{- end }}
+
+{{- if and .Values.extraCA.existingSecret .Values.extraCA.existingConfigMap }}
+{{- fail "Set either extraCA.existingSecret or extraCA.existingConfigMap, not both." }}
+{{- end }}
+
+{{- if .Values.imageCredentials.create }}
+{{- if not (and .Values.imageCredentials.username .Values.imageCredentials.password) }}
+{{- fail "imageCredentials.create requires imageCredentials.username and imageCredentials.password." }}
+{{- end }}
+{{- end }}
+
+{{/*
+`config` renders into a ConfigMap, which is not secret and is readable by
+anything that can read ConfigMaps in the namespace. Credential-shaped names are
+almost always a mistake here, and `secret` takes the identical notation.
+*/}}
+{{- range $name, $value := (include "harbor-scanner-trivy.toEnvVars" (dict "values" (.Values.config | default dict) "prefix" "" "isSecret" false) | fromYaml) }}
+{{- if regexMatch "(TOKEN|PASSWORD|PASSWD|SECRET|APIKEY|API_KEY|CREDENTIAL)" $name }}
+{{- fail (printf "config.%s renders into a ConfigMap, which is not secret. Move it to `secret`, which takes the same notation." $name) }}
+{{- end }}
+{{- end }}
+
+{{/*
+The two passthrough maps land in a ConfigMap and a Secret that share the
+`<fullname>-env` name and are both consumed with envFrom. A name in both would
+resolve unpredictably, so it has to be one or the other.
+*/}}
+{{- $configNames := keys (include "harbor-scanner-trivy.toEnvVars" (dict "values" (.Values.config | default dict) "prefix" "" "isSecret" false) | fromYaml) }}
+{{- range $name, $value := (include "harbor-scanner-trivy.toEnvVars" (dict "values" (.Values.secret | default dict) "prefix" "" "isSecret" false) | fromYaml) }}
+{{- if has $name $configNames }}
+{{- fail (printf "%s is set in both config and secret; keep each env var in exactly one of them." $name) }}
+{{- end }}
+{{- end }}
+
+{{/*
+The API server accepts "-" and "." in a ConfigMap/Secret key, but a key that is
+not a valid env var name is silently skipped by the kubelet when it builds the
+container environment - one InvalidEnvironmentVariableNames event, and the
+setting simply never arrives. Fail here instead.
+*/}}
+{{- range $source := (list (.Values.config | default dict) (.Values.secret | default dict)) }}
+{{- range $name, $value := (include "harbor-scanner-trivy.toEnvVars" (dict "values" $source "prefix" "" "isSecret" false) | fromYaml) }}
+{{- if not (regexMatch "^[A-Z_][A-Z0-9_]*$" $name) }}
+{{- fail (printf "%q is not a valid environment variable name, so the kubelet would drop it. Use letters, digits and underscores in config/secret keys." $name) }}
+{{- end }}
+{{- end }}
+{{- end }}

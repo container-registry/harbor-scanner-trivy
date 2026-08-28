@@ -1,0 +1,23 @@
+{{/*
+Generic configuration passthrough: .Values.config flattened into env vars and
+consumed with envFrom. Any adapter setting can be reached this way without a
+chart change.
+
+Credentials do not belong here - a ConfigMap is not secret, and
+validate-values.yaml refuses credential-shaped keys. Use .Values.secret.
+*/}}
+{{- if .Values.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-env" (include "harbor-scanner-trivy.fullname" .) }}
+  namespace: {{ include "harbor-scanner-trivy.namespace" . }}
+  labels:
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" dict)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+data:
+  {{- include "harbor-scanner-trivy.toEnvVars" (dict "values" .Values.config "prefix" "" "isSecret" false) | nindent 2 }}
+{{- end }}

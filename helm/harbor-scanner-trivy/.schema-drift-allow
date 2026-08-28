@@ -1,0 +1,3 @@
+# Baseline for tools/schema-drift.py - acknowledged, intentional drift.
+# One finding ID per line, exactly as the report prints it ("[kind] path").
+# Every entry MUST carry a comment explaining why it is allowed.

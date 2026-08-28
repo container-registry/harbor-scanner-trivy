@@ -1,0 +1,52 @@
+---
+# Multi-replica install with every optional workload object turned on.
+replicaCount: 3
+podManagementPolicy: Parallel
+
+jobQueue:
+  workerConcurrency: 4
+
+# Several replicas, each running several scans, cannot share one BoltDB file.
+# The Redis scan cache is what makes workerConcurrency above 1 possible, and the
+# TTL is what keeps it from growing without bound.
+trivy:
+  cacheBackend: redis://harbor-scan-cache:6379/0
+  cacheTTL: 168h
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+
+networkPolicy:
+  enabled: true
+  ingress:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: harbor
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: harbor-scanner-trivy

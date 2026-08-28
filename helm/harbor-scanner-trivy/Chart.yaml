@@ -1,11 +1,55 @@
+---
 apiVersion: v2
 name: harbor-scanner-trivy
-version: 0.40.0 # x-release-please-version
-appVersion: 0.40.0 # x-release-please-version
-description: Harbor scanner adapter for Trivy
-keywords:
-  - scanner
-  - harbor
-  - vulnerability
+description: A production-ready Helm chart for the Harbor Scanner Adapter for
+  Trivy - the vulnerability and SBOM scanner behind Harbor's Interrogation
+  Services.
+type: application
+version: 1.0.0
+# appVersion tracks the adapter release; the app release-please line rewrites
+# this line, the chart release-please line rewrites `version` above.
+appVersion: "v0.40.0"  # x-release-please-version
+kubeVersion: ">=1.28.0-0"
+
+home: https://github.com/container-registry/harbor-scanner-trivy
+icon: https://raw.githubusercontent.com/goharbor/website/main/static/img/logos/harbor-icon-color.svg
 sources:
-- https://github.com/container-registry/harbor-scanner-trivy
+  - https://github.com/container-registry/harbor-scanner-trivy
+
+keywords:
+  - harbor
+  - trivy
+  - scanner
+  - vulnerability
+  - vulnerability-scanning
+  - sbom
+  - security
+  - container-registry
+  - cloud-native
+
+# Artifact Hub only counts a maintainer that carries an email address.
+maintainers:
+  - name: Harbor Scanner Trivy Authors
+    email: vadim@8gears.com
+    url: https://github.com/container-registry/harbor-scanner-trivy
+
+# Artifact Hub metadata (https://artifacthub.io/docs/topics/annotations/helm/).
+# Keep this the LAST top-level key: the release pipeline appends the
+# per-release artifacthub.io/images annotation to this block before
+# packaging (the image tag is only known at release time).
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/category: security
+  artifacthub.io/operator: "false"
+  artifacthub.io/signKey: |
+    fingerprint: keyless (Sigstore / Fulcio)
+    url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/helm/harbor-scanner-trivy/README.md#verifying-the-chart-signature
+  artifacthub.io/links: |
+    - name: Chart source
+      url: https://github.com/container-registry/harbor-scanner-trivy/tree/main/helm/harbor-scanner-trivy
+    - name: Chart migration guide
+      url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/helm/harbor-scanner-trivy/docs/MIGRATION.md
+    - name: Adapter architecture
+      url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/docs/ARCHITECTURE.md
+    - name: Harbor
+      url: https://goharbor.io

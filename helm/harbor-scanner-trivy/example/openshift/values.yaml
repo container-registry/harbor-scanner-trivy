@@ -1,0 +1,28 @@
+---
+# OpenShift restricted-v2: let the SCC allocate the UID/GID rather than pinning
+# them. The nulls are required - Helm deep-merges maps from -f, so simply
+# omitting these keys would leave the chart's 10000 defaults in place.
+podSecurityContext:
+  runAsUser: null
+  runAsGroup: null
+  fsGroup: null
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# restricted-v2 requires these; they are the chart defaults, repeated here
+# because this file is the SCC reference.
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+redis:
+  url: redis://harbor-redis:6379/5
+
+persistence:
+  enabled: true
+  size: 10Gi
