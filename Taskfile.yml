@@ -131,7 +131,7 @@ tasks:
         # Written to a file because the loops below redirect from it: in a
         # pipeline the while-read body is a subshell, where `exit 1` would end
         # the subshell rather than fail the build.
-        echo '{{.CVE_OVERRIDES}}' | tr '|' '\n' > "$TRIVY_DIR/.cve-overrides"
+        printf '%s' '{{.CVE_OVERRIDES}}' | tr '|' '\n' > "$TRIVY_DIR/.cve-overrides"
         # Assert the audited version first, on the pristine tree and before any
         # edit perturbs the graph. An entry whose module has moved is stale for
         # this tag: applying it could pin below what upstream already ships, or
