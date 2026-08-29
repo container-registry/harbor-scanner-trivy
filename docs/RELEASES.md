@@ -7,7 +7,7 @@ instance, config, manifest, changelog and tag namespace:
 
 | Line | Covers | Tag | Config / manifest | Changelog |
 |------|--------|-----|-------------------|-----------|
-| Adapter | everything except `helm/`, `.github/`, `docs/`, `taskfile/` | `vX.Y.Z` | `release-please-config.json` / `.release-please-manifest.json` | `CHANGELOG.md` |
+| Adapter | everything except `deploy/`, `.github/`, `docs/`, `taskfile/` | `vX.Y.Z` | `release-please-config.json` / `.release-please-manifest.json` | `CHANGELOG.md` |
 | Helm chart | `deploy/chart/` | `chart-vX.Y.Z` | `release-please-config-chart.json` / `.release-please-manifest-chart.json` | `deploy/chart/CHANGELOG.md` |
 
 They are separate so a chart fix does not force an adapter release that
@@ -69,7 +69,7 @@ next release is cut (or hidden entirely).
 Use `upstream:` for changes synced from `goharbor/harbor-scanner-trivy`.
 
 The same rules apply to both lines. Which line a commit lands on is decided by
-its paths: the adapter line ignores `.github/`, `docs/`, `helm/` and `taskfile/`;
+its paths: the adapter line ignores `.github/`, `docs/`, `deploy/` and `taskfile/`;
 the chart line only sees `deploy/chart/`. A commit touching both
 opens both release PRs. Use `ci:` for workflow-only changes.
 

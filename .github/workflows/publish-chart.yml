@@ -30,6 +30,16 @@ on:
         description: Existing chart release tag, e.g. chart-v1.0.0
         required: true
         type: string
+      registry_address:
+        description: OCI registry to push the chart to
+        required: false
+        type: string
+        default: 8gears.container-registry.com
+      registry_project:
+        description: Project within the registry
+        required: false
+        type: string
+        default: 8gcr
 
 permissions:
   contents: read

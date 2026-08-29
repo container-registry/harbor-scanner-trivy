@@ -31,6 +31,17 @@ if [[ ! "${app_version}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
   exit 1
 fi
 
+# Drop any block a previous run left behind: a retried package step would
+# otherwise emit a second artifacthub.io/images key into the same Chart.yaml.
+if grep -q '^  artifacthub.io/images:' "${chart_yaml}"; then
+  awk '
+    /^  artifacthub\.io\/images:/ { skip = 1; next }
+    skip && /^    / { next }
+    { skip = 0; print }
+  ' "${chart_yaml}" > "${chart_yaml}.tmp"
+  mv "${chart_yaml}.tmp" "${chart_yaml}"
+fi
+
 {
   echo "  artifacthub.io/images: |"
   echo "    - name: harbor-scanner-trivy"

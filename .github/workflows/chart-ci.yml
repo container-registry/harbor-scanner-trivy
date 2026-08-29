@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "deploy/chart/**"
+      - "Taskfile.yml"
       - "taskfile/helm.yml"
       - "versions.env"
       - ".github/workflows/chart-ci.yml"
@@ -14,7 +15,9 @@ on:
     branches: [main]
     paths:
       - "deploy/chart/**"
+      - "Taskfile.yml"
       - "taskfile/helm.yml"
+      - "versions.env"
       - ".github/workflows/chart-ci.yml"
       - ".github/scripts/chart-annotate-images.sh"
 
@@ -102,7 +105,8 @@ jobs:
           # installs; honored by new pip, ignored by old, and the runner is
           # ephemeral either way.
           export PIP_BREAK_SYSTEM_PACKAGES=1
-          python3 -m pip install --user --quiet yamale yamllint pyyaml
+          python3 -m pip install --user --quiet \
+            "yamale==${YAMALE_VERSION}" "yamllint==${YAMLLINT_VERSION}" "pyyaml==${PYYAML_VERSION}"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
           # kube-linter
@@ -162,8 +166,11 @@ jobs:
         if: always()
         run: task helm:trivy:report
 
+      # Forks and Dependabot never get security-events: write, so uploading
+      # would fail the gate for contributors who cannot fix it. The report is
+      # still produced above, and the HIGH/CRITICAL gate still runs.
       - name: Upload Trivy SARIF
-        if: always()
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository
         uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38  # v4.37.4
         with:
           sarif_file: trivy-chart.sarif

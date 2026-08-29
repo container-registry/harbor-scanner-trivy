@@ -75,7 +75,9 @@ jobs:
     needs: [release-please-chart]
     if: ${{ needs.release-please-chart.outputs.release_created == 'true' }}
     permissions:
-      contents: read
+      # A reusable workflow is capped by the caller's grant, so the write the
+      # publish job needs for `gh release edit` has to be granted here.
+      contents: write
       id-token: write
     uses: ./.github/workflows/publish-chart.yml
     with:
