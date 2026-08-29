@@ -197,3 +197,67 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "trivy.cacheTTL must be greater than zero with a Redis scan cache; at zero Trivy writes keys that never expire."
+
+  - it: refuses a commonLabel that would override a selector label
+    set:
+      commonLabels:
+        app.kubernetes.io/name: mine
+    asserts:
+      - failedTemplate:
+          errorPattern: "selector label owned by the chart"
+
+  - it: refuses a podLabel that would override a selector label
+    set:
+      podLabels:
+        app.kubernetes.io/instance: mine
+    asserts:
+      - failedTemplate:
+          errorPattern: "selector label owned by the chart"
+
+  - it: allows ordinary common labels
+    set:
+      commonLabels:
+        team: platform
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: refuses a generated pull Secret with no registry to key it on
+    set:
+      imageCredentials:
+        create: true
+        username: u
+        password: p
+      image:
+        registry: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "imageCredentials.create needs a registry to key the auth entry on: set imageCredentials.registry (image.registry is empty)."
+
+  - it: refuses a Trivy timeout above the adapter's 24h ceiling
+    set:
+      trivy.timeout: 25h
+    asserts:
+      - failedTemplate:
+          errorMessage: 'trivy.timeout must be greater than 0 and at most 24h, got 25h.'
+
+  - it: refuses credentials hidden in a config URL value
+    set:
+      config:
+        scanner:
+          redis:
+            url: redis://u:p@h:6379
+    asserts:
+      - failedTemplate:
+          errorPattern: "embeds credentials in a URL"
+
+  - it: refuses config keys that flatten onto the same env var name
+    set:
+      config:
+        a:
+          b:
+            c: 1
+          b_c: 2
+    asserts:
+      - failedTemplate:
+          errorPattern: "flatten to the same environment variable name"

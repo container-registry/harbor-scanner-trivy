@@ -198,3 +198,31 @@ The adapter refuses to start outside (0, 24h]; the schema only checks the shape.
 {{- if or (le $timeout 0.0) (gt $timeout 86400.0) }}
 {{- fail (printf "trivy.timeout must be greater than 0 and at most 24h, got %s." (toString .Values.trivy.timeout)) }}
 {{- end }}
+
+{{/*
+The StatefulSet and Service selectors are built from selectorLabels, but the
+pod template also carries commonLabels/podLabels, which are appended after
+them. A user key of the same name would change the pod's labels without
+changing the (immutable) selector, so the StatefulSet would either be rejected
+or adopt no pods at all.
+*/}}
+{{- $reserved := list "app.kubernetes.io/name" "app.kubernetes.io/instance" }}
+{{- range $source := (list "commonLabels" "podLabels") }}
+{{- range $key, $value := (index $.Values $source | default dict) }}
+{{- if has $key $reserved }}
+{{- fail (printf "%s.%q is a selector label owned by the chart; overriding it would leave the immutable StatefulSet selector pointing at nothing." $source $key) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+An empty registry makes the generated pull Secret an `auths` entry keyed by "",
+which no container runtime matches to a real registry - the Secret is then
+silently useless.
+*/}}
+{{- if .Values.imageCredentials.create }}
+{{- $registry := .Values.imageCredentials.registry | default (.Values.global.imageRegistry | default .Values.image.registry) }}
+{{- if not $registry }}
+{{- fail "imageCredentials.create needs a registry to key the auth entry on: set imageCredentials.registry (image.registry is empty)." }}
+{{- end }}
+{{- end }}
