@@ -19,8 +19,11 @@ spec:
   driftDetection:
     mode: enabled
   values:
-    # Digest-pinned: a floating tag would make the running image drift away
-    # from what Git says without any Git change.
+    # PLACEHOLDER DIGEST - replace before applying, this one resolves to nothing.
+    # Get the real one with:
+    #   crane digest 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v0.40.0
+    # Digest-pinned rather than tagged: a floating tag would let the running
+    # image drift away from what Git says without any Git change.
     image:
       digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 

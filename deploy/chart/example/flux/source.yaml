@@ -10,6 +10,11 @@ spec:
   ref:
     # Exact chart version. A range here would let Flux move the release on its
     # own, which is the opposite of what GitOps is for.
+    #
+    # A tag still resolves through the registry, so it is only as immutable as
+    # the registry makes it. For a hard guarantee use `digest:` instead - the
+    # cosign verification below authenticates the publisher, not the bytes a
+    # tag currently points at.
     tag: 1.0.0
   # The chart is cosign-signed keylessly by the release workflow.
   verify:

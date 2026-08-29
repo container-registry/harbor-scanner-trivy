@@ -22,6 +22,10 @@ The same values work unchanged under Argo CD.
 kubectl apply -k .
 ```
 
+Two things in this directory are **placeholders** and must be replaced before
+you apply it: the image digest in `helmrelease.yaml` (all zeros, resolves to
+nothing) and the credentials in `identity-secrets.yaml`.
+
 `identity-secrets.yaml` in this directory is a **placeholder**. Do not commit
 real credentials: seal them (Sealed Secrets), encrypt them (SOPS), or have the
 External Secrets Operator produce the same Secret names.
@@ -32,6 +36,6 @@ External Secrets Operator produce the same Secret names.
 |------|---------|
 | `namespace.yaml` | Target namespace |
 | `source.yaml` | `OCIRepository` pointing at the chart in the registry |
-| `identity-secrets.yaml` | Placeholder Secrets the release expects to exist |
+| `identity-secrets.yaml` | Placeholder Secrets the release expects to exist. Kept in this kustomization for a self-contained example; if another controller (SOPS, Sealed Secrets, ESO) owns these names, drop this file from `resources` so the two do not fight over the same objects |
 | `helmrelease.yaml` | The release itself, with drift detection enabled |
 | `kustomization.yaml` | Ties them together in apply order |
