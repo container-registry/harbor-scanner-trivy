@@ -14,7 +14,9 @@ metadata:
     {{- . | trim | nindent 4 }}
   {{- end }}
 spec:
-  jobLabel: app.kubernetes.io/name
+  {{- /* instance, not name: name is the constant chart name, so every release
+        scraped by one Prometheus would collapse onto the same `job` label. */}}
+  jobLabel: app.kubernetes.io/instance
   namespaceSelector:
     matchNames:
       - {{ include "harbor-scanner-trivy.namespace" . }}

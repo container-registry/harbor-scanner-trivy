@@ -24,6 +24,57 @@ def get(values, path, default=None):
     return default if node is None else node
 
 
+# A setting can arrive three ways: the typed value, the config/secret
+# passthrough, or extraEnv. Judging only the typed value makes the doctor miss
+# exactly the production mistakes it exists to catch.
+def effective(values, path, env_name, default=None):
+    for source in ("config", "secret"):
+        flat = flatten(get(values, source, {}) or {})
+        if env_name in flat:
+            return flat[env_name]
+    for entry in get(values, "extraEnv", []) or []:
+        if isinstance(entry, dict) and entry.get("name") == env_name and "value" in entry:
+            return entry["value"]
+    return get(values, path, default)
+
+
+def flatten(node, prefix=""):
+    """Mirror of the chart's toEnvVars helper: nested maps join with _, upper."""
+    out = {}
+    if not isinstance(node, dict):
+        return out
+    for key, value in node.items():
+        name = f"{prefix}_{key}".upper() if prefix else str(key).upper()
+        if isinstance(value, dict):
+            out.update(flatten(value, name))
+        elif isinstance(value, list):
+            out[name] = ",".join(str(v) for v in value)
+        elif value is not None:
+            out[name] = str(value)
+    return out
+
+
+def budget_blocks_eviction(budget, replicas, is_min):
+    """True when the budget permits zero disruptions.
+
+    Both fields accept an int or a percentage string, so "100%" and "0" are as
+    blocking as the integer forms and have to be parsed rather than compared.
+    """
+    if budget is None or budget == "":
+        return False
+    if isinstance(budget, str) and budget.strip().endswith("%"):
+        try:
+            pct = float(budget.strip().rstrip("%"))
+        except ValueError:
+            return False
+        return pct >= 100 if is_min else pct <= 0
+    try:
+        value = int(budget)
+    except (TypeError, ValueError):
+        return False
+    return value >= replicas if is_min else value <= 0
+
+
 def check(values):
     """Yield (level, path, message)."""
     findings = []
@@ -36,9 +87,15 @@ def check(values):
 
     # The fs scan cache is a single BoltDB file that one process may open at a
     # time, so concurrent workers deadlock or fail rather than share it.
-    backend = str(get(values, "trivy.cacheBackend", "fs"))
-    workers = int(get(values, "jobQueue.workerConcurrency", 1))
-    replicas = int(get(values, "replicaCount", 1))
+    backend = str(effective(values, "trivy.cacheBackend", "SCANNER_TRIVY_CACHE_BACKEND", "fs"))
+    workers = int(effective(values, "jobQueue.workerConcurrency",
+                            "SCANNER_JOB_QUEUE_WORKER_CONCURRENCY", 1))
+    # A PDB is judged against the replica count that actually applies: under an
+    # autoscaler the chart omits replicas entirely and minReplicas is the floor.
+    if get(values, "autoscaling.enabled", False):
+        replicas = int(get(values, "autoscaling.minReplicas", 1))
+    else:
+        replicas = int(get(values, "replicaCount", 1))
     if backend in ("", "fs") and workers > 1:
         error(
             "jobQueue.workerConcurrency",
@@ -57,7 +114,9 @@ def check(values):
 
     # skipUpdate without a pre-seeded volume means scanning against nothing.
     if get(values, "trivy.skipUpdate", False):
-        seeded = get(values, "persistence.enabled", True) or get(values, "initContainers")
+        # persistence.enabled alone only yields an EMPTY volume; something has
+        # to put a database on it.
+        seeded = get(values, "persistence.existingClaim") or get(values, "initContainers")
         if not seeded:
             error(
                 "trivy.skipUpdate",
@@ -101,11 +160,18 @@ def check(values):
     # A budget that can never be satisfied blocks every drain.
     if get(values, "podDisruptionBudget.enabled", False):
         min_available = get(values, "podDisruptionBudget.minAvailable")
-        if isinstance(min_available, int) and min_available >= replicas:
+        max_unavailable = get(values, "podDisruptionBudget.maxUnavailable")
+        if budget_blocks_eviction(min_available, replicas, is_min=True):
             error(
                 "podDisruptionBudget.minAvailable",
-                f"{min_available} with replicaCount {replicas} leaves no pod "
+                f"{min_available} against {replicas} replica(s) leaves no pod "
                 "evictable, which blocks node drains indefinitely.",
+            )
+        if budget_blocks_eviction(max_unavailable, replicas, is_min=False):
+            error(
+                "podDisruptionBudget.maxUnavailable",
+                f"{max_unavailable} leaves no pod evictable, which blocks node "
+                "drains indefinitely.",
             )
         if replicas < 2 and not get(values, "autoscaling.enabled", False):
             warn(
@@ -133,7 +199,7 @@ def check(values):
 
     # An air-gapped install that still reaches out.
     if get(values, "global.imageRegistry") and not get(values, "trivy.offlineScan", False):
-        db = str(get(values, "trivy.dbRepository", ""))
+        db = str(get(values, "trivy.dbRepository", "ghcr.io/aquasecurity/trivy-db"))
         if db.startswith("ghcr.io/"):
             warn(
                 "trivy.dbRepository",

@@ -183,8 +183,9 @@ tests:
     asserts:
       - notEqual:
           path: spec.template.metadata.annotations["checksum/config"]
-          # the default render's checksum
-          value: be5be69f55e91af25e54ecc2154d4da359b67b3b27e25f5cc0b3ff54eb74dff3
+          # The default render's checksum. Regenerate with:
+          #   helm template t deploy/chart | grep checksum/config
+          value: 108cf91da7933b7c06918dce36512723631e64213fc95e6e3790b4abf4fa8215
 
   - it: refuses a credential-shaped key in config
     templates:

@@ -105,8 +105,9 @@ tests:
     asserts:
       - notEqual:
           path: spec.template.metadata.annotations["checksum/config"]
-          # sha256 of "|||" - the default, all four inputs empty
-          value: 9b2b0f7d0e3a6b0e1e2d5b7a0f6c0d3e4a5b6c7d8e9f0a1b2c3d4e5f60718293
+          # The default render's checksum. Regenerate with:
+          #   helm template t deploy/chart | grep checksum/config
+          value: 108cf91da7933b7c06918dce36512723631e64213fc95e6e3790b4abf4fa8215
 
   - it: leaves SCANNER_TRIVY_DEBUG_MODE unset so the adapter can derive it
     asserts:

@@ -166,3 +166,35 @@ setting simply never arrives. Fail here instead.
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+The key-name check above catches SCANNER_TRIVY_GITHUB_TOKEN, but a credential
+also hides inside a URL value - redis://user:pass@host is the common one - and
+that lands in the ConfigMap just the same.
+*/}}
+{{- range $name, $value := (include "harbor-scanner-trivy.toEnvVars" (dict "values" (.Values.config | default dict) "prefix" "" "isSecret" false) | fromYaml) }}
+{{- if regexMatch "^[a-zA-Z][a-zA-Z0-9+.-]*://[^/@\\s]*:[^/@\\s]+@" (toString $value) }}
+{{- fail (printf "config.%s embeds credentials in a URL, and config renders into a ConfigMap. Move it to `secret`." $name) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Two different nested paths can flatten to one env var name (a.b.c and a.b_c
+both give A_B_C). The map would then silently lose one of them, so refuse.
+*/}}
+{{- range $source := (list "config" "secret") }}
+{{- $raw := index $.Values $source | default dict }}
+{{- $flat := include "harbor-scanner-trivy.toEnvVars" (dict "values" $raw "prefix" "" "isSecret" false) | fromYaml }}
+{{- $leaves := int (include "harbor-scanner-trivy.countLeaves" $raw) }}
+{{- if ne (len (keys $flat)) $leaves }}
+{{- fail (printf "%s contains keys that flatten to the same environment variable name; %d entries collapsed to %d. Rename the colliding keys." $source $leaves (len (keys $flat))) }}
+{{- end }}
+{{- end }}
+
+{{/*
+The adapter refuses to start outside (0, 24h]; the schema only checks the shape.
+*/}}
+{{- $timeout := include "harbor-scanner-trivy.durationSeconds" (toString .Values.trivy.timeout) | float64 }}
+{{- if or (le $timeout 0.0) (gt $timeout 86400.0) }}
+{{- fail (printf "trivy.timeout must be greater than 0 and at most 24h, got %s." (toString .Values.trivy.timeout)) }}
+{{- end }}

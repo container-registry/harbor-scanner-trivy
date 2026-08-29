@@ -481,3 +481,39 @@ Non-empty when a private CA bundle is mounted.
 {{- end }}
 {{- end -}}
 
+{{/*
+Number of scalar leaves in a nested map. Compared against the flattened key
+count to detect names that collapse onto each other.
+*/}}
+{{- define "harbor-scanner-trivy.countLeaves" -}}
+{{- $count := 0 -}}
+{{- range $key, $value := . -}}
+{{- if kindIs "map" $value -}}
+{{- $count = add $count (int (include "harbor-scanner-trivy.countLeaves" $value)) -}}
+{{- else if not (kindIs "invalid" $value) -}}
+{{- $count = add $count 1 -}}
+{{- end -}}
+{{- end -}}
+{{- $count -}}
+{{- end -}}
+
+{{/*
+A Go duration in seconds, for range checks the JSON schema cannot express.
+Shape is already guaranteed by values.schema.json, so this only sums the parts.
+*/}}
+{{- define "harbor-scanner-trivy.durationSeconds" -}}
+{{- $total := 0.0 -}}
+{{- range $part := regexFindAll "[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)" . -1 -}}
+{{- $unit := regexFind "(ns|us|ms|s|m|h)$" $part -}}
+{{- $n := float64 (regexFind "^[0-9]+(\\.[0-9]+)?" $part) -}}
+{{- if eq $unit "h" -}}{{- $total = addf $total (mulf $n 3600.0) -}}
+{{- else if eq $unit "m" -}}{{- $total = addf $total (mulf $n 60.0) -}}
+{{- else if eq $unit "s" -}}{{- $total = addf $total $n -}}
+{{- else if eq $unit "ms" -}}{{- $total = addf $total (divf $n 1000.0) -}}
+{{- else if eq $unit "us" -}}{{- $total = addf $total (divf $n 1000000.0) -}}
+{{- else -}}{{- $total = addf $total (divf $n 1000000000.0) -}}
+{{- end -}}
+{{- end -}}
+{{- $total -}}
+{{- end -}}
+

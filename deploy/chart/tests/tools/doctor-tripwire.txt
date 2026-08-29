@@ -5,7 +5,7 @@
    WARN trivy.gitHubToken: is inlined into the release. Use trivy.existingSecret for anything longer-lived than a test install.
    WARN api.tls.key: inlines a private key into the release. Use api.tls.existingSecret, which takes a cert-manager Secret directly.
    WARN imageCredentials.password: is stored in the release. Prefer image.pullSecrets with a Secret you own.
-   ERROR podDisruptionBudget.minAvailable: 1 with replicaCount 1 leaves no pod evictable, which blocks node drains indefinitely.
+   ERROR podDisruptionBudget.minAvailable: 1 against 1 replica(s) leaves no pod evictable, which blocks node drains indefinitely.
    WARN podDisruptionBudget.enabled: with replicaCount 1 protects nothing.
    WARN trivy.insecure: skips registry certificate verification for every scan. If this is for a private CA, use extraCA instead.
    WARN trivy.dbRepository: still points at ghcr.io while global.imageRegistry redirects images to a mirror. The DB download will not be air-gapped.

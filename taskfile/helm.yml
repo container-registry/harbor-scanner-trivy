@@ -185,10 +185,18 @@ tasks:
     cmds:
       - helm template test {{.CHART_DIR}} {{.HELM_SET}} > {{.CHART_DIR}}/.trivy-manifests.yaml
       - defer: rm -f {{.CHART_DIR}}/.trivy-manifests.yaml
-      - >-
-        trivy config {{.CHART_DIR}}/.trivy-manifests.yaml
-        --ignorefile {{.CHART_DIR}}/.trivyignore
-        --severity HIGH,CRITICAL --format sarif --output trivy-chart.sarif
+      - |
+        if command -v trivy >/dev/null 2>&1; then
+          trivy config {{.CHART_DIR}}/.trivy-manifests.yaml \
+            --ignorefile {{.CHART_DIR}}/.trivyignore \
+            --severity HIGH,CRITICAL --format sarif --output trivy-chart.sarif
+        else
+          docker run --rm -v "$(pwd)/{{.CHART_DIR}}":/chart -v "$(pwd)":/out \
+            aquasec/trivy:{{.TRIVY_BASE_IMAGE_VERSION}} \
+            config /chart/.trivy-manifests.yaml \
+            --ignorefile /chart/.trivyignore \
+            --severity HIGH,CRITICAL --format sarif --output /out/trivy-chart.sarif
+        fi
 
   kubescape:
     desc: "Scan the rendered manifests against the NSA and MITRE frameworks"
@@ -263,7 +271,14 @@ tasks:
         cp -R {{.CHART_DIR}} "$work/chart"
         .github/scripts/chart-annotate-images.sh "$work/chart" \
           "{{.REGISTRY_ADDRESS}}" "{{.REGISTRY_PROJECT}}"
-        if command -v ah >/dev/null 2>&1; then ah lint --kind helm --path "$work/chart"; fi
+        # Never skip silently: this step exists to catch what the release job
+        # would reject, so a missing validator has to fail, not pass quietly.
+        if command -v ah >/dev/null 2>&1; then
+          ah lint --kind helm --path "$work/chart"
+        else
+          docker run --rm -v "$work/chart":/chart \
+            artifacthub/ah:v{{.AH_VERSION}} ah lint --kind helm --path /chart
+        fi
         helm package "$work/chart" --version 0.0.0-ci --destination "$work/dist"
         ls -l "$work/dist"
         rm -rf "$work"
