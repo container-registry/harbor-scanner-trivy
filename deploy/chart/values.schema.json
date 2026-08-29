@@ -262,8 +262,7 @@
           "enum": [
             "ClusterIP",
             "NodePort",
-            "LoadBalancer",
-            "ExternalName"
+            "LoadBalancer"
           ]
         },
         "port": {

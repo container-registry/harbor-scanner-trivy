@@ -346,7 +346,10 @@ trivy:
   # -- Trivy reports directory. Must sit under the mounted cache volume.
   reportsDir: /home/scanner/.cache/reports
   # -- Where Trivy keeps its per-layer scan cache: `fs`, `memory`, or a
-  # `redis://` / `rediss://` URL. `fs` is a single BoltDB file that one process
+  # `redis://` / `rediss://` URL. Requires an adapter that reads
+  # `SCANNER_TRIVY_CACHE_*`; older builds ignore these and always use `fs`, so
+  # keep `jobQueue.workerConcurrency` at 1 unless the running `appVersion`
+  # supports them. `fs` is a single BoltDB file that one process
   # may open at a time, so `jobQueue.workerConcurrency` above 1 needs `memory`
   # or Redis. Sentinel URLs are not accepted here; Trivy dials one node.
   cacheBackend: fs
@@ -380,8 +383,9 @@ trivy:
   severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
   # -- Report only vulnerabilities with a known fix.
   ignoreUnfixed: false
-  # -- Time budget for a single scan. Also sets the default scan job TTL
-  # (`2 * timeout + 3s`) when `store.redisScanJobTTL` is unset.
+  # -- Time budget for a single scan. Must be greater than zero and at most
+  # 24h; the adapter refuses to start outside that range. Also sets the default
+  # scan job TTL (`2 * timeout + 3s`) when `store.redisScanJobTTL` is unset.
   timeout: 5m0s
   # -- Skip Trivy DB downloads. Enable only when you mount a pre-populated
   # `trivy.db` at `<cacheDir>/db/trivy.db`.

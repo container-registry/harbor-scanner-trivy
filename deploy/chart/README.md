@@ -56,8 +56,8 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
   restart loop. The chart injects `scheme: HTTPS` when you turn TLS on.
 - **The whole production surface.** ServiceAccount, PodDisruptionBudget, HPA,
   ServiceMonitor, NetworkPolicy, scheduling constraints, sidecars, init
-  containers, and `extraManifests` - each off by default and independently
-  switchable.
+  containers, and `extraManifests` - independently switchable, and off by
+  default except the dedicated ServiceAccount, which is created for you.
 - **No dead ends.** Every adapter setting is reachable through `config` /
   `secret` without a chart change, and every Kubernetes field the chart does not
   template is reachable through the merge hatches below.
@@ -368,7 +368,7 @@ Kubernetes: `>=1.28.0-0`
 | terminationGracePeriodSeconds | int | `60` | Grace period for a terminating pod. An in-flight Trivy scan is bounded by `trivy.timeout`; a longer grace period lets it finish instead of being killed. |
 | tolerations | list | `[]` | Tolerations for pod assignment. |
 | topologySpreadConstraints | list | `[]` | Topology spread constraints. |
-| trivy.cacheBackend | string | `"fs"` | Where Trivy keeps its per-layer scan cache: `fs`, `memory`, or a `redis://` / `rediss://` URL. `fs` is a single BoltDB file that one process may open at a time, so `jobQueue.workerConcurrency` above 1 needs `memory` or Redis. Sentinel URLs are not accepted here; Trivy dials one node. |
+| trivy.cacheBackend | string | `"fs"` | Where Trivy keeps its per-layer scan cache: `fs`, `memory`, or a `redis://` / `rediss://` URL. Requires an adapter that reads `SCANNER_TRIVY_CACHE_*`; older builds ignore these and always use `fs`, so keep `jobQueue.workerConcurrency` at 1 unless the running `appVersion` supports them. `fs` is a single BoltDB file that one process may open at a time, so `jobQueue.workerConcurrency` above 1 needs `memory` or Redis. Sentinel URLs are not accepted here; Trivy dials one node. |
 | trivy.cacheDir | string | `"/home/scanner/.cache/trivy"` | Trivy cache directory. Must sit under the mounted cache volume. |
 | trivy.cacheMaxSize | string | `"3GiB"` | Size cap for the on-disk scan cache (`fs` only). The cache has no eviction and never shrinks, so once it is over the cap the adapter drops it whole, after the running scan. `0` disables the cap. Keep it under `persistence.size` minus the Trivy DBs (~1Gi) and the reports directory. |
 | trivy.cacheRedisCACert | string | `""` | CA certificate for a Redis scan cache, as a path inside the container; mount it with `extraVolumes`/`extraVolumeMounts`. CA, cert and key are required together. |
@@ -394,7 +394,7 @@ Kubernetes: `>=1.28.0-0`
 | trivy.skipJavaDBUpdate | bool | `false` | Skip Java DB downloads. Enable only when you mount a pre-populated `trivy-java.db` at `<cacheDir>/java-db/trivy-java.db`. |
 | trivy.skipUpdate | bool | `false` | Skip Trivy DB downloads. Enable only when you mount a pre-populated `trivy.db` at `<cacheDir>/db/trivy.db`. |
 | trivy.skipVEXRepoUpdate | bool | `false` | Skip updating the VEX repository. |
-| trivy.timeout | string | `"5m0s"` | Time budget for a single scan. Also sets the default scan job TTL (`2 * timeout + 3s`) when `store.redisScanJobTTL` is unset. |
+| trivy.timeout | string | `"5m0s"` | Time budget for a single scan. Must be greater than zero and at most 24h; the adapter refuses to start outside that range. Also sets the default scan job TTL (`2 * timeout + 3s`) when `store.redisScanJobTTL` is unset. |
 | trivy.useSBOMAccessory | bool | `false` | Serve scans from a pre-existing SBOM accessory attached to the image instead of re-scanning its layers. |
 | trivy.vexSource | string | `""` | VEX source used to filter vulnerabilities: `oci` or `repo`. |
 | trivy.vulnType | string | `"os,library"` | Comma-separated vulnerability types: `os`, `library`. |

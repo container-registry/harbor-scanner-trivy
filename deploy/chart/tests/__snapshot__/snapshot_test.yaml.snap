@@ -106,8 +106,6 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                   value: 168h
                 - name: SCANNER_TRIVY_CACHE_MAX_SIZE
                   value: 3GiB
-                - name: SCANNER_TRIVY_DEBUG_MODE
-                  value: "false"
                 - name: SCANNER_TRIVY_VULN_TYPE
                   value: os,library
                 - name: SCANNER_TRIVY_SECURITY_CHECKS
@@ -237,14 +235,6 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
               name: ignore-policy
       volumeClaimTemplates:
         - metadata:
-            labels:
-              app.kubernetes.io/component: scanner-adapter
-              app.kubernetes.io/instance: harbor-scanner-trivy
-              app.kubernetes.io/managed-by: Helm
-              app.kubernetes.io/name: harbor-scanner-trivy
-              app.kubernetes.io/part-of: harbor
-              app.kubernetes.io/version: v0.40.0
-              helm.sh/chart: harbor-scanner-trivy-1.0.0
             name: data
           spec:
             accessModes:
@@ -354,8 +344,6 @@ matches the default render:
                   value: 168h
                 - name: SCANNER_TRIVY_CACHE_MAX_SIZE
                   value: 3GiB
-                - name: SCANNER_TRIVY_DEBUG_MODE
-                  value: "false"
                 - name: SCANNER_TRIVY_VULN_TYPE
                   value: os,library
                 - name: SCANNER_TRIVY_SECURITY_CHECKS
@@ -460,14 +448,6 @@ matches the default render:
               name: tmp
       volumeClaimTemplates:
         - metadata:
-            labels:
-              app.kubernetes.io/component: scanner-adapter
-              app.kubernetes.io/instance: harbor-scanner-trivy
-              app.kubernetes.io/managed-by: Helm
-              app.kubernetes.io/name: harbor-scanner-trivy
-              app.kubernetes.io/part-of: harbor
-              app.kubernetes.io/version: v0.40.0
-              helm.sh/chart: harbor-scanner-trivy-1.0.0
             name: data
           spec:
             accessModes:
@@ -576,8 +556,6 @@ matches the multi-replica render:
                 - name: SCANNER_TRIVY_CACHE_MAX_SIZE
                   value: 3GiB
                 - name: SCANNER_TRIVY_CACHE_REDIS_TLS
-                  value: "false"
-                - name: SCANNER_TRIVY_DEBUG_MODE
                   value: "false"
                 - name: SCANNER_TRIVY_VULN_TYPE
                   value: os,library
@@ -690,14 +668,6 @@ matches the multi-replica render:
               name: tmp
       volumeClaimTemplates:
         - metadata:
-            labels:
-              app.kubernetes.io/component: scanner-adapter
-              app.kubernetes.io/instance: harbor-scanner-trivy
-              app.kubernetes.io/managed-by: Helm
-              app.kubernetes.io/name: harbor-scanner-trivy
-              app.kubernetes.io/part-of: harbor
-              app.kubernetes.io/version: v0.40.0
-              helm.sh/chart: harbor-scanner-trivy-1.0.0
             name: data
           spec:
             accessModes:

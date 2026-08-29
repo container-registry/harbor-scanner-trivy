@@ -1,8 +1,9 @@
 # Alongside a goharbor/harbor-helm release
 
 Deploy the adapter into the same namespace as Harbor and point it at Harbor's
-own Redis. This is what the defaults assume; the values file only spells the
-assumption out.
+own Redis. The chart already assumes this shape, and the values file adjusts it
+to a concrete cluster: it overrides the Redis host and picks a dedicated
+database number so the adapter's keys do not share space with Harbor's.
 
 ```sh
 helm install harbor-scanner-trivy \

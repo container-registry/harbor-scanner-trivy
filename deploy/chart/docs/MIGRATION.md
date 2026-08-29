@@ -84,7 +84,8 @@ means a non-TLS install that set `VEXSource` starts honouring it on upgrade.
 
 ## New capabilities
 
-None of these are required; all default to off.
+None of these are required. All default to off except `serviceAccount.create`,
+which creates a dedicated ServiceAccount for you.
 
 | Value | What it does |
 |-------|--------------|
@@ -97,6 +98,8 @@ None of these are required; all default to off.
 | `networkPolicy.*` | Ingress (and optionally egress) restriction |
 | `nodeSelector`, `tolerations`, `affinity`, `topologySpreadConstraints`, `priorityClassName` | Scheduling |
 | `api.tls.clientCAs` | Mutual TLS |
+| `extraCA.*` | Trust a private CA for outbound connections (`existingSecret` / `existingConfigMap`) |
+| `trivy.cacheBackend`, `trivy.cacheTTL`, `trivy.cacheMaxSize` | Bound the Trivy scan cache, or move it to Redis so several workers can share it. Needs an adapter build that reads `SCANNER_TRIVY_CACHE_*` |
 | `extraEnv`, `extraVolumes`, `initContainers`, `sidecars`, `extraManifests` | Extension points |
 
 ## Worked example
@@ -160,3 +163,50 @@ kubectl -n harbor create secret generic harbor-scanner-trivy-redis \
 That is the intended behaviour: the closed `values.schema.json` rejects every
 key that no longer exists, naming it. Work through the list against the table
 above - `helm template` locally until it renders, then upgrade.
+
+## Changing persistence after install
+
+`volumeClaimTemplates` is immutable. The 1.0 claim template renders exactly what
+the pre-1.0 chart rendered, so `helm upgrade` from 0.x is not rejected over it,
+and nothing about the cache volume has to be touched during the migration.
+
+Changing `persistence.size`, `persistence.storageClass` or
+`persistence.accessModes` on an existing release is a different matter. The API
+server rejects the update:
+
+```
+UPGRADE FAILED: cannot patch "harbor-scanner-trivy" with kind StatefulSet:
+StatefulSet.apps "harbor-scanner-trivy" is invalid: spec: Forbidden: updates to
+statefulset spec for fields other than 'replicas', 'ordinals',
+'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and
+'minReadySeconds' are forbidden
+```
+
+Replace the StatefulSet, keeping the data:
+
+```sh
+# 1. Keep the values you are running.
+helm get values harbor-scanner-trivy -n harbor > current-values.yaml
+
+# 2. Drop the StatefulSet object only. --cascade=orphan leaves the pods running
+#    and the PVCs untouched; scanning keeps working throughout.
+kubectl delete statefulset harbor-scanner-trivy -n harbor --cascade=orphan
+
+# 3. Upgrade with the new persistence values. The recreated StatefulSet adopts
+#    the orphaned pods by selector and reuses the PVCs by name (data-<name>-0).
+helm upgrade harbor-scanner-trivy <chart> -n harbor \
+  -f current-values.yaml --set persistence.size=20Gi
+```
+
+A larger `persistence.size` in the claim template applies to PVCs the
+StatefulSet creates from then on, not to the ones that already exist. To grow
+those, the StorageClass needs `allowVolumeExpansion: true` and each PVC has to
+be patched:
+
+```sh
+kubectl patch pvc data-harbor-scanner-trivy-0 -n harbor \
+  -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+```
+
+If you would rather start clean, the volume holds only Trivy's caches. Deleting
+the PVC costs one vulnerability-DB download and a cold scan cache, nothing more.

@@ -59,6 +59,31 @@ tests:
           path: spec.selector.matchLabels["app.kubernetes.io/instance"]
           value: t
 
+
+  - it: keeps a zero-disruption budget, which truthiness would drop
+    templates:
+      - pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.maxUnavailable: 0
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 0
+
+  - it: accepts a percentage budget
+    templates:
+      - pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.minAvailable: 50%
+      podDisruptionBudget.maxUnavailable: ""
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 50%
+      - notExists:
+          path: spec.maxUnavailable
   - it: targets the StatefulSet from the HPA and drops replicas from it
     templates:
       - hpa.yaml

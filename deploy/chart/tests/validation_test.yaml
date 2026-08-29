@@ -159,3 +159,41 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://."
+
+  - it: refuses credentials smuggled into config through a URL
+    set:
+      config:
+        SCANNER_REDIS_URL: redis://user:s3cret@harbor-redis:6379
+    asserts:
+      - failedTemplate:
+          errorMessage: "config.SCANNER_REDIS_URL embeds credentials in a URL, and config renders into a ConfigMap. Move it to `secret`, which takes the same notation."
+
+  - it: accepts a credential-free URL in config
+    set:
+      config:
+        SCANNER_REDIS_URL: redis://harbor-redis:6379/2
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: refuses a zero scan timeout the adapter would reject at startup
+    set:
+      trivy.timeout: 0s
+    asserts:
+      - failedTemplate:
+          errorMessage: "trivy.timeout must be greater than zero; the adapter rejects a non-positive timeout at startup."
+
+  - it: refuses a compound zero scan timeout
+    set:
+      trivy.timeout: 0h0m
+    asserts:
+      - failedTemplate:
+          errorMessage: "trivy.timeout must be greater than zero; the adapter rejects a non-positive timeout at startup."
+
+  - it: refuses a compound zero Redis cache TTL
+    set:
+      trivy.cacheBackend: redis://scan-cache:6379/0
+      trivy.cacheTTL: 0h0m
+    asserts:
+      - failedTemplate:
+          errorMessage: "trivy.cacheTTL must be greater than zero with a Redis scan cache; at zero Trivy writes keys that never expire."

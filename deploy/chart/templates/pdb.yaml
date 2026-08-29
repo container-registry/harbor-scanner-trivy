@@ -14,11 +14,12 @@ spec:
   selector:
     matchLabels:
       {{- include "harbor-scanner-trivy.selectorLabels" . | nindent 6 }}
-  {{- with .Values.podDisruptionBudget.minAvailable }}
-  minAvailable: {{ . }}
+  {{- /* `with` would drop a zero-disruption budget, which is a valid policy. */}}
+  {{- if ne (toString .Values.podDisruptionBudget.minAvailable) "" }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
   {{- end }}
-  {{- with .Values.podDisruptionBudget.maxUnavailable }}
-  maxUnavailable: {{ . }}
+  {{- if ne (toString .Values.podDisruptionBudget.maxUnavailable) "" }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
   {{- end }}
   {{- with .Values.podDisruptionBudget.unhealthyPodEvictionPolicy }}
   unhealthyPodEvictionPolicy: {{ . }}

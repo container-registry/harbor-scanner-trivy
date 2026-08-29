@@ -50,11 +50,17 @@ scan, so it fails `helm template` instead.
 {{- fail "Set either trivy.ignorePolicy or trivy.existingIgnorePolicyConfigMap, not both." }}
 {{- end }}
 
-{{- if and .Values.podDisruptionBudget.enabled (and .Values.podDisruptionBudget.minAvailable .Values.podDisruptionBudget.maxUnavailable) }}
+{{/*
+Truthiness would read the valid budgets 0 and "0%" as unset. Empty string is
+this chart's "not set", so test against that rather than against falsiness.
+*/}}
+{{- $pdbMin := ne (toString .Values.podDisruptionBudget.minAvailable) "" }}
+{{- $pdbMax := ne (toString .Values.podDisruptionBudget.maxUnavailable) "" }}
+{{- if and .Values.podDisruptionBudget.enabled $pdbMin $pdbMax }}
 {{- fail "podDisruptionBudget accepts minAvailable or maxUnavailable, not both." }}
 {{- end }}
 
-{{- if and .Values.podDisruptionBudget.enabled (not (or .Values.podDisruptionBudget.minAvailable .Values.podDisruptionBudget.maxUnavailable)) }}
+{{- if and .Values.podDisruptionBudget.enabled (not (or $pdbMin $pdbMax)) }}
 {{- fail "podDisruptionBudget.enabled requires either minAvailable or maxUnavailable." }}
 {{- end }}
 
@@ -92,8 +98,17 @@ TTL 0, which grows the instance without bound.
 {{- fail "jobQueue.workerConcurrency above 1 needs trivy.cacheBackend set to a redis:// URL or memory; the fs scan cache admits one scan at a time." }}
 {{- end }}
 
-{{- if and (hasPrefix "redis" $cacheBackend) (regexMatch "^0+(\\.0+)?(ns|us|ms|s|m|h)?$" (toString .Values.trivy.cacheTTL)) }}
+{{- if and (hasPrefix "redis" $cacheBackend) (regexMatch "^(0+(\\.0+)?(ns|us|ms|s|m|h)?)+$" (toString .Values.trivy.cacheTTL)) }}
 {{- fail "trivy.cacheTTL must be greater than zero with a Redis scan cache; at zero Trivy writes keys that never expire." }}
+{{- end }}
+
+{{/*
+The schema checks the duration's shape; the adapter additionally requires
+0 < timeout <= 24h (etc.GetConfig). Zero is the half a template can check, and
+it is the half a human actually types.
+*/}}
+{{- if regexMatch "^(0+(\\.0+)?(ns|us|ms|s|m|h)?)+$" (toString .Values.trivy.timeout) }}
+{{- fail "trivy.timeout must be greater than zero; the adapter rejects a non-positive timeout at startup." }}
 {{- end }}
 
 {{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) }}
@@ -118,6 +133,11 @@ almost always a mistake here, and `secret` takes the identical notation.
 {{- range $name, $value := (include "harbor-scanner-trivy.toEnvVars" (dict "values" (.Values.config | default dict) "prefix" "" "isSecret" false) | fromYaml) }}
 {{- if regexMatch "(TOKEN|PASSWORD|PASSWD|SECRET|APIKEY|API_KEY|CREDENTIAL)" $name }}
 {{- fail (printf "config.%s renders into a ConfigMap, which is not secret. Move it to `secret`, which takes the same notation." $name) }}
+{{- end }}
+{{- /* The name says nothing for SCANNER_REDIS_URL and friends, where the
+       password rides inside the value as userinfo. */}}
+{{- if regexMatch "://[^/@[:space:]]*:[^/@[:space:]]+@" (toString $value) }}
+{{- fail (printf "config.%s embeds credentials in a URL, and config renders into a ConfigMap. Move it to `secret`, which takes the same notation." $name) }}
 {{- end }}
 {{- end }}
 

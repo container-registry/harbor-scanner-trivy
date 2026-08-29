@@ -76,3 +76,17 @@ tests:
           content:
             name: data
             mountPath: /home/scanner/.cache
+
+  - it: leaves the claim template unlabelled, because it is immutable
+    templates:
+      - statefulset.yaml
+    asserts:
+      # Labels here would carry helm.sh/chart and app.kubernetes.io/version,
+      # so every release would change an immutable field and fail the upgrade.
+      # An empty label set also matches what the pre-1.0 chart rendered, which
+      # is what lets 0.x upgrade in place.
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data

@@ -175,12 +175,14 @@ gitHubToken
 {{- end -}}
 
 {{/*
-Trivy debug mode. Unset follows the log level, matching the adapter's own
-default (etc.GetConfig), so the chart must not pin it to false.
+Trivy debug mode. Empty when nothing determines it, so the variable is left
+out entirely and the adapter applies its own rule (etc.GetConfig derives debug
+mode from the effective SCANNER_LOG_LEVEL). Emitting "false" here would pin it
+and defeat a log level set through config/secret/extraEnv.
 */}}
 {{- define "harbor-scanner-trivy.trivyDebugMode" -}}
 {{- if kindIs "invalid" .Values.trivy.debugMode -}}
-{{- if has (lower (toString .Values.logLevel)) (list "debug" "trace") -}}true{{- else -}}false{{- end -}}
+{{- if has (lower (toString .Values.logLevel)) (list "debug" "trace") -}}true{{- end -}}
 {{- else -}}
 {{- .Values.trivy.debugMode -}}
 {{- end -}}
@@ -337,8 +339,10 @@ the user claimed through .Values.config / .Values.secret.
   value: {{ . | quote }}
 {{- end }}
 {{- end }}
+{{- with (include "harbor-scanner-trivy.trivyDebugMode" .) }}
 - name: SCANNER_TRIVY_DEBUG_MODE
-  value: {{ include "harbor-scanner-trivy.trivyDebugMode" . | quote }}
+  value: {{ . | quote }}
+{{- end }}
 - name: SCANNER_TRIVY_VULN_TYPE
   value: {{ .Values.trivy.vulnType | quote }}
 - name: SCANNER_TRIVY_SECURITY_CHECKS

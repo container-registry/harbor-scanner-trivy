@@ -107,3 +107,34 @@ tests:
           path: spec.template.metadata.annotations["checksum/config"]
           # sha256 of "|||" - the default, all four inputs empty
           value: 9b2b0f7d0e3a6b0e1e2d5b7a0f6c0d3e4a5b6c7d8e9f0a1b2c3d4e5f60718293
+
+  - it: leaves SCANNER_TRIVY_DEBUG_MODE unset so the adapter can derive it
+    asserts:
+      # etc.GetConfig turns debug mode on when the effective SCANNER_LOG_LEVEL
+      # is debug/trace. Emitting "false" here would pin it and defeat a log
+      # level set through config/secret/extraEnv.
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "false"
+
+  - it: sets debug mode when the chart's own log level asks for it
+    set:
+      logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "true"
+
+  - it: still honours an explicit debug mode
+    set:
+      trivy.debugMode: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "false"

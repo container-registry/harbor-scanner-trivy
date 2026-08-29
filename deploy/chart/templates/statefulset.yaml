@@ -212,10 +212,12 @@ spec:
       {{- end }}
   {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
   volumeClaimTemplates:
+    {{- /* No labels here on purpose. volumeClaimTemplates is immutable: the full
+           label set carries helm.sh/chart and app.kubernetes.io/version, so every
+           release would make `helm upgrade` fail, and any label at all differs
+           from the pre-1.0 claim template and breaks the upgrade from 0.x. */}}
     - metadata:
         name: data
-        labels:
-          {{- include "harbor-scanner-trivy.labels" . | nindent 10 }}
         {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" .Values.persistence.annotations)) }}
         annotations:
           {{- . | trim | nindent 10 }}

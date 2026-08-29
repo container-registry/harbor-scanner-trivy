@@ -25,11 +25,14 @@ extraManifests:
       privateKey:
         algorithm: ECDSA
         size: 256
-      # Harbor connects to the Service name, so it must be a SAN.
+      # Harbor connects to the Service name, so it must be a SAN. Use the
+      # chart's own fullname: it collapses to "harbor-scanner-trivy" when the
+      # release is named after the chart, which "{{ .Release.Name }}-harbor-scanner-trivy"
+      # would render as harbor-scanner-trivy-harbor-scanner-trivy.
       dnsNames:
-        - {{ .Release.Name }}-harbor-scanner-trivy
-        - {{ .Release.Name }}-harbor-scanner-trivy.{{ .Release.Namespace }}
-        - {{ .Release.Name }}-harbor-scanner-trivy.{{ .Release.Namespace }}.svc
+        - {{ include "harbor-scanner-trivy.fullname" . }}
+        - {{ include "harbor-scanner-trivy.fullname" . }}.{{ .Release.Namespace }}
+        - {{ include "harbor-scanner-trivy.fullname" . }}.{{ .Release.Namespace }}.svc
       issuerRef:
         name: harbor-ca-issuer
         kind: Issuer

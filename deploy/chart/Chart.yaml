@@ -41,12 +41,14 @@ annotations:
   artifacthub.io/license: Apache-2.0
   artifacthub.io/category: security
   artifacthub.io/operator: "false"
-  artifacthub.io/signKey: |
-    fingerprint: keyless (Sigstore / Fulcio)
-    url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/README.md#verifying-the-chart-signature
+  # No artifacthub.io/signKey: Artifact Hub parses it as a PGP key id and URL,
+  # and this chart is signed keyless with Sigstore, which has no static key.
+  # Verification is a cosign command, linked below and documented in the README.
   artifacthub.io/links: |
     - name: Chart source
       url: https://github.com/container-registry/harbor-scanner-trivy/tree/main/deploy/chart
+    - name: Verifying the chart signature (cosign, keyless)
+      url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/README.md#verifying-the-chart-signature
     - name: Chart migration guide
       url: https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/docs/MIGRATION.md
     - name: Adapter architecture

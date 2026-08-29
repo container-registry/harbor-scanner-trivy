@@ -12,3 +12,5 @@ change, so none of them can silently rot.
 | [`tls-cert-manager/`](tls-cert-manager/) | HTTPS API with a cert-manager-issued certificate, plus mutual TLS |
 | [`flux/`](flux/) | GitOps delivery with FluxCD: digest-pinned image, externally owned Secrets |
 | [`air-gapped/`](air-gapped/) | Mirrored registry, no egress to GitHub, pre-seeded Trivy DB |
+| [`openshift/`](openshift/) | Letting OpenShift's SCC assign the UID/GID range instead of pinning one |
+| [`private-ca/`](private-ca/) | Trusting a private CA for outbound connections to the registry and Redis |
