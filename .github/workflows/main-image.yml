@@ -8,7 +8,8 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
-      - "helm/**"
+      - "deploy/**"
+      - "taskfile/helm.yml"
 
 permissions:
   contents: read

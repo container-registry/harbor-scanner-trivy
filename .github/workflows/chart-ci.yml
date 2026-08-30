@@ -109,8 +109,9 @@ jobs:
             "yamale==${YAMALE_VERSION}" "yamllint==${YAMLLINT_VERSION}" "pyyaml==${PYYAML_VERSION}"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-          # kube-linter
-          curl -fsSL "https://github.com/stackrox/kube-linter/releases/download/v${KUBE_LINTER_VERSION}/kube-linter-linux_${goarch}.tar.gz" \
+          # kube-linter (upstream's amd64 asset carries no arch suffix)
+          kube_linter_asset="kube-linter-linux$( [ "${goarch}" = amd64 ] || echo "_${goarch}" ).tar.gz"
+          curl -fsSL "https://github.com/stackrox/kube-linter/releases/download/v${KUBE_LINTER_VERSION}/${kube_linter_asset}" \
             | tar -xz -C "${bin}" kube-linter
 
           # Artifact Hub CLI (checksum-verified)
@@ -168,9 +169,10 @@ jobs:
 
       # Forks and Dependabot never get security-events: write, so uploading
       # would fail the gate for contributors who cannot fix it. The report is
-      # still produced above, and the HIGH/CRITICAL gate still runs.
+      # still produced above, and the HIGH/CRITICAL gate still runs. Pushes to
+      # main upload too - that is what feeds default-branch code scanning.
       - name: Upload Trivy SARIF
-        if: always() && github.event.pull_request.head.repo.full_name == github.repository
+        if: always() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38  # v4.37.4
         with:
           sarif_file: trivy-chart.sarif
