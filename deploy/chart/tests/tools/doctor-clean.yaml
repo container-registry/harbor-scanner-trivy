@@ -9,3 +9,15 @@ jobQueue:
   workerConcurrency: 4
 persistence:
   enabled: true
+# Regression guard for effective()'s precedence: extraEnv outranks the
+# config passthrough, so the deployed pod runs 1 worker on the fs cache and
+# the doctor must judge that value, not config's tripping 8.
+config:
+  scanner:
+    trivy:
+      cache_backend: fs
+    job_queue:
+      worker_concurrency: 8
+extraEnv:
+  - name: SCANNER_JOB_QUEUE_WORKER_CONCURRENCY
+    value: "1"

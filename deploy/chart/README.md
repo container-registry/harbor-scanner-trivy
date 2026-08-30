@@ -1,7 +1,5 @@
 # harbor-scanner-trivy
 
-![Version: 1.0.0](https://img.shields.io/badge/Version-1.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.40.0](https://img.shields.io/badge/AppVersion-v0.40.0-informational?style=flat-square)
-
 A production-ready Helm chart for the Harbor Scanner Adapter for Trivy - the vulnerability and SBOM scanner behind Harbor's Interrogation Services.
 
 The adapter implements Harbor's scanner adapter API: Harbor posts a scan

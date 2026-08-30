@@ -623,7 +623,7 @@
         },
         "cacheBackend": {
           "type": "string",
-          "pattern": "^(fs|memory|rediss?(\\+sentinel)?://.+)$"
+          "pattern": "^(fs|memory|rediss?://.+)$"
         },
         "cacheTTL": {
           "type": "string",

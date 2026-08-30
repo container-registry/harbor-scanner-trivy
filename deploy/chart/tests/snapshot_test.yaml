@@ -7,6 +7,12 @@ suite: rendered manifest snapshots
 release:
   name: harbor-scanner-trivy
   namespace: harbor
+# Pinned so release-please's Chart.yaml rewrites (version by the chart line,
+# appVersion by the adapter line) do not invalidate every snapshot on each
+# release PR; the labels and default image tag bake these values in.
+chart:
+  version: 9.9.9-test
+  appVersion: v9.9.9-test
 templates:
   - statefulset.yaml
   - service.yaml

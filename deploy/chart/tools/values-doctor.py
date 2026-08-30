@@ -28,13 +28,16 @@ def get(values, path, default=None):
 # passthrough, or extraEnv. Judging only the typed value makes the doctor miss
 # exactly the production mistakes it exists to catch.
 def effective(values, path, env_name, default=None):
+    # Checked strongest first, mirroring the chart's documented precedence
+    # (chart defaults < config/secret via envFrom < extraEnv, because env
+    # entries beat envFrom and extraEnv lands last in env).
+    for entry in get(values, "extraEnv", []) or []:
+        if isinstance(entry, dict) and entry.get("name") == env_name and "value" in entry:
+            return entry["value"]
     for source in ("config", "secret"):
         flat = flatten(get(values, source, {}) or {})
         if env_name in flat:
             return flat[env_name]
-    for entry in get(values, "extraEnv", []) or []:
-        if isinstance(entry, dict) and entry.get("name") == env_name and "value" in entry:
-            return entry["value"]
     return get(values, path, default)
 
 
@@ -179,13 +182,16 @@ def check(values):
                 f"with replicaCount {replicas} protects nothing.",
             )
 
-    # Scaling below the autoscaler's floor is silently overridden.
+    # Scaling below the autoscaler's floor is silently overridden. Judge the
+    # raw replicaCount here: `replicas` was already reassigned from
+    # minReplicas when autoscaling is on, so comparing it would never fire.
     if get(values, "autoscaling.enabled", False):
         min_replicas = int(get(values, "autoscaling.minReplicas", 1))
-        if "replicaCount" in values and replicas != min_replicas:
+        replica_count = int(get(values, "replicaCount", min_replicas))
+        if "replicaCount" in values and replica_count != min_replicas:
             warn(
                 "replicaCount",
-                f"{replicas} is ignored while autoscaling is enabled; the "
+                f"{replica_count} is ignored while autoscaling is enabled; the "
                 f"autoscaler starts from minReplicas {min_replicas}.",
             )
 

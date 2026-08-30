@@ -51,11 +51,13 @@ scan, so it fails `helm template` instead.
 {{- end }}
 
 {{/*
-Truthiness would read the valid budgets 0 and "0%" as unset. Empty string is
-this chart's "not set", so test against that rather than against falsiness.
+Truthiness would read the valid budgets 0 and "0%" as unset. Empty string and
+nil are this chart's "not set" (a null override deletes the default but leaves
+nil, which toString renders as a non-empty placeholder), so test both rather
+than falsiness.
 */}}
-{{- $pdbMin := ne (toString .Values.podDisruptionBudget.minAvailable) "" }}
-{{- $pdbMax := ne (toString .Values.podDisruptionBudget.maxUnavailable) "" }}
+{{- $pdbMin := and (not (kindIs "invalid" .Values.podDisruptionBudget.minAvailable)) (ne (toString .Values.podDisruptionBudget.minAvailable) "") }}
+{{- $pdbMax := and (not (kindIs "invalid" .Values.podDisruptionBudget.maxUnavailable)) (ne (toString .Values.podDisruptionBudget.maxUnavailable) "") }}
 {{- if and .Values.podDisruptionBudget.enabled $pdbMin $pdbMax }}
 {{- fail "podDisruptionBudget accepts minAvailable or maxUnavailable, not both." }}
 {{- end }}

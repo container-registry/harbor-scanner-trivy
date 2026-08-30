@@ -9,8 +9,8 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
     spec:
@@ -34,8 +34,8 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
   3: |
@@ -48,8 +48,8 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
     spec:
@@ -74,8 +74,8 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: harbor-scanner-trivy
             app.kubernetes.io/part-of: harbor
-            app.kubernetes.io/version: v0.40.0
-            helm.sh/chart: harbor-scanner-trivy-1.0.0
+            app.kubernetes.io/version: v9.9.9-test
+            helm.sh/chart: harbor-scanner-trivy-9.9.9-test
         spec:
           automountServiceAccountToken: false
           containers:
@@ -254,8 +254,8 @@ matches the default render:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
     spec:
@@ -279,8 +279,8 @@ matches the default render:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
   3: |
@@ -293,8 +293,8 @@ matches the default render:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
     spec:
@@ -316,8 +316,8 @@ matches the default render:
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: harbor-scanner-trivy
             app.kubernetes.io/part-of: harbor
-            app.kubernetes.io/version: v0.40.0
-            helm.sh/chart: harbor-scanner-trivy-1.0.0
+            app.kubernetes.io/version: v9.9.9-test
+            helm.sh/chart: harbor-scanner-trivy-9.9.9-test
         spec:
           automountServiceAccountToken: false
           containers:
@@ -388,7 +388,7 @@ matches the default render:
                   value: 1s
                 - name: SCANNER_REDIS_POOL_WRITE_TIMEOUT
                   value: 1s
-              image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v0.40.0
+              image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v9.9.9-test
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 failureThreshold: 10
@@ -466,8 +466,8 @@ matches the multi-replica render:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
     spec:
@@ -491,8 +491,8 @@ matches the multi-replica render:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
   3: |
@@ -505,8 +505,8 @@ matches the multi-replica render:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: harbor-scanner-trivy
         app.kubernetes.io/part-of: harbor
-        app.kubernetes.io/version: v0.40.0
-        helm.sh/chart: harbor-scanner-trivy-1.0.0
+        app.kubernetes.io/version: v9.9.9-test
+        helm.sh/chart: harbor-scanner-trivy-9.9.9-test
       name: harbor-scanner-trivy
       namespace: harbor
     spec:
@@ -527,8 +527,8 @@ matches the multi-replica render:
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: harbor-scanner-trivy
             app.kubernetes.io/part-of: harbor
-            app.kubernetes.io/version: v0.40.0
-            helm.sh/chart: harbor-scanner-trivy-1.0.0
+            app.kubernetes.io/version: v9.9.9-test
+            helm.sh/chart: harbor-scanner-trivy-9.9.9-test
         spec:
           automountServiceAccountToken: false
           containers:
@@ -601,7 +601,7 @@ matches the multi-replica render:
                   value: 1s
                 - name: SCANNER_REDIS_POOL_WRITE_TIMEOUT
                   value: 1s
-              image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v0.40.0
+              image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v9.9.9-test
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 failureThreshold: 10

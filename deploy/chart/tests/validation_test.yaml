@@ -157,8 +157,10 @@ tests:
     set:
       trivy.cacheBackend: redis+sentinel://sentinel:26379/mymaster/0
     asserts:
+      # The schema rejects Sentinel URLs before the template guard fires; the
+      # guard stays as a backstop for --skip-schema-validation installs.
       - failedTemplate:
-          errorMessage: "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://."
+          errorPattern: "does not match pattern"
 
   - it: refuses credentials smuggled into config through a URL
     set:
