@@ -28,24 +28,37 @@ on:
     # maps it to a federated robot via a claim rule on the repository claim.
     outputs:
       digest:
-        description: Digest of the pushed multi-arch image
-        value: ${{ jobs.build.outputs.digest }}
+        description: Digest of the pushed multi-arch manifest list
+        value: ${{ jobs.merge.outputs.digest }}
 
 jobs:
   build:
-    name: Build and Push
-    runs-on: ubuntu-latest
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       # Mint the OIDC token Harbor's federated robot login exchanges
       id-token: write
-    outputs:
-      digest: ${{ steps.digest.outputs.digest }}
     env:
-      REGISTRY_ADDRESS: ${{ inputs.registry_address }}
-      REGISTRY_PROJECT: ${{ inputs.registry_project }}
-      IMAGE_TAG: ${{ inputs.image_tag }}
+      PLATFORM: ${{ matrix.platform }}
     steps:
+      - name: Prepare
+        run: |
+          echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+          # BUILDX_HOST is a runner-level variable naming a remote BuildKit
+          # endpoint (same name as harbor-next). Re-exporting it into
+          # GITHUB_ENV is what makes it visible to the `env` context, so the
+          # steps below can branch on it; unset means fall back to QEMU.
+          if [ -n "${BUILDX_HOST:-}" ]; then
+            echo "BUILDX_HOST=${BUILDX_HOST}" >> "$GITHUB_ENV"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.checkout_ref }}
@@ -65,15 +78,34 @@ jobs:
           fi
           echo "VERSION=${version}" >> "$GITHUB_ENV"
 
+      # Both binaries are cross-compiled by Go on the runner's native arch, so
+      # nothing in the toolchain runs under emulation - only the Dockerfile's
+      # own RUN layers do, and only when QEMU is the fallback.
       - name: Build binaries
-        run: task build PLATFORMS=linux/amd64,linux/arm64 VERSION="${VERSION}"
+        run: task build PLATFORMS="${PLATFORM}" VERSION="${VERSION}"
 
       - name: Build Trivy from source
-        run: task build:trivy PLATFORMS=linux/amd64,linux/arm64
+        run: task build:trivy PLATFORMS="${PLATFORM}"
 
+      - name: Load build args
+        run: |
+          # versions.env is the single source of truth for both pins; the
+          # trivy commit is stamped by task build:trivy next to the binary.
+          {
+            echo "TRIVY_BASE_IMAGE_VERSION=$(grep '^TRIVY_BASE_IMAGE_VERSION=' versions.env | cut -d= -f2)"
+            echo "LPROBE_VERSION=$(grep '^LPROBE_VERSION=' versions.env | cut -d= -f2)"
+            echo "TRIVY_COMMIT=$(cat "bin/${PLATFORM_PAIR}/.trivy-commit")"
+          } >> "$GITHUB_ENV"
+
+      # QEMU is the fallback only: with a remote BuildKit endpoint the image
+      # is assembled natively on a builder of the target architecture.
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4.2.0
+        if: env.BUILDX_HOST == ''
 
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+        with:
+          driver: ${{ env.BUILDX_HOST && 'remote' || '' }}
+          endpoint: ${{ env.BUILDX_HOST }}
 
       - name: Mint OIDC token for Harbor
         id: harbor-oidc
@@ -94,36 +126,139 @@ jobs:
           username: jwt
           password: ${{ steps.harbor-oidc.outputs.token }}
 
-      - name: Build and push image
-        run: |
-          task image \
-            PUSH=true \
-            PLATFORMS=linux/amd64,linux/arm64 \
-            VERSION="${VERSION}" \
-            IMAGE_TAG="${IMAGE_TAG}" \
-            REGISTRY_ADDRESS="${REGISTRY_ADDRESS}" \
-            REGISTRY_PROJECT="${REGISTRY_PROJECT}"
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            TRIVY_VERSION=${{ env.TRIVY_BASE_IMAGE_VERSION }}
+            TRIVY_COMMIT=${{ env.TRIVY_COMMIT }}
+            LPROBE_VERSION=${{ env.LPROBE_VERSION }}
+          tags: ${{ inputs.registry_address }}/${{ inputs.registry_project }}/harbor-scanner-trivy
+          # No tag is published here; the merge job assembles the tag from the
+          # per-platform digests this pushes.
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
-      - name: Capture image digest
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          if [[ ! "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Unexpected digest for ${PLATFORM}: ${DIGEST}"
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: digest-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge Manifest List
+    needs: [build]
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      # Mint the OIDC token Harbor's federated robot login exchanges
+      id-token: write
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    env:
+      IMAGE: ${{ inputs.registry_address }}/${{ inputs.registry_project }}/harbor-scanner-trivy
+      IMAGE_TAG: ${{ inputs.image_tag }}
+    steps:
+      - name: Prepare BuildKit
+        run: |
+          if [ -n "${BUILDX_HOST:-}" ]; then
+            echo "BUILDX_HOST=${BUILDX_HOST}" >> "$GITHUB_ENV"
+          fi
+
+      # Needed for `task image:verify` below: the Taskfile and the composite
+      # action both live in the repo, and Task itself is not on the runner.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.checkout_ref }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          go: "false"
+
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+        with:
+          driver: ${{ env.BUILDX_HOST && 'remote' || '' }}
+          endpoint: ${{ env.BUILDX_HOST }}
+
+      - name: Mint OIDC token for Harbor
+        id: harbor-oidc
+        env:
+          AUDIENCE: https://${{ inputs.registry_address }}
+        run: |
+          response=$(curl -sSf -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}")
+          token=$(jq -r '.value' <<<"${response}")
+          echo "::add-mask::${token}"
+          echo "token=${token}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ${{ inputs.registry_address }}
+          # Keyless: the username is ignored, the OIDC JWT is the password
+          username: jwt
+          password: ${{ steps.harbor-oidc.outputs.token }}
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          # Each downloaded artifact is an empty file named after its digest
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            -t "${IMAGE}:${IMAGE_TAG}" \
+            $(printf "${IMAGE}@sha256:%s " *)
+
+      - name: Capture manifest digest
         id: digest
         run: |
-          image="${REGISTRY_ADDRESS}/${REGISTRY_PROJECT}/harbor-scanner-trivy:${IMAGE_TAG}"
-          digest=$(docker buildx imagetools inspect "${image}" --format '{{.Manifest.Digest}}')
+          digest=$(docker buildx imagetools inspect "${IMAGE}:${IMAGE_TAG}" --format '{{.Manifest.Digest}}')
           if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::Unexpected digest for ${image}: ${digest}"
+            echo "::error::Unexpected digest for ${IMAGE}:${IMAGE_TAG}: ${digest}"
             exit 1
           fi
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
+      # A build that silently loses an architecture still pushes a valid
+      # digest, so verify the index by digest before anything consumes it.
+      - name: Verify published architectures
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          task image:verify IMAGE_REF="${IMAGE}@${DIGEST}"
+
   sign:
     name: Sign Image
-    needs: [build]
+    needs: [merge]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     env:
-      IMAGE_REF: ${{ inputs.registry_address }}/${{ inputs.registry_project }}/harbor-scanner-trivy@${{ needs.build.outputs.digest }}
+      IMAGE_REF: ${{ inputs.registry_address }}/${{ inputs.registry_project }}/harbor-scanner-trivy@${{ needs.merge.outputs.digest }}
     steps:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2

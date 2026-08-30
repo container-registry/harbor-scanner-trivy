@@ -16,3 +16,6 @@ thumbs.db
 # Python bytecode from the chart tooling
 __pycache__/
 *.pyc
+
+# govulncheck reports (task vuln-report)
+vulnerability-check/

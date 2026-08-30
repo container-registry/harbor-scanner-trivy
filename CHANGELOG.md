@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.40.1](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.40.0...v0.40.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* **build:** apply CVE overrides when building Trivy from source ([#55](https://github.com/container-registry/harbor-scanner-trivy/issues/55)) ([107677e](https://github.com/container-registry/harbor-scanner-trivy/commit/107677e2669ed3a933875022f512dcdafd3d8f1e))
+* **deps:** bump Go to 1.26.6 for stdlib vulnerability fixes ([#50](https://github.com/container-registry/harbor-scanner-trivy/issues/50)) ([d69d98d](https://github.com/container-registry/harbor-scanner-trivy/commit/d69d98d03cd6188a4c4b8ae8de7a088977cb3dcd))
+
+
+### Performance Improvements
+
+* **redis:** split scan report into its own key ([#43](https://github.com/container-registry/harbor-scanner-trivy/issues/43)) ([dee1707](https://github.com/container-registry/harbor-scanner-trivy/commit/dee1707e740dad6c13ce74079d38ac05efffd7e7))
+
+
+### Documentation
+
+* restructure README around fork rationale and measured performance ([#53](https://github.com/container-registry/harbor-scanner-trivy/issues/53)) ([039fcfb](https://github.com/container-registry/harbor-scanner-trivy/commit/039fcfb4875410da6f4d16d36b132255afbfb92a))
+
 ## [0.40.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.39.1...v0.40.0) (2026-07-21)
 
 

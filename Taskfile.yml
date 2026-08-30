@@ -8,6 +8,7 @@
 #   task build PLATFORMS=linux/amd64,linux/arm64
 #   task image                               # CI: multi-arch push, local: native push
 #   task image:local                         # local image for component tests (--load)
+#   task image:verify IMAGE_TAG=vX.Y.Z       # assert a pushed image has every platform
 ---
 version: '3'
 
@@ -108,28 +109,81 @@ tasks:
       PLATFORM: '{{index .MATCH 0}}'
       GOOS: '{{index (splitList "-" (index .MATCH 0)) 0}}'
       GOARCH: '{{index (splitList "-" (index .MATCH 0)) 1}}'
+      # The `<module> <audited> <required>` records of trivy-cve-overrides.txt,
+      # comments stripped, fields collapsed to single spaces and sorted, so the
+      # same string doubles as the cache key in status: below.
+      CVE_OVERRIDES:
+        sh: >-
+          awk '{sub(/#.*/, "")} NF {$1 = $1; print}'
+          {{.ROOT_DIR}}/trivy-cve-overrides.txt | sort | tr '\n' '|' | sed 's/|$//'
     # Unlike the adapter binary, the trivy build is fully determined by the
-    # pinned version, so a version stamp makes local rebuilds no-ops.
+    # pinned version and the override list, so stamping both makes local
+    # rebuilds no-ops while still rebuilding when either changes.
     status:
       - test -x bin/{{.PLATFORM}}/trivy
       - test "$(cat bin/{{.PLATFORM}}/.trivy-version 2>/dev/null)" = "{{.TRIVY_BASE_IMAGE_VERSION}}"
       - test -s bin/{{.PLATFORM}}/.trivy-commit
+      - test "$(cat bin/{{.PLATFORM}}/.trivy-overrides 2>/dev/null)" = "{{.CVE_OVERRIDES}}"
     cmds:
       - cmd: mkdir -p bin/{{.PLATFORM}}
         silent: true
       # Mirrors trivy's own goreleaser build (ldflags, CGO_ENABLED=0,
       # GOEXPERIMENT=jsonv2) so the binary is equivalent to the official one
-      # but built by us, which keeps CVE overrides possible via go mod edit.
+      # but built by us, which is what makes the CVE overrides below possible.
       - |
         TRIVY_DIR=$(mktemp -d)
         trap 'rm -rf "$TRIVY_DIR"' EXIT
         git clone --branch v{{.TRIVY_BASE_IMAGE_VERSION}} --depth 1 https://github.com/aquasecurity/trivy.git "$TRIVY_DIR"
         cd "$TRIVY_DIR"
+        # Written to a file because the loops below redirect from it: in a
+        # pipeline the while-read body is a subshell, where `exit 1` would end
+        # the subshell rather than fail the build.
+        echo '{{.CVE_OVERRIDES}}' | tr '|' '\n' > "$TRIVY_DIR/.cve-overrides"
+        # Assert the audited version first, on the pristine tree and before any
+        # edit perturbs the graph. An entry whose module has moved is stale for
+        # this tag: applying it could pin below what upstream already ships, or
+        # do nothing at all, and either way the advisory needs re-checking.
+        while read -r module audited required; do
+          selected=$(go list -m "$module" | awk '{print $2}') || {
+            echo "CVE override: $module is not in the module graph of trivy v{{.TRIVY_BASE_IMAGE_VERSION}} - drop it from trivy-cve-overrides.txt" >&2
+            exit 1
+          }
+          if [ "$selected" != "$audited" ]; then
+            echo "CVE override: trivy v{{.TRIVY_BASE_IMAGE_VERSION}} selects $module $selected, but trivy-cve-overrides.txt was audited against $audited - re-check the advisories and update or drop the entry" >&2
+            exit 1
+          fi
+          # A required version below the audited one would pin the module down
+          # rather than up, and go mod edit -require would happily do it.
+          if [ "$(printf '%s\n%s\n' "$audited" "$required" | sort -V | tail -n1)" != "$required" ]; then
+            echo "CVE override: $module requires $required, which is not above the audited $audited - that would downgrade the module" >&2
+            exit 1
+          fi
+        done < "$TRIVY_DIR/.cve-overrides"
+        while read -r module audited required; do
+          go mod edit -require "$module@$required"
+        done < "$TRIVY_DIR/.cve-overrides"
+        # -e so unrelated package-load errors in trivy's testdata don't abort
+        # the tidy; a broken override still surfaces, either in the check below
+        # or as a failing go build (errexit fails the task either way).
+        go mod tidy -e
+        while read -r module audited required; do
+          selected=$(go list -m "$module" | awk '{print $2}') || {
+            echo "CVE override: $module dropped out of the module graph after go mod tidy" >&2
+            exit 1
+          }
+          if [ "$selected" = "$audited" ]; then
+            echo "CVE override: $module is still at the vulnerable $audited after go mod tidy - the override did not apply" >&2
+            exit 1
+          fi
+          echo "  override $module: $audited -> $selected (requires $required)"
+        done < "$TRIVY_DIR/.cve-overrides"
         GOEXPERIMENT=jsonv2 CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -trimpath \
           -ldflags "-s -w -extldflags '-static' -X github.com/aquasecurity/trivy/pkg/version/app.ver={{.TRIVY_BASE_IMAGE_VERSION}}" \
           -o "{{.ROOT_DIR}}/bin/{{.PLATFORM}}/trivy" ./cmd/trivy
         git rev-parse --short=8 HEAD > "{{.ROOT_DIR}}/bin/{{.PLATFORM}}/.trivy-commit"
       - cmd: echo "{{.TRIVY_BASE_IMAGE_VERSION}}" > bin/{{.PLATFORM}}/.trivy-version
+        silent: true
+      - cmd: echo "{{.CVE_OVERRIDES}}" > bin/{{.PLATFORM}}/.trivy-overrides
         silent: true
 
   dist:binaries:
@@ -198,6 +252,59 @@ tasks:
   vuln-check:
     desc: "Scan Go dependencies for known vulnerabilities"
     cmd: go run golang.org/x/vuln/cmd/govulncheck@{{.GOVULNCHECK_VERSION}} ./...
+
+  vuln-report:
+    desc: "Scan and render markdown vulnerability reports into VULN_DIR (used by CI)"
+    vars:
+      VULN_DIR: '{{.VULN_DIR | default "vulnerability-check"}}'
+    cmds:
+      - mkdir -p {{.VULN_DIR}}
+      # A scan that fails still has to be reported, so the exit code is captured
+      # rather than propagated; `vuln-report:check` turns it into a job failure.
+      - |
+        set +e
+        go run golang.org/x/vuln/cmd/govulncheck@{{.GOVULNCHECK_VERSION}} -format json ./... \
+          > "{{.VULN_DIR}}/govulncheck.json" 2> "{{.VULN_DIR}}/govulncheck.stderr"
+        echo $? > "{{.VULN_DIR}}/govulncheck.exit"
+      - task: vuln-report:render
+        vars: {VULN_DIR: '{{.VULN_DIR}}', MODE: full, NAME: report}
+      # The pull request comment lists only what a reviewer can act on. It must
+      # not duplicate the full report in the job summary or its counts.
+      - task: vuln-report:render
+        vars:
+          VULN_DIR: '{{.VULN_DIR}}'
+          MODE: fixable
+          NAME: comment
+          EXTRA_FLAGS: "-step-summary=false -github-output=false"
+      - cmd: echo "Reports written to {{.VULN_DIR}}/ (report.md, comment.md, report-summary.json)"
+        silent: true
+
+  vuln-report:render:
+    internal: true
+    vars:
+      MAX_ROWS: '{{.MAX_ROWS | default "50"}}'
+    cmd: >-
+      go run ./tools/govulncheck-report
+      -json "{{.VULN_DIR}}/govulncheck.json"
+      -stderr "{{.VULN_DIR}}/govulncheck.stderr"
+      -exit-file "{{.VULN_DIR}}/govulncheck.exit"
+      -mode {{.MODE}}
+      -max-rows {{.MAX_ROWS}}
+      -out "{{.VULN_DIR}}/{{.NAME}}.md"
+      -summary "{{.VULN_DIR}}/{{.NAME}}-summary.json"
+      {{.EXTRA_FLAGS}}
+
+  vuln-report:check:
+    desc: "Fail if the last vuln-report run could not produce a usable govulncheck report"
+    vars:
+      VULN_DIR: '{{.VULN_DIR | default "vulnerability-check"}}'
+    cmd: >-
+      go run ./tools/govulncheck-report
+      -json "{{.VULN_DIR}}/govulncheck.json"
+      -stderr "{{.VULN_DIR}}/govulncheck.stderr"
+      -exit-file "{{.VULN_DIR}}/govulncheck.exit"
+      -out /dev/null -step-summary=false -github-output=false
+      -fail-on-scanner-error
 
   # ============================================================================
   # Tests
@@ -276,6 +383,75 @@ tasks:
     cmds:
       - task: image
         vars: {PUSH: "false"}
+
+  image:verify:
+    desc: "Verify a pushed image index carries exactly IMAGE_PLATFORMS (IMAGE_REF=... or IMAGE_TAG=... to select)"
+    vars:
+      IMAGE_TAG: '{{.IMAGE_TAG | default .VERSION}}'
+      IMAGE_REF: '{{.IMAGE_REF | default (printf "%s/%s/%s:%s" .REGISTRY_ADDRESS .REGISTRY_PROJECT .IMAGE_NAME .IMAGE_TAG)}}'
+      PLATFORMS: '{{.PLATFORMS | default .IMAGE_PLATFORMS}}'
+    preconditions:
+      - sh: docker buildx version >/dev/null 2>&1
+        msg: "docker buildx is required to inspect a published image index"
+      - sh: command -v jq >/dev/null 2>&1
+        msg: "jq is required to inspect a published image index"
+    cmds:
+      - cmd: |
+          reference='{{.IMAGE_REF}}'
+          # grep exits 1 on an all-empty list, which errexit would turn into a
+          # silent abort before the guard below can say what is wrong.
+          expected=$(printf '%s' '{{.PLATFORMS}}' | tr ',' '\n' | tr -d '[:blank:]' | grep -v '^$' | sort -u || true)
+          if [ -z "${expected}" ]; then
+            echo "No expected platforms given (PLATFORMS/IMAGE_PLATFORMS is empty)" >&2
+            exit 1
+          fi
+
+          if ! raw=$(docker buildx imagetools inspect --raw "${reference}" 2>&1); then
+            echo "Cannot inspect ${reference}: ${raw}" >&2
+            exit 1
+          fi
+
+          if ! media_type=$(printf '%s' "${raw}" | jq -r '.mediaType // ""' 2>/dev/null); then
+            echo "Manifest of ${reference} is not valid JSON" >&2
+            exit 1
+          fi
+          if [ "${media_type}" != "application/vnd.oci.image.index.v1+json" ]; then
+            echo "Not a multi-arch OCI image index: ${reference} (mediaType: ${media_type:-none})" >&2
+            exit 1
+          fi
+
+          # buildx records provenance/SBOM attestations as unknown/unknown entries
+          # of the index; they are attachments, not platforms.
+          actual=$(printf '%s' "${raw}" \
+            | jq -r '.manifests[]? | "\(.platform.os // "?")/\(.platform.architecture // "?")" | select(. != "unknown/unknown")' \
+            | sort)
+          if [ -z "${actual}" ]; then
+            echo "No platform manifests in ${reference}" >&2
+            exit 1
+          fi
+
+          failed=0
+          for platform in ${expected}; do
+            printf '%s\n' "${actual}" | grep -Fqx "${platform}" || {
+              echo "Missing ${platform} manifest in ${reference}" >&2
+              failed=1
+            }
+          done
+          for platform in ${actual}; do
+            printf '%s\n' "${expected}" | grep -Fqx "${platform}" || {
+              echo "Unexpected ${platform} manifest in ${reference}" >&2
+              failed=1
+            }
+          done
+          duplicates=$(printf '%s\n' "${actual}" | uniq -d)
+          if [ -n "${duplicates}" ]; then
+            echo "Duplicate platform manifests in ${reference}: $(printf '%s' "${duplicates}" | tr '\n' ' ')" >&2
+            failed=1
+          fi
+          [ "${failed}" -eq 0 ] || exit 1
+
+          echo "Verified ${reference}: $(printf '%s' "${actual}" | tr '\n' ' ')"
+        silent: true
 
   # ============================================================================
   # Development
