@@ -44,6 +44,30 @@ Use `upstream:` for changes synced from `goharbor/harbor-scanner-trivy`.
 
 Release-please ignores commits that only touch `.github/` or `docs/`. Use `ci:` for workflow-only changes.
 
+## Tracking Upstream Trivy
+
+The adapter tracks upstream Trivy's release cadence via the org's self-hosted
+Renovate (weekly cron). Pins in `versions.env` are invisible to dependabot, so
+each carries a `# renovate:` annotation read by the regex manager in
+`renovate.json`. The Trivy pin uses the `docker` datasource against
+`aquasec/trivy`, so a bump PR only appears once the base-image tag the
+Dockerfile is `FROM` actually exists.
+
+`renovate.json` maps the Trivy update type to the conventional commit type -
+`fix:` for a Trivy patch release, `feat:` for anything bigger - so
+squash-merging the Renovate PR makes release-please cut a matching adapter
+release. `versions.env` sits on the adapter release line, so a pin bump
+releases the adapter artifacts (see Release Artifacts below).
+
+Review is deliberately manual: `versions.env` changes trigger the PR preview
+image, which compiles Trivy from source at the new pin and asserts every entry
+in `trivy-cve-overrides.txt` against the pristine tag, so a stale override
+fails the build instead of shipping.
+
+Renovate is limited to `versions.env` (`enabledManagers: custom.regex`);
+dependabot keeps gomod and github-actions. The typos pin stays unmanaged
+because its hand-computed checksum pin must be updated together with it.
+
 ## Release Artifacts
 
 | Artifact | Location |
