@@ -1,0 +1,39 @@
+---
+api:
+  tls:
+    enabled: true
+    # Written by the Certificate in extraManifests below.
+    existingSecret: harbor-scanner-trivy-tls
+    # Mutual TLS: only Harbor, holding a cert from this CA, may call the API.
+    # clientCAs:
+    #   existingConfigMap: harbor-ca-bundle
+    #   keys:
+    #     - ca.crt
+
+extraManifests:
+  # tpl-rendered, so .Release and .Values are available.
+  - |
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: {{ .Release.Name }}-tls
+      namespace: {{ .Release.Namespace }}
+    spec:
+      secretName: harbor-scanner-trivy-tls
+      duration: 2160h
+      renewBefore: 360h
+      privateKey:
+        algorithm: ECDSA
+        size: 256
+      # Harbor connects to the Service name, so it must be a SAN. Use the
+      # chart's own fullname: it collapses to "harbor-scanner-trivy" when the
+      # release is named after the chart, which "{{ .Release.Name }}-harbor-scanner-trivy"
+      # would render as harbor-scanner-trivy-harbor-scanner-trivy.
+      dnsNames:
+        - {{ include "harbor-scanner-trivy.fullname" . }}
+        - {{ include "harbor-scanner-trivy.fullname" . }}.{{ .Release.Namespace }}
+        - {{ include "harbor-scanner-trivy.fullname" . }}.{{ .Release.Namespace }}.svc
+      issuerRef:
+        name: harbor-ca-issuer
+        kind: Issuer
+        group: cert-manager.io

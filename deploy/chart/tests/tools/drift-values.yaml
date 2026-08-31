@@ -1,0 +1,13 @@
+---
+# Fixture for tools/schema-drift.py. `documented` is in both; `undocumented`
+# is only here; the schema also declares a `stale` property that is not here.
+documented: value
+nested:
+  known: 1
+  unknown: 2
+undocumented: value
+freeform:
+  anything: goes
+split:
+  first: a
+  second: b

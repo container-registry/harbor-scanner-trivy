@@ -1,0 +1,107 @@
+---
+suite: TLS and mutual TLS
+release:
+  name: t
+tests:
+  - it: creates no TLS Secret when TLS is off
+    templates:
+      - secret-tls.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: stores inlined certificate material in a chart-managed TLS Secret
+    templates:
+      - secret-tls.yaml
+    set:
+      api.tls.enabled: true
+      api.tls.certificate: CERT
+      api.tls.key: KEY
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: type
+          value: kubernetes.io/tls
+      - equal:
+          path: metadata.name
+          value: t-harbor-scanner-trivy-tls
+
+  - it: creates no TLS Secret when one already exists
+    templates:
+      - secret-tls.yaml
+    set:
+      api.tls.enabled: true
+      api.tls.existingSecret: my-tls
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: points the listener at the mounted certificate and flips the probes to HTTPS
+    templates:
+      - statefulset.yaml
+    set:
+      api.tls.enabled: true
+      api.tls.existingSecret: my-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_API_SERVER_TLS_CERTIFICATE
+            value: /certs/tls.crt
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+          value: HTTPS
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.scheme
+          value: HTTPS
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.scheme
+          value: HTTPS
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: certs
+            secret:
+              secretName: my-tls
+
+  - it: leaves an explicit probe scheme alone
+    templates:
+      - statefulset.yaml
+    set:
+      api.tls.enabled: true
+      api.tls.existingSecret: my-tls
+      probes.liveness.httpGet.scheme: HTTP
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+          value: HTTP
+
+  - it: mounts client CAs outside the server certificate mount and requires client certs
+    templates:
+      - statefulset.yaml
+    set:
+      api.tls.enabled: true
+      api.tls.existingSecret: my-tls
+      api.tls.clientCAs.existingConfigMap: ca-bundle
+      api.tls.clientCAs.keys:
+        - ca.crt
+        - partner-ca.crt
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_API_SERVER_CLIENT_CAS
+            value: "/etc/scanner-trivy/client-cas/ca.crt,/etc/scanner-trivy/client-cas/partner-ca.crt"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: client-cas
+            mountPath: /etc/scanner-trivy/client-cas
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: client-cas
+            configMap:
+              name: ca-bundle

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "78ac2a526080c902fef38146da9303085a47a406",
+  "pull-request-header": "This PR prepares the next Helm chart release from conventional commits scoped to deploy/chart. The chart versions independently of the adapter; Chart.yaml `appVersion` is owned by the adapter release line, not this one.",
+  "pull-request-title-pattern": "chore: release harbor-scanner-trivy chart ${version}",
+  "label": "chart-release: pending",
+  "release-label": "chart-release: tagged",
+  "include-v-in-tag": true,
+  "tag-separator": "-",
+  "changelog-sections": [
+    {"type": "feat", "section": "Features"},
+    {"type": "fix", "section": "Bug Fixes"},
+    {"type": "perf", "section": "Performance Improvements"},
+    {"type": "upstream", "section": "Upstream"},
+    {"type": "revert", "section": "Reverts"},
+    {"type": "refactor", "section": "Code Refactoring"},
+    {"type": "docs", "section": "Documentation"},
+    {"type": "test", "section": "Tests", "hidden": true},
+    {"type": "chore", "section": "Miscellaneous", "hidden": true},
+    {"type": "ci", "section": "CI/CD", "hidden": true},
+    {"type": "build", "section": "Build System", "hidden": true}
+  ],
+  "packages": {
+    "deploy/chart": {
+      "release-type": "helm",
+      "package-name": "harbor-scanner-trivy",
+      "component": "chart",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "release-as": "1.0.0"
+    }
+  }
+}

@@ -1,0 +1,92 @@
+---
+suite: cache persistence
+release:
+  name: t
+templates:
+  - statefulset.yaml
+tests:
+  - it: provisions one cache claim per replica by default
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.accessModes
+          value:
+            - ReadWriteOnce
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 5Gi
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+          any: true
+
+  - it: omits storageClassName so the cluster default applies
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+
+  - it: sets an explicit storage class
+    set:
+      persistence.storageClass: fast-ssd
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: fast-ssd
+
+  - it: renders "-" as the empty class, which disables dynamic provisioning
+    set:
+      persistence.storageClass: "-"
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: ""
+
+  - it: falls back to an emptyDir cache when persistence is off
+    set:
+      persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: uses an existing claim instead of a claim template
+    set:
+      persistence.existingClaim: my-cache
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: my-cache
+
+  - it: always mounts the cache where the Trivy directories live
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /home/scanner/.cache
+
+  - it: leaves the claim template unlabelled, because it is immutable
+    templates:
+      - statefulset.yaml
+    asserts:
+      # Labels here would carry helm.sh/chart and app.kubernetes.io/version,
+      # so every release would change an immutable field and fail the upgrade.
+      # An empty label set also matches what the pre-1.0 chart rendered, which
+      # is what lets 0.x upgrade in place.
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data

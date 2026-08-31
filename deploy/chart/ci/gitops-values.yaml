@@ -1,0 +1,47 @@
+---
+# GitOps shape: nothing generated at render time, every secret externally owned
+# and every image pinned by digest. CI renders this twice and requires the two
+# renders to be byte-identical.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+redis:
+  existingSecret: harbor-scanner-trivy-redis
+  existingSecretKey: url
+
+trivy:
+  existingSecret: harbor-scanner-trivy-github
+  existingSecretKey: token
+  existingIgnorePolicyConfigMap: harbor-scanner-trivy-ignore-policy
+
+api:
+  tls:
+    enabled: true
+    existingSecret: harbor-scanner-trivy-tls
+
+serviceAccount:
+  create: true
+
+persistence:
+  enabled: true
+  storageClass: fast-ssd
+  size: 20Gi
+
+# Exercise the passthrough and the merge hatch in the determinism check: the
+# override path re-marshals the whole object, so it has to be proven stable
+# across renders too, not just the default path.
+config:
+  scanner:
+    trivy:
+      timeout: 10m0s
+      severity:
+        - HIGH
+        - CRITICAL
+
+podSpecOverrides:
+  runtimeClassName: gvisor
+
+statefulSetSpecOverrides:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain

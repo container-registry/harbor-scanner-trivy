@@ -1,0 +1,276 @@
+{{- define "harbor-scanner-trivy.statefulset" -}}
+{{- $fullname := include "harbor-scanner-trivy.fullname" . -}}
+{{- $tls := include "harbor-scanner-trivy.tls.enabled" . -}}
+{{- $mtls := include "harbor-scanner-trivy.tls.mtlsEnabled" . -}}
+{{- $ignorePolicyConfigMap := include "harbor-scanner-trivy.ignorePolicyConfigMap" . -}}
+{{- $gitHubTokenSecret := include "harbor-scanner-trivy.gitHubTokenSecretName" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ include "harbor-scanner-trivy.namespace" . }}
+  labels:
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" .Values.statefulSetAnnotations)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+spec:
+  serviceName: {{ $fullname }}
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  podManagementPolicy: {{ .Values.podManagementPolicy }}
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "harbor-scanner-trivy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- /* Roll the pods when chart-managed config material changes. Hashing
+              the material itself rather than the rendered templates keeps the
+              annotation stable against unrelated template edits - and a Secret
+              the chart does not own (the existingSecret family) is deliberately
+              not covered: the chart cannot see its contents. */}}
+        checksum/config: {{ printf "%s|%s|%s|%s|%s|%s" .Values.trivy.gitHubToken .Values.api.tls.certificate .Values.api.tls.key .Values.trivy.ignorePolicy (toYaml (.Values.config | default dict)) (toYaml (.Values.secret | default dict)) | sha256sum }}
+        {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" .Values.podAnnotations)) }}
+        {{- . | trim | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "harbor-scanner-trivy.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (include "harbor-scanner-trivy.imagePullSecrets" .) }}
+      imagePullSecrets:
+        {{- . | trim | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "harbor-scanner-trivy.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.schedulerName }}
+      schedulerName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.dnsPolicy }}
+      dnsPolicy: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: main
+          image: {{ include "harbor-scanner-trivy.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if or .Values.config .Values.secret .Values.extraEnvFrom }}
+          envFrom:
+            {{- if .Values.config }}
+            - configMapRef:
+                name: {{ $fullname }}-env
+            {{- end }}
+            {{- if .Values.secret }}
+            - secretRef:
+                name: {{ $fullname }}-env
+            {{- end }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          env:
+            {{- include "harbor-scanner-trivy.env" . | nindent 12 }}
+          ports:
+            - name: api-server
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- with .Values.probes.startup }}
+          startupProbe:
+            {{- include "harbor-scanner-trivy.probe" (dict "root" $ "probe" .) | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.liveness }}
+          livenessProbe:
+            {{- include "harbor-scanner-trivy.probe" (dict "root" $ "probe" .) | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.readiness }}
+          readinessProbe:
+            {{- include "harbor-scanner-trivy.probe" (dict "root" $ "probe" .) | nindent 12 }}
+          {{- end }}
+          {{- with .Values.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- /* readOnlyRootFilesystem: trivy unpacks layers under /tmp. */}}
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /home/scanner/.cache
+            {{- if $tls }}
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            {{- end }}
+            {{- if $mtls }}
+            - name: client-cas
+              mountPath: /etc/scanner-trivy/client-cas
+              readOnly: true
+            {{- end }}
+            {{- if $ignorePolicyConfigMap }}
+            - name: ignore-policy
+              mountPath: /home/scanner/opa
+              readOnly: true
+            {{- end }}
+            {{- with (include "harbor-scanner-trivy.extraCA.volumeMount" .) }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.sidecars }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if and .Values.persistence.enabled .Values.persistence.existingClaim }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+        {{- else if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if $tls }}
+        - name: certs
+          secret:
+            secretName: {{ include "harbor-scanner-trivy.tls.secretName" . }}
+        {{- end }}
+        {{- if $mtls }}
+        - name: client-cas
+          {{- if .Values.api.tls.clientCAs.existingSecret }}
+          secret:
+            secretName: {{ .Values.api.tls.clientCAs.existingSecret }}
+          {{- else }}
+          configMap:
+            name: {{ .Values.api.tls.clientCAs.existingConfigMap }}
+          {{- end }}
+        {{- end }}
+        {{- if $ignorePolicyConfigMap }}
+        - name: ignore-policy
+          configMap:
+            name: {{ $ignorePolicyConfigMap }}
+        {{- end }}
+        {{- with (include "harbor-scanner-trivy.extraCA.volume" .) }}
+        {{- . | trim | nindent 8 }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+  volumeClaimTemplates:
+    {{- /* No labels here on purpose. volumeClaimTemplates is immutable: the full
+           label set carries helm.sh/chart and app.kubernetes.io/version, so every
+           release would make `helm upgrade` fail, and any label at all differs
+           from the pre-1.0 claim template and breaks the upgrade from 0.x. */}}
+    - metadata:
+        name: data
+        {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" .Values.persistence.annotations)) }}
+        annotations:
+          {{- . | trim | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.accessModes | nindent 10 }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ ternary "" .Values.persistence.storageClass (eq .Values.persistence.storageClass "-") | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+  {{- end }}
+{{- end -}}
+
+{{/*
+Escape hatches. The chart cannot template every field of a StatefulSet, a pod
+spec, a container and a volume claim, so these deep-merge over the rendered
+object for the fields it does not expose (runtimeClassName, hostNetwork,
+minReadySeconds, persistentVolumeClaimRetentionPolicy, claim selectors, ...).
+
+The merge only runs when an override is actually set. That keeps the default
+render byte-identical and in template order; only an install that opts in pays
+the re-marshalling (which sorts keys, but stays deterministic, so GitOps
+engines still see no drift).
+*/}}
+{{- $rendered := include "harbor-scanner-trivy.statefulset" . -}}
+{{- if or .Values.statefulSetSpecOverrides .Values.podSpecOverrides .Values.containerOverrides .Values.persistence.claimSpecOverrides -}}
+{{- $object := $rendered | fromYaml -}}
+{{- $spec := $object.spec -}}
+{{- with .Values.statefulSetSpecOverrides -}}
+{{- $spec = mustMergeOverwrite $spec (deepCopy .) -}}
+{{- end -}}
+{{- $podSpec := $spec.template.spec -}}
+{{- with .Values.podSpecOverrides -}}
+{{- $podSpec = mustMergeOverwrite $podSpec (deepCopy .) -}}
+{{- end -}}
+{{- with .Values.containerOverrides -}}
+{{- /* Lists are replaced, not merged, so the adapter container is merged by
+      hand and the sidecars behind it are carried over untouched. */ -}}
+{{- $containers := $podSpec.containers -}}
+{{- $main := mustMergeOverwrite (index $containers 0) (deepCopy .) -}}
+{{- $_ := set $podSpec "containers" (concat (list $main) (rest $containers)) -}}
+{{- end -}}
+{{- $_ := set $spec.template "spec" $podSpec -}}
+{{- with .Values.persistence.claimSpecOverrides -}}
+{{- if hasKey $spec "volumeClaimTemplates" -}}
+{{- $claim := index $spec.volumeClaimTemplates 0 -}}
+{{- $_ := set $claim "spec" (mustMergeOverwrite $claim.spec (deepCopy .)) -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := set $object "spec" $spec -}}
+{{- $rendered = toYaml $object -}}
+{{- end -}}
+{{ $rendered }}

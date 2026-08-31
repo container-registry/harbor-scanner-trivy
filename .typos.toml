@@ -26,7 +26,7 @@ extend-exclude = [
     "go.sum",
 
     # Helm chart templates (Go template syntax confuses the checker)
-    "helm/harbor-scanner-trivy/templates/",
+    "deploy/chart/templates/",
 
     # Claude Code agent/plan files (not shipped)
     ".claude/",

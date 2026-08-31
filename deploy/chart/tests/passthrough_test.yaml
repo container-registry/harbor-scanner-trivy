@@ -1,0 +1,226 @@
+---
+# The generic config/secret passthrough and its precedence. The precedence is
+# the load-bearing part: envFrom is evaluated BEFORE env, so without dropping
+# the chart's own entry the passthrough would be silently ignored.
+suite: config and secret passthrough
+release:
+  name: t
+tests:
+  - it: creates neither ConfigMap nor Secret by default
+    templates:
+      - configmap-env.yaml
+      - secret-env.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: flattens nested maps into uppercased, underscore-joined env vars
+    templates:
+      - configmap-env.yaml
+    set:
+      config:
+        scanner:
+          trivy:
+            timeout: 10m0s
+            skip_update: true
+          log:
+            level: debug
+        http_proxy: http://proxy:3128
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: t-harbor-scanner-trivy-env
+      - equal:
+          path: data.SCANNER_TRIVY_TIMEOUT
+          value: "10m0s"
+      - equal:
+          path: data.SCANNER_TRIVY_SKIP_UPDATE
+          value: "true"
+      - equal:
+          path: data.SCANNER_LOG_LEVEL
+          value: "debug"
+      # A top-level key needs no prefix, which is why the helper imposes none:
+      # the adapter also reads HTTP_PROXY and friends.
+      - equal:
+          path: data.HTTP_PROXY
+          value: "http://proxy:3128"
+
+  - it: joins list values with commas
+    templates:
+      - configmap-env.yaml
+    set:
+      config:
+        scanner:
+          trivy:
+            severity:
+              - HIGH
+              - CRITICAL
+    asserts:
+      - equal:
+          path: data.SCANNER_TRIVY_SEVERITY
+          value: "HIGH,CRITICAL"
+
+  - it: base64-encodes the secret variant and keeps it out of the pod spec
+    templates:
+      - secret-env.yaml
+    set:
+      secret:
+        scanner:
+          trivy:
+            github_token: ghp_example
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: type
+          value: Opaque
+      - equal:
+          path: data.SCANNER_TRIVY_GITHUB_TOKEN
+          value: Z2hwX2V4YW1wbGU=
+
+  - it: wires both sources into envFrom
+    templates:
+      - statefulset.yaml
+    set:
+      config:
+        foo: bar
+      secret:
+        baz: qux
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom
+          value:
+            - configMapRef:
+                name: t-harbor-scanner-trivy-env
+            - secretRef:
+                name: t-harbor-scanner-trivy-env
+
+  - it: keeps extraEnvFrom alongside the passthrough sources
+    templates:
+      - statefulset.yaml
+    set:
+      config:
+        foo: bar
+      extraEnvFrom:
+        - configMapRef:
+            name: someone-elses
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].envFrom
+          count: 2
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[1].configMapRef.name
+          value: someone-elses
+
+  - it: drops the chart's own entry for a name claimed by config
+    templates:
+      - statefulset.yaml
+    set:
+      config:
+        scanner:
+          log:
+            level: debug
+    asserts:
+      # envFrom loses to env, so leaving the chart's SCANNER_LOG_LEVEL in place
+      # would make the passthrough a silent no-op.
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_LOG_LEVEL
+          any: true
+      # Unclaimed chart entries stay untouched.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_API_SERVER_ADDR
+            value: ":8080"
+
+  - it: drops the chart's own entry for a name claimed by secret
+    templates:
+      - statefulset.yaml
+    set:
+      secret:
+        scanner:
+          redis:
+            url: redis://:pw@r:6379
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_REDIS_URL
+          any: true
+
+  - it: lets extraEnv win over the passthrough
+    templates:
+      - statefulset.yaml
+    set:
+      config:
+        scanner:
+          log:
+            level: debug
+      extraEnv:
+        - name: SCANNER_LOG_LEVEL
+          value: warn
+    asserts:
+      # extraEnv lands in env, which beats envFrom, so no special casing is
+      # needed for it to win.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_LOG_LEVEL
+            value: warn
+
+  - it: rolls the pods when the passthrough changes
+    templates:
+      - statefulset.yaml
+    set:
+      config:
+        scanner:
+          log:
+            level: debug
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/config"]
+          # The default render's checksum. Regenerate with:
+          #   helm template t deploy/chart | grep checksum/config
+          value: 108cf91da7933b7c06918dce36512723631e64213fc95e6e3790b4abf4fa8215
+
+  - it: refuses a credential-shaped key in config
+    templates:
+      - validate-values.yaml
+    set:
+      config:
+        scanner:
+          trivy:
+            github_token: ghp_example
+    asserts:
+      - failedTemplate:
+          errorMessage: "config.SCANNER_TRIVY_GITHUB_TOKEN renders into a ConfigMap, which is not secret. Move it to `secret`, which takes the same notation."
+
+  - it: refuses the same name in both config and secret
+    templates:
+      - validate-values.yaml
+    set:
+      config:
+        scanner:
+          log:
+            level: debug
+      secret:
+        scanner:
+          log:
+            level: warn
+    asserts:
+      - failedTemplate:
+          errorMessage: "SCANNER_LOG_LEVEL is set in both config and secret; keep each env var in exactly one of them."
+
+  - it: refuses a key that is not a valid environment variable name
+    templates:
+      - validate-values.yaml
+    set:
+      config:
+        my-key: value
+    asserts:
+      - failedTemplate:
+          errorMessage: '"MY-KEY" is not a valid environment variable name, so the kubelet would drop it. Use letters, digits and underscores in config/secret keys.'

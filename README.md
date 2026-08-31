@@ -172,7 +172,7 @@ Everything is configured through environment variables at startup. No config fil
 | `SCANNER_TRIVY_REPORTS_DIR` | `/home/scanner/.cache/reports` | Trivy reports directory |
 | `SCANNER_TRIVY_DEBUG_MODE` | `false` | Enable Trivy debug mode |
 | `SCANNER_TRIVY_VULN_TYPE` | `os,library` | Comma-separated vulnerability types: `os`, `library` |
-| `SCANNER_TRIVY_SECURITY_CHECKS` | `vuln,config,secret` | Comma-separated security issues to detect: `vuln`, `config`, `secret` |
+| `SCANNER_TRIVY_SECURITY_CHECKS` | `vuln` | Comma-separated security issues to detect: `vuln`, `config`, `secret` |
 | `SCANNER_TRIVY_SEVERITY` | `UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL` | Comma-separated severities to report |
 | `SCANNER_TRIVY_IGNORE_UNFIXED` | `false` | Report only vulnerabilities with a fix available |
 | `SCANNER_TRIVY_IGNORE_POLICY` | `` | Path to a Trivy ignore policy OPA Rego file |
@@ -192,7 +192,7 @@ Everything is configured through environment variables at startup. No config fil
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `SCANNER_STORE_REDIS_NAMESPACE` | `harbor.scanner.trivy:store` | Key namespace for the Redis store |
+| `SCANNER_STORE_REDIS_NAMESPACE` | `harbor.scanner.trivy:data-store` | Key namespace for the Redis store |
 | `SCANNER_STORE_REDIS_SCAN_JOB_TTL` | 2x `SCANNER_TRIVY_TIMEOUT` + 3s | TTL for scan jobs and their reports. Derived from the Trivy timeout when unset; must outlive the longest scan or the report expires before Harbor fetches it |
 | `SCANNER_JOB_QUEUE_REDIS_NAMESPACE` | `harbor.scanner.trivy:job-queue` | Key namespace for the Redis-backed job queue |
 | `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY` | `1` | Number of workers processing the scan job queue |
@@ -257,7 +257,7 @@ requests get a higher limit.
 
 - [Architecture](./docs/ARCHITECTURE.md) - deployment topology.
 - [Releases](./docs/RELEASES.md) - full release process, artifacts and maintainer checklist.
-- [Helm chart](./helm/harbor-scanner-trivy/README.md) - chart values.
+- [Helm chart](./deploy/chart/README.md) - chart values.
 
 ## Contributing
 

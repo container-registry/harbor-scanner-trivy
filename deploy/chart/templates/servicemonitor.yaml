@@ -1,0 +1,49 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "harbor-scanner-trivy.fullname" . }}
+  namespace: {{ .Values.metrics.serviceMonitor.namespace | default (include "harbor-scanner-trivy.namespace" .) }}
+  labels:
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" .Values.metrics.serviceMonitor.annotations)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+spec:
+  {{- /* instance, not name: name is the constant chart name, so every release
+        scraped by one Prometheus would collapse onto the same `job` label. */}}
+  jobLabel: app.kubernetes.io/instance
+  namespaceSelector:
+    matchNames:
+      - {{ include "harbor-scanner-trivy.namespace" . }}
+  selector:
+    matchLabels:
+      {{- include "harbor-scanner-trivy.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: api-server
+      path: /metrics
+      scheme: {{ ternary "https" "http" (ne (include "harbor-scanner-trivy.tls.enabled" .) "") }}
+      {{- with .Values.metrics.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.metrics.serviceMonitor.scrapeTimeout }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+      honorLabels: {{ .Values.metrics.serviceMonitor.honorLabels }}
+      {{- with .Values.metrics.serviceMonitor.tlsConfig }}
+      tlsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.metrics.serviceMonitor.relabelings }}
+      relabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.metrics.serviceMonitor.metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

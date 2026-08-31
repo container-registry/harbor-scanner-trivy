@@ -7,7 +7,9 @@
   "include-v-in-tag": true,
   "exclude-paths": [
     ".github",
-    "docs"
+    "docs",
+    "deploy",
+    "taskfile"
   ],
   "changelog-sections": [
     {
@@ -64,11 +66,7 @@
       "extra-files": [
         {
           "type": "generic",
-          "path": "helm/harbor-scanner-trivy/Chart.yaml"
-        },
-        {
-          "type": "generic",
-          "path": "helm/harbor-scanner-trivy/values.yaml"
+          "path": "deploy/chart/Chart.yaml"
         }
       ]
     }

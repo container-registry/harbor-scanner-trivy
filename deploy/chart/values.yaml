@@ -1,0 +1,529 @@
+---
+# -- Values shared across the chart (and any future subchart).
+global:
+  # -- Registry override applied to every image in the chart. Wins over
+  # `image.registry`; the repository path is preserved. Set this to point an
+  # air-gapped install at a mirror in one place.
+  imageRegistry: ""
+  # -- Image pull secrets applied to every pod in the chart.
+  imagePullSecrets: []
+
+# -- Override the chart name used in resource names and labels.
+nameOverride: ""
+# -- Override the fully qualified resource name (`<release>-<chart>`).
+fullnameOverride: ""
+# -- Labels added to every rendered object.
+commonLabels: {}
+# -- Annotations added to every rendered object.
+commonAnnotations: {}
+# -- Extra raw manifests rendered with the release. Strings are passed through
+# `tpl`, so they may reference `.Values` and `.Release`.
+extraManifests: []
+
+# -- Number of adapter replicas. Each replica keeps its own Trivy DB cache
+# volume; scale for scan throughput, not for availability of the API.
+replicaCount: 1
+# -- StatefulSet revision history retained for rollbacks.
+revisionHistoryLimit: 10
+# -- StatefulSet pod management policy. `Parallel` starts replicas together,
+# which cuts cold-start time on a scale-out.
+podManagementPolicy: OrderedReady
+# -- StatefulSet update strategy. Empty means the Kubernetes default
+# (`RollingUpdate`).
+updateStrategy: {}
+# -- Grace period for a terminating pod. An in-flight Trivy scan is bounded by
+# `trivy.timeout`; a longer grace period lets it finish instead of being killed.
+terminationGracePeriodSeconds: 60
+
+image:
+  # -- Image registry.
+  registry: 8gears.container-registry.com
+  # -- Image repository.
+  repository: 8gcr/harbor-scanner-trivy
+  # -- Image tag.
+  # @default -- `.Chart.AppVersion`
+  tag: ""
+  # -- Image digest (`sha256:...`). Wins over `tag` when set; pin this for
+  # immutable, GitOps-friendly deployments.
+  digest: ""
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+  # -- Image pull secrets for this image, merged with `global.imagePullSecrets`.
+  pullSecrets: []
+
+serviceAccount:
+  # -- Create a ServiceAccount for the adapter.
+  create: true
+  # -- Name of the ServiceAccount to use.
+  # @default -- the fullname template
+  name: ""
+  # -- Annotations for the created ServiceAccount (IRSA, Workload Identity).
+  annotations: {}
+  # -- Mount the ServiceAccount token into the pod. The adapter never calls the
+  # Kubernetes API, so this stays off.
+  automountServiceAccountToken: false
+
+# -- Annotations added to the adapter pods.
+podAnnotations: {}
+# -- Labels added to the adapter pods.
+podLabels: {}
+
+# -- Pod-level security context. `fsGroup` must match the volume owner for the
+# Trivy cache PVC to be writable.
+podSecurityContext:
+  runAsUser: 10000
+  runAsGroup: 10000
+  runAsNonRoot: true
+  fsGroup: 10000
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context. The adapter writes only to the cache
+# volume and to `/tmp`, both mounted, so the root filesystem stays read-only.
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Resource requests and limits. The defaults fit a single-worker adapter
+# scanning ordinary images; raise memory before raising
+# `jobQueue.workerConcurrency`, because each concurrent scan runs its own Trivy
+# process holding the vulnerability DB in memory.
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+# -- Container probes, passed through verbatim. The chart fills in
+# `scheme: HTTPS` when `api.tls.enabled` is set and no scheme is given. Set a
+# probe to `null` to drop it.
+probes:
+  startup:
+    httpGet:
+      path: /probe/healthy
+      port: api-server
+    periodSeconds: 2
+    failureThreshold: 30
+    timeoutSeconds: 3
+  readiness:
+    httpGet:
+      path: /probe/ready
+      port: api-server
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 3
+  liveness:
+    httpGet:
+      path: /probe/healthy
+      port: api-server
+    periodSeconds: 10
+    failureThreshold: 10
+    timeoutSeconds: 3
+
+# -- Node labels for pod assignment.
+nodeSelector: {}
+# -- Tolerations for pod assignment.
+tolerations: []
+# -- Affinity rules for pod assignment.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- PriorityClass for the adapter pods.
+priorityClassName: ""
+# -- Alternative scheduler for the adapter pods.
+schedulerName: ""
+# -- Additional host aliases injected into `/etc/hosts`.
+hostAliases: []
+# -- Pod DNS policy.
+dnsPolicy: ""
+# -- Pod DNS config.
+dnsConfig: {}
+
+persistence:
+  # -- Persist the Trivy vulnerability DB cache on a PVC. With this off the
+  # cache lives in an `emptyDir` and every pod restart re-downloads the DB.
+  enabled: true
+  # -- Use an existing PVC instead of the StatefulSet volume claim template.
+  # Only safe with `replicaCount: 1`.
+  existingClaim: ""
+  # -- StorageClass for the claim template. `-` selects "no dynamic
+  # provisioning"; unset selects the cluster default.
+  storageClass: ""
+  # -- Access modes for the claim template.
+  accessModes:
+    - ReadWriteOnce
+  # -- Size of the cache volume. The Trivy DB, the Java DB, and unpacked scan
+  # workspaces need headroom well beyond the DB size itself.
+  size: 5Gi
+  # -- Annotations for the claim template.
+  annotations: {}
+  # -- Deep-merged into the claim template `.spec`, for fields the chart does not
+  # template (`selector`, `volumeMode`, `dataSource`, `dataSourceRef`). Yours
+  # wins on conflict.
+  claimSpecOverrides: {}
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port. Also the port the adapter listens on.
+  port: 8080
+  # -- NodePort, when `service.type` is `NodePort` or `LoadBalancer`.
+  nodePort: ""
+  # -- Static cluster IP.
+  clusterIP: ""
+  # -- Load balancer source ranges.
+  loadBalancerSourceRanges: []
+  # -- External traffic policy.
+  externalTrafficPolicy: ""
+  # -- Session affinity.
+  sessionAffinity: ""
+  # -- IP families for the Service, e.g. `[IPv4, IPv6]`. Empty follows the
+  # cluster default.
+  ipFamilies: []
+  # -- IP family policy: `SingleStack`, `PreferDualStack` or `RequireDualStack`.
+  ipFamilyPolicy: ""
+  # -- Annotations for the Service.
+  annotations: {}
+  # -- Labels for the Service.
+  labels: {}
+
+podDisruptionBudget:
+  # -- Create a PodDisruptionBudget. Only useful with `replicaCount` > 1.
+  enabled: false
+  # -- Minimum available pods. Mutually exclusive with `maxUnavailable`.
+  minAvailable: ""
+  # -- Maximum unavailable pods. Mutually exclusive with `minAvailable`.
+  maxUnavailable: 1
+  # -- `unhealthyPodEvictionPolicy` (Kubernetes >= 1.27). `AlwaysAllow` so a
+  # wedged adapter pod cannot block a node drain: an unready scan worker is not
+  # serving anyone, and holding the budget open for it only stalls the cluster.
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
+autoscaling:
+  # -- Create a HorizontalPodAutoscaler. Scaling out provisions a cache PVC per
+  # replica, and each new replica downloads the Trivy DB once.
+  enabled: false
+  # -- Minimum replicas.
+  minReplicas: 1
+  # -- Maximum replicas.
+  maxReplicas: 5
+  # -- Target average CPU utilization, in percent. `null` drops the metric.
+  targetCPUUtilizationPercentage: 80
+  # -- Target average memory utilization, in percent. `null` drops the metric.
+  targetMemoryUtilizationPercentage: null
+  # -- Extra metrics appended to the generated ones.
+  metrics: []
+  # -- Scaling behavior.
+  behavior: {}
+
+metrics:
+  # -- Serve Prometheus metrics on `/metrics` of the API port
+  # (`SCANNER_API_SERVER_METRICS_ENABLED`).
+  enabled: true
+  serviceMonitor:
+    # -- Create a Prometheus Operator ServiceMonitor. Requires the
+    # `monitoring.coreos.com/v1` CRD.
+    enabled: false
+    # -- Namespace for the ServiceMonitor. Defaults to the release namespace.
+    namespace: ""
+    # -- Extra labels, e.g. the `release` label your Prometheus selects on.
+    labels: {}
+    # -- Extra annotations.
+    annotations: {}
+    # -- Scrape interval.
+    interval: ""
+    # -- Scrape timeout.
+    scrapeTimeout: ""
+    # -- Honor labels exposed by the target.
+    honorLabels: false
+    # -- Relabeling rules applied before scraping.
+    relabelings: []
+    # -- Relabeling rules applied to scraped samples.
+    metricRelabelings: []
+    # -- TLS config used when scraping a TLS-enabled adapter.
+    tlsConfig: {}
+
+networkPolicy:
+  # -- Create a NetworkPolicy for the adapter pods.
+  enabled: false
+  # -- Peers allowed to reach the API port. Empty allows any source; set this
+  # to the Harbor core/jobservice selectors to lock the adapter down.
+  ingress: []
+  # -- Restrict egress as well. Leave off unless you enumerate Redis, the
+  # registry, and the Trivy DB source in `networkPolicy.egress`.
+  egressEnabled: false
+  # -- Egress rules, used when `networkPolicy.egressEnabled` is set.
+  egress: []
+
+# -- Private CA certificates to trust, on top of the system bundle. The adapter
+# and the Trivy CLI it runs are both Go programs, so this covers every outbound
+# TLS call they make: pulling image layers from a registry with an internal CA,
+# a TLS Redis, a proxied Trivy DB source.
+#
+# The bundle is mounted at `/etc/scanner-trivy/extra-ca` and
+# `SSL_CERT_DIR=/etc/ssl/certs:/etc/scanner-trivy/extra-ca` is set. The system
+# path is listed explicitly on purpose: Go replaces its default directory list
+# when `SSL_CERT_DIR` is set, so omitting it would break every public TLS call.
+extraCA:
+  # -- Existing Secret holding one or more PEM certificates. Takes a cert-manager
+  # CA Secret directly.
+  existingSecret: ""
+  # -- Existing ConfigMap holding one or more PEM certificates. Mutually
+  # exclusive with `existingSecret`.
+  existingConfigMap: ""
+  # -- Keys to mount from it. Empty mounts every key, which is what you want for
+  # a bundle; name keys only to mount a subset.
+  keys: []
+
+# -- Annotations on the StatefulSet object itself (not its pods). For controllers
+# that key off the workload, such as Argo CD sync waves. Pod annotations are
+# `podAnnotations`; annotations for every object are `commonAnnotations`.
+statefulSetAnnotations: {}
+
+# -- Build a `dockerconfigjson` pull Secret from inline credentials, for installs
+# with no pre-existing one to reference. Prefer `image.pullSecrets` with a Secret
+# you own: the password set here is stored in the release.
+imageCredentials:
+  # -- Create the Secret and add it to the pod's `imagePullSecrets`.
+  create: false
+  # -- Registry the credentials are for.
+  # @default -- `global.imageRegistry`, else `image.registry`
+  registry: ""
+  # -- Registry username.
+  username: ""
+  # -- Registry password or token.
+  password: ""
+  # -- Registry account email, which some registries still require.
+  email: ""
+
+# -- Adapter log level: `trace`, `debug`, `info`, `warn`, `error`. Anything
+# unrecognized falls back to `info`. `debug` also turns on Trivy debug mode
+# unless `trivy.debugMode` is set explicitly.
+logLevel: info
+
+api:
+  # -- Maximum duration for reading an entire request, including the body.
+  readTimeout: 15s
+  # -- Maximum duration before timing out a response write. This bounds a
+  # single HTTP response, not a scan.
+  writeTimeout: 15s
+  # -- Idle timeout for keep-alive connections.
+  idleTimeout: 60s
+  tls:
+    # -- Serve the adapter API over HTTPS. Harbor must then register the
+    # scanner with an `https://` URL.
+    enabled: false
+    # -- Existing `kubernetes.io/tls` Secret holding `tls.crt` and `tls.key`.
+    # Preferred over inlining PEM in values; works directly with a cert-manager
+    # Certificate. Required unless `certificate`/`key` are set.
+    existingSecret: ""
+    # -- PEM certificate, inlined into a chart-managed Secret. Ignored when
+    # `existingSecret` is set.
+    certificate: ""
+    # -- PEM private key, inlined into a chart-managed Secret. Ignored when
+    # `existingSecret` is set.
+    key: ""
+    clientCAs:
+      # -- Existing Secret holding client CA bundle(s). Setting this or
+      # `existingConfigMap` turns on mutual TLS: the adapter then requires and
+      # verifies a client certificate, so Harbor must present one.
+      existingSecret: ""
+      # -- Existing ConfigMap holding client CA bundle(s).
+      existingConfigMap: ""
+      # -- Keys within the Secret/ConfigMap to trust. Each becomes a file under
+      # `/etc/scanner-trivy/client-cas/` and is passed to `SCANNER_API_SERVER_CLIENT_CAS`.
+      keys:
+        - ca.crt
+
+trivy:
+  # -- Trivy cache directory. Must sit under the mounted cache volume.
+  cacheDir: /home/scanner/.cache/trivy
+  # -- Trivy reports directory. Must sit under the mounted cache volume.
+  reportsDir: /home/scanner/.cache/reports
+  # -- Where Trivy keeps its per-layer scan cache: `fs`, `memory`, or a
+  # `redis://` / `rediss://` URL. Requires an adapter that reads
+  # `SCANNER_TRIVY_CACHE_*`; older builds ignore these and always use `fs`, so
+  # keep `jobQueue.workerConcurrency` at 1 unless the running `appVersion`
+  # supports them. `fs` is a single BoltDB file that one process
+  # may open at a time, so `jobQueue.workerConcurrency` above 1 needs `memory`
+  # or Redis. Sentinel URLs are not accepted here; Trivy dials one node.
+  cacheBackend: fs
+  # -- Expiry for Redis scan cache keys. Required with a Redis backend, where it
+  # is the only thing bounding the cache. Ignored by the other backends.
+  cacheTTL: 168h
+  # -- Size cap for the on-disk scan cache (`fs` only). The cache has no
+  # eviction and never shrinks, so once it is over the cap the adapter drops it
+  # whole, after the running scan. `0` disables the cap. Keep it under
+  # `persistence.size` minus the Trivy DBs (~1Gi) and the reports directory.
+  cacheMaxSize: 3GiB
+  # -- Use TLS with public certificates for a Redis scan cache.
+  cacheRedisTLS: false
+  # -- CA certificate for a Redis scan cache, as a path inside the container;
+  # mount it with `extraVolumes`/`extraVolumeMounts`. CA, cert and key are
+  # required together.
+  cacheRedisCACert: ""
+  # -- Client certificate for a Redis scan cache (path inside the container).
+  cacheRedisCert: ""
+  # -- Client private key for a Redis scan cache (path inside the container).
+  cacheRedisKey: ""
+  # -- Trivy debug mode.
+  # @default -- `true` when `logLevel` is `debug`/`trace`, `false` otherwise
+  debugMode: null
+  # -- Comma-separated vulnerability types: `os`, `library`.
+  vulnType: os,library
+  # -- Comma-separated Trivy scanners (`SCANNER_TRIVY_SECURITY_CHECKS`), e.g.
+  # `vuln` or `vuln,secret`.
+  securityChecks: vuln
+  # -- Comma-separated severities to report.
+  severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+  # -- Report only vulnerabilities with a known fix.
+  ignoreUnfixed: false
+  # -- Time budget for a single scan. Must be greater than zero and at most
+  # 24h; the adapter refuses to start outside that range. Also sets the default
+  # scan job TTL (`2 * timeout + 3s`) when `store.redisScanJobTTL` is unset.
+  timeout: 5m0s
+  # -- Skip Trivy DB downloads. Enable only when you mount a pre-populated
+  # `trivy.db` at `<cacheDir>/db/trivy.db`.
+  skipUpdate: false
+  # -- Skip Java DB downloads. Enable only when you mount a pre-populated
+  # `trivy-java.db` at `<cacheDir>/java-db/trivy-java.db`.
+  skipJavaDBUpdate: false
+  # -- OCI repository serving the Trivy vulnerability DB.
+  dbRepository: ghcr.io/aquasecurity/trivy-db
+  # -- OCI repository serving the Trivy Java DB.
+  javaDBRepository: ghcr.io/aquasecurity/trivy-java-db
+  # -- Disable external API calls used to identify dependencies.
+  offlineScan: false
+  # -- Skip TLS verification against the scanned registry.
+  insecure: false
+  # -- Serve scans from a pre-existing SBOM accessory attached to the image
+  # instead of re-scanning its layers.
+  useSBOMAccessory: false
+  # -- VEX source used to filter vulnerabilities: `oci` or `repo`.
+  vexSource: ""
+  # -- Skip updating the VEX repository.
+  skipVEXRepoUpdate: false
+  # -- GitHub token used for Trivy DB downloads, stored in a chart-managed
+  # Secret. Anonymous downloads are rate limited to 60 requests/hour. Prefer
+  # `existingSecret` outside throwaway installs.
+  gitHubToken: ""
+  # -- Existing Secret holding the GitHub token. Wins over `gitHubToken`.
+  existingSecret: ""
+  # -- Key within `trivy.existingSecret`.
+  existingSecretKey: gitHubToken
+  # -- Rego policy filtering scan results, rendered into a chart-managed
+  # ConfigMap. See
+  # <https://trivy.dev/latest/docs/configuration/filtering/>.
+  ignorePolicy: ""
+  # -- Existing ConfigMap holding the Rego policy. Wins over `ignorePolicy`.
+  existingIgnorePolicyConfigMap: ""
+  # -- Key within the ignore-policy ConfigMap.
+  ignorePolicyKey: policy.rego
+
+redis:
+  # -- Redis URL. Supports a standalone server
+  # (`redis://[:password@]host:port/db`) and Sentinel
+  # (`redis+sentinel://[:password@]host1:port1,host2:port2/monitor/db`).
+  # A password inlined here lands in the pod spec in clear text - use
+  # `existingSecret` instead.
+  url: redis://harbor-harbor-redis:6379
+  # -- Existing Secret holding the complete Redis URL. Wins over `url` and
+  # keeps the password out of the pod spec.
+  existingSecret: ""
+  # -- Key within `redis.existingSecret`.
+  existingSecretKey: url
+  pool:
+    # -- Maximum connections allocated by the pool.
+    maxActive: 5
+    # -- Maximum idle connections kept in the pool.
+    maxIdle: 5
+    # -- Idle connection lifetime. `0` keeps idle connections open forever.
+    idleTimeout: 5m
+    # -- Connection timeout.
+    connectionTimeout: 1s
+    # -- Read timeout for a single command reply.
+    readTimeout: 1s
+    # -- Write timeout for a single command.
+    writeTimeout: 1s
+
+store:
+  # -- Key namespace for scan jobs and reports.
+  redisNamespace: harbor.scanner.trivy:data-store
+  # -- TTL for persisted scan jobs and reports.
+  # @default -- `2 * trivy.timeout + 3s`
+  redisScanJobTTL: ""
+
+jobQueue:
+  # -- Key namespace for the scan job queue.
+  redisNamespace: harbor.scanner.trivy:job-queue
+  # -- Workers per replica. Each concurrent scan runs its own Trivy process and
+  # holds the vulnerability DB in memory, so raise `resources` alongside this.
+  # Above 1 also requires `trivy.cacheBackend` to be Redis or `memory`: those
+  # processes cannot share the single-writer `fs` scan cache.
+  workerConcurrency: 1
+
+proxy:
+  # -- HTTP proxy URL.
+  httpProxy: ""
+  # -- HTTPS proxy URL.
+  httpsProxy: ""
+  # -- Comma-separated hosts the proxy settings do not apply to. Redis and the
+  # Harbor registry normally belong here.
+  noProxy: ""
+
+# -- Adapter configuration as a nested map, flattened into env vars in a
+# chart-managed ConfigMap and consumed with `envFrom`. Nested keys join with
+# `_` and are uppercased; lists join with `,`:
+#
+#     config:
+#       scanner:
+#         trivy:
+#           timeout: 10m0s     ->   SCANNER_TRIVY_TIMEOUT=10m0s
+#
+# The adapter is configured entirely by environment, so this reaches every
+# setting it has - including ones added after this chart version, with no chart
+# change. The chart drops its own entry for any name claimed here, because
+# `envFrom` would otherwise lose to it.
+#
+# A ConfigMap is not secret. Credential-shaped keys are refused at render time;
+# put them in `secret` below.
+config: {}
+# -- Same notation as `config`, rendered into a chart-managed Secret instead, so
+# the values never appear in the pod spec.
+secret: {}
+
+# -- Extra environment variables, in full `EnvVar` form (so `valueFrom` works).
+# Appended last, so a name set here wins over both `config`/`secret` and the
+# chart's own entry. Full precedence, lowest to highest:
+# chart defaults < config / secret < extraEnv.
+extraEnv: []
+# -- Extra `envFrom` sources (ConfigMap/Secret references).
+extraEnvFrom: []
+# -- Extra volumes for the adapter pod.
+extraVolumes: []
+# -- Extra volume mounts for the adapter container.
+extraVolumeMounts: []
+# -- Init containers, passed through `tpl`.
+initContainers: []
+# -- Sidecar containers, passed through `tpl`.
+sidecars: []
+# -- Container lifecycle hooks.
+lifecycle: {}
+
+# -- Deep-merged into the StatefulSet `.spec`, for fields the chart does not
+# template (`minReadySeconds`, `persistentVolumeClaimRetentionPolicy`,
+# `ordinals`). Yours wins on conflict.
+statefulSetSpecOverrides: {}
+# -- Deep-merged into the pod spec, for fields the chart does not template
+# (`runtimeClassName`, `hostNetwork`, `enableServiceLinks`, `nodeName`,
+# `shareProcessNamespace`, `readinessGates`). Yours wins on conflict.
+podSpecOverrides: {}
+# -- Deep-merged into the adapter container, for fields the chart does not
+# template (`workingDir`, `terminationMessagePolicy`, `resizePolicy`). Sidecars
+# are untouched. Yours wins on conflict.
+containerOverrides: {}

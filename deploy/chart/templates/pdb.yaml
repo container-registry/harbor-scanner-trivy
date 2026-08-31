@@ -1,0 +1,28 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "harbor-scanner-trivy.fullname" . }}
+  namespace: {{ include "harbor-scanner-trivy.namespace" . }}
+  labels:
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" dict)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "harbor-scanner-trivy.selectorLabels" . | nindent 6 }}
+  {{- /* `with` would drop a zero-disruption budget, which is a valid policy;
+         nil (a null override) must render nothing, so test both. */}}
+  {{- if and (not (kindIs "invalid" .Values.podDisruptionBudget.minAvailable)) (ne (toString .Values.podDisruptionBudget.minAvailable) "") }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if and (not (kindIs "invalid" .Values.podDisruptionBudget.maxUnavailable)) (ne (toString .Values.podDisruptionBudget.maxUnavailable) "") }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  {{- with .Values.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+{{- end }}

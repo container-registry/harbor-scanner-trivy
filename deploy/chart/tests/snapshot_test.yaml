@@ -1,0 +1,35 @@
+---
+# Whole-manifest snapshots. The targeted suites say what the chart must do;
+# these catch what it does by accident - a stray env var, a lost mount, an
+# indentation change that reshapes a block. Regenerate deliberately with
+# `task helm:unittest:update` and read the diff before committing it.
+suite: rendered manifest snapshots
+release:
+  name: harbor-scanner-trivy
+  namespace: harbor
+# Pinned so release-please's Chart.yaml rewrites (version by the chart line,
+# appVersion by the adapter line) do not invalidate every snapshot on each
+# release PR; the labels and default image tag bake these values in.
+chart:
+  version: 9.9.9-test
+  appVersion: v9.9.9-test
+templates:
+  - statefulset.yaml
+  - service.yaml
+  - serviceaccount.yaml
+tests:
+  - it: matches the default render
+    asserts:
+      - matchSnapshot: {}
+
+  - it: matches the GitOps render (external secrets, digest-pinned image, TLS)
+    values:
+      - ../ci/gitops-values.yaml
+    asserts:
+      - matchSnapshot: {}
+
+  - it: matches the multi-replica render
+    values:
+      - ../ci/ha-values.yaml
+    asserts:
+      - matchSnapshot: {}

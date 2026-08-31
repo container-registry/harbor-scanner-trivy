@@ -1,0 +1,185 @@
+---
+suite: optional workload objects
+release:
+  name: t
+  namespace: harbor
+tests:
+  - it: creates a ServiceAccount by default
+    templates:
+      - serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: t-harbor-scanner-trivy
+
+  - it: creates no ServiceAccount when told not to
+    templates:
+      - serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: falls back to the default ServiceAccount when creation is off and no name is given
+    templates:
+      - statefulset.yaml
+    set:
+      serviceAccount.create: false
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: default
+
+  - it: creates no PDB, HPA, ServiceMonitor or NetworkPolicy by default
+    templates:
+      - pdb.yaml
+      - hpa.yaml
+      - servicemonitor.yaml
+      - networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates a PDB scoped to the adapter pods
+    templates:
+      - pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.maxUnavailable: 1
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: t
+
+
+  - it: keeps a zero-disruption budget, which truthiness would drop
+    templates:
+      - pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.maxUnavailable: 0
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 0
+
+  - it: accepts a percentage budget
+    templates:
+      - pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.minAvailable: 50%
+      podDisruptionBudget.maxUnavailable: ""
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 50%
+      - notExists:
+          path: spec.maxUnavailable
+  - it: targets the StatefulSet from the HPA and drops replicas from it
+    templates:
+      - hpa.yaml
+    set:
+      autoscaling.enabled: true
+      autoscaling.targetMemoryUtilizationPercentage: 75
+    asserts:
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: StatefulSet
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: t-harbor-scanner-trivy
+      - lengthEqual:
+          path: spec.metrics
+          count: 2
+
+  - it: leaves replicas unset when an autoscaler owns them
+    templates:
+      - statefulset.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: scrapes metrics over HTTP by default
+    templates:
+      - servicemonitor.yaml
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - equal:
+          path: spec.endpoints[0].scheme
+          value: http
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: harbor
+
+  - it: scrapes metrics over HTTPS when the API serves TLS
+    templates:
+      - servicemonitor.yaml
+    set:
+      metrics.serviceMonitor.enabled: true
+      api.tls.enabled: true
+      api.tls.existingSecret: my-tls
+    asserts:
+      - equal:
+          path: spec.endpoints[0].scheme
+          value: https
+
+  - it: turns the metrics endpoint off in the adapter
+    templates:
+      - statefulset.yaml
+    set:
+      metrics.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_API_SERVER_METRICS_ENABLED
+            value: "false"
+
+  - it: restricts ingress to the configured peers
+    templates:
+      - networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress:
+        - podSelector:
+            matchLabels:
+              app: harbor-core
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels.app
+          value: harbor-core
+
+  - it: adds an Egress policy type only when egress rules are switched on
+    templates:
+      - networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egressEnabled: true
+      networkPolicy.egress:
+        - to:
+            - podSelector:
+                matchLabels:
+                  app: redis
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress

@@ -19,6 +19,13 @@ set:
 dotenv:
   - versions.env
 
+includes:
+  helm:
+    taskfile: taskfile/helm.yml
+    # Chart paths in taskfile/helm.yml are repo-relative, so the tasks must not
+    # inherit the included file's own directory as their working directory.
+    dir: .
+
 vars:
   BINARY: scanner-trivy
   IMAGE_NAME: harbor-scanner-trivy
@@ -445,24 +452,6 @@ tasks:
 
           echo "Verified ${reference}: $(printf '%s' "${actual}" | tr '\n' ' ')"
         silent: true
-
-  # ============================================================================
-  # Helm Chart
-  # ============================================================================
-
-  helm:lint:
-    desc: "Lint the Helm chart"
-    cmd: helm lint helm/harbor-scanner-trivy
-
-  helm:package:
-    desc: "Package the Helm chart into dist/"
-    cmds:
-      - mkdir -p dist
-      - helm package helm/harbor-scanner-trivy -d dist
-
-  helm:push:
-    desc: "Push the packaged Helm chart to the OCI registry"
-    cmd: helm push dist/harbor-scanner-trivy-*.tgz oci://{{.REGISTRY_ADDRESS}}/{{.REGISTRY_PROJECT}}/charts
 
   # ============================================================================
   # Development

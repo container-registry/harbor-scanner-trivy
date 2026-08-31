@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "documented": {
+      "type": "string"
+    },
+    "nested": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "known": {
+          "type": "integer"
+        }
+      }
+    },
+    "stale": {
+      "type": "string"
+    },
+    "freeform": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "split": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "first": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "second": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

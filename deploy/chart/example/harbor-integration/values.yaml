@@ -1,0 +1,14 @@
+---
+# Adapter next to a goharbor/harbor-helm release in the same namespace.
+redis:
+  # Database 5: Harbor's own components occupy 0-4.
+  url: redis://harbor-redis:6379/5
+
+# One worker keeps memory predictable; each concurrent scan runs its own Trivy
+# process with the vulnerability DB loaded.
+jobQueue:
+  workerConcurrency: 1
+
+persistence:
+  enabled: true
+  size: 10Gi

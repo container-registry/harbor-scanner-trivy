@@ -1,0 +1,5 @@
+[dead] stale
+[unvalidated] nested.unknown
+[unvalidated] undocumented
+
+3 schema drift finding(s). Fix values.schema.json or values.yaml, or record the drift with a reason in .schema-drift-allow.

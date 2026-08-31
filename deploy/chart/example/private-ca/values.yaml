@@ -1,0 +1,18 @@
+---
+# Trust an internal CA for the registry, Redis, and anything else the adapter
+# or the Trivy CLI dials. Mounted at /etc/scanner-trivy/extra-ca, with
+# SSL_CERT_DIR listing both it and the system bundle.
+extraCA:
+  existingSecret: corp-ca
+  # Empty mounts every key in the Secret, which is what a multi-cert bundle
+  # wants. Name keys only to mount a subset.
+  keys: []
+
+redis:
+  url: rediss://harbor-redis:6379/5
+
+# The registry Harbor tells the adapter to pull from is the one whose CA has to
+# be in the bundle above. `insecure: true` would skip verification instead -
+# that is a different, much blunter thing, and not what this example is for.
+trivy:
+  insecure: false

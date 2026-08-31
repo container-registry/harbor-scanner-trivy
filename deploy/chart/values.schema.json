@@ -1,0 +1,869 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "harbor-scanner-trivy values",
+  "description": "Values for the harbor-scanner-trivy chart. The root is closed (additionalProperties: false), so a typo'd or removed top-level key fails the render instead of being silently ignored.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "imageRegistry": {
+          "type": "string",
+          "description": "Registry override for every image; wins over image.registry."
+        },
+        "imagePullSecrets": {
+          "type": "array",
+          "description": "Pull secrets added to every pod."
+        }
+      }
+    },
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "commonLabels": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "commonAnnotations": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "extraManifests": {
+      "type": "array"
+    },
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "revisionHistoryLimit": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "podManagementPolicy": {
+      "type": "string",
+      "enum": [
+        "OrderedReady",
+        "Parallel"
+      ]
+    },
+    "updateStrategy": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "description": "Defaults to .Chart.AppVersion when empty."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        },
+        "pullSecrets": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "repository"
+      ]
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean"
+        }
+      }
+    },
+    "podAnnotations": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "podLabels": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Kubernetes probe spec, passed through verbatim; null drops the probe."
+        },
+        "readiness": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Kubernetes probe spec, passed through verbatim; null drops the probe."
+        },
+        "liveness": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Kubernetes probe spec, passed through verbatim; null drops the probe."
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "affinity": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "topologySpreadConstraints": {
+      "type": "array"
+    },
+    "priorityClassName": {
+      "type": "string"
+    },
+    "schedulerName": {
+      "type": "string"
+    },
+    "hostAliases": {
+      "type": "array"
+    },
+    "dnsPolicy": {
+      "type": "string",
+      "enum": [
+        "",
+        "ClusterFirst",
+        "ClusterFirstWithHostNet",
+        "Default",
+        "None"
+      ]
+    },
+    "dnsConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "existingClaim": {
+          "type": "string"
+        },
+        "storageClass": {
+          "type": "string"
+        },
+        "accessModes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ReadWriteOnce",
+              "ReadOnlyMany",
+              "ReadWriteMany",
+              "ReadWriteOncePod"
+            ]
+          },
+          "minItems": 1
+        },
+        "size": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$"
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "claimSpecOverrides": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Deep-merged into the volume claim template .spec."
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "nodePort": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            {
+              "type": "string",
+              "const": ""
+            }
+          ]
+        },
+        "clusterIP": {
+          "type": "string"
+        },
+        "loadBalancerSourceRanges": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "enum": [
+            "",
+            "Cluster",
+            "Local"
+          ]
+        },
+        "sessionAffinity": {
+          "type": "string",
+          "enum": [
+            "",
+            "None",
+            "ClientIP"
+          ]
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "ipFamilies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "IPv4",
+              "IPv6"
+            ]
+          }
+        },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "enum": [
+            "",
+            "SingleStack",
+            "PreferDualStack",
+            "RequireDualStack"
+          ]
+        }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "minAvailable": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "maxUnavailable": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "unhealthyPodEvictionPolicy": {
+          "type": "string",
+          "enum": [
+            "",
+            "IfHealthyBudget",
+            "AlwaysAllow"
+          ]
+        }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "minReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "targetCPUUtilizationPercentage": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetMemoryUtilizationPercentage": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metrics": {
+          "type": "array"
+        },
+        "behavior": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "interval": {
+              "type": "string",
+              "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+            },
+            "scrapeTimeout": {
+              "type": "string",
+              "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+            },
+            "honorLabels": {
+              "type": "boolean"
+            },
+            "relabelings": {
+              "type": "array"
+            },
+            "metricRelabelings": {
+              "type": "array"
+            },
+            "tlsConfig": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "ingress": {
+          "type": "array"
+        },
+        "egressEnabled": {
+          "type": "boolean"
+        },
+        "egress": {
+          "type": "array"
+        }
+      }
+    },
+    "extraCA": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "existingConfigMap": {
+          "type": "string"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "statefulSetAnnotations": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "imageCredentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "registry": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        }
+      }
+    },
+    "logLevel": {
+      "type": "string",
+      "enum": [
+        "trace",
+        "debug",
+        "info",
+        "warn",
+        "warning",
+        "error",
+        "fatal",
+        "panic"
+      ]
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "readTimeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+        },
+        "writeTimeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+        },
+        "idleTimeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+        },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "certificate": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "clientCAs": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "existingSecret": {
+                  "type": "string"
+                },
+                "existingConfigMap": {
+                  "type": "string"
+                },
+                "keys": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "trivy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cacheDir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reportsDir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cacheBackend": {
+          "type": "string",
+          "pattern": "^(fs|memory|rediss?://.+)$"
+        },
+        "cacheTTL": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+        },
+        "cacheMaxSize": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?\\s*([kKmMgGtT]i?[bB]?)?$"
+        },
+        "cacheRedisTLS": {
+          "type": "boolean"
+        },
+        "cacheRedisCACert": {
+          "type": "string"
+        },
+        "cacheRedisCert": {
+          "type": "string"
+        },
+        "cacheRedisKey": {
+          "type": "string"
+        },
+        "debugMode": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vulnType": {
+          "type": "string",
+          "pattern": "^(os|library)(,(os|library))*$"
+        },
+        "securityChecks": {
+          "type": "string",
+          "pattern": "^(vuln|secret|misconfig|license)(,(vuln|secret|misconfig|license))*$"
+        },
+        "severity": {
+          "type": "string",
+          "pattern": "^(UNKNOWN|LOW|MEDIUM|HIGH|CRITICAL)(,(UNKNOWN|LOW|MEDIUM|HIGH|CRITICAL))*$"
+        },
+        "ignoreUnfixed": {
+          "type": "boolean"
+        },
+        "timeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+        },
+        "skipUpdate": {
+          "type": "boolean"
+        },
+        "skipJavaDBUpdate": {
+          "type": "boolean"
+        },
+        "dbRepository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "javaDBRepository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "offlineScan": {
+          "type": "boolean"
+        },
+        "insecure": {
+          "type": "boolean"
+        },
+        "useSBOMAccessory": {
+          "type": "boolean"
+        },
+        "vexSource": {
+          "type": "string",
+          "enum": [
+            "",
+            "oci",
+            "repo"
+          ]
+        },
+        "skipVEXRepoUpdate": {
+          "type": "boolean"
+        },
+        "gitHubToken": {
+          "type": "string"
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "existingSecretKey": {
+          "type": "string"
+        },
+        "ignorePolicy": {
+          "type": "string"
+        },
+        "existingIgnorePolicyConfigMap": {
+          "type": "string"
+        },
+        "ignorePolicyKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^$|^rediss?(\\+sentinel)?://"
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "existingSecretKey": {
+          "type": "string"
+        },
+        "pool": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxActive": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxIdle": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "idleTimeout": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+            },
+            "connectionTimeout": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+            },
+            "readTimeout": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+            },
+            "writeTimeout": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+            }
+          }
+        }
+      }
+    },
+    "store": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "redisNamespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "redisScanJobTTL": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))*$"
+        }
+      }
+    },
+    "jobQueue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "redisNamespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workerConcurrency": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "proxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "httpProxy": {
+          "type": "string"
+        },
+        "httpsProxy": {
+          "type": "string"
+        },
+        "noProxy": {
+          "type": "string"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Adapter config as a nested map, flattened into env vars in a ConfigMap."
+    },
+    "secret": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Same as config, rendered into a Secret so values stay out of the pod spec."
+    },
+    "extraEnv": {
+      "type": "array"
+    },
+    "extraEnvFrom": {
+      "type": "array"
+    },
+    "extraVolumes": {
+      "type": "array"
+    },
+    "extraVolumeMounts": {
+      "type": "array"
+    },
+    "initContainers": {
+      "type": "array"
+    },
+    "sidecars": {
+      "type": "array"
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "statefulSetSpecOverrides": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Deep-merged into the StatefulSet .spec."
+    },
+    "podSpecOverrides": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Deep-merged into the pod spec."
+    },
+    "containerOverrides": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Deep-merged into the adapter container."
+    }
+  }
+}

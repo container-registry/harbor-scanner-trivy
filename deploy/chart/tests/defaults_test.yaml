@@ -1,0 +1,141 @@
+---
+suite: defaults
+release:
+  name: t
+  namespace: harbor
+templates:
+  - statefulset.yaml
+tests:
+  - it: renders a single-replica StatefulSet with the fullname
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: t-harbor-scanner-trivy
+      - equal:
+          path: metadata.namespace
+          value: harbor
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.serviceName
+          value: t-harbor-scanner-trivy
+
+  - it: keeps the immutable selector free of the chart version
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: harbor-scanner-trivy
+            app.kubernetes.io/instance: t
+
+  - it: hardens the pod and container security contexts
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 10000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: does not mount a ServiceAccount token
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: mounts /tmp so a read-only root filesystem still allows Trivy to unpack layers
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+
+  - it: sets all three probes on the api-server port
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /probe/healthy
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /probe/ready
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: api-server
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+
+  - it: drops a probe set to null
+    set:
+      probes.startup: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - exists:
+          path: spec.template.spec.containers[0].livenessProbe
+
+  - it: rolls the pods when chart-managed config material changes
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: changes the config checksum when the inlined GitHub token changes
+    set:
+      trivy.gitHubToken: ghp_example
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/config"]
+          # The default render's checksum. Regenerate with:
+          #   helm template t deploy/chart | grep checksum/config
+          value: 108cf91da7933b7c06918dce36512723631e64213fc95e6e3790b4abf4fa8215
+
+  - it: leaves SCANNER_TRIVY_DEBUG_MODE unset so the adapter can derive it
+    asserts:
+      # etc.GetConfig turns debug mode on when the effective SCANNER_LOG_LEVEL
+      # is debug/trace. Emitting "false" here would pin it and defeat a log
+      # level set through config/secret/extraEnv.
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "false"
+
+  - it: sets debug mode when the chart's own log level asks for it
+    set:
+      logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "true"
+
+  - it: still honours an explicit debug mode
+    set:
+      trivy.debugMode: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DEBUG_MODE
+            value: "false"
