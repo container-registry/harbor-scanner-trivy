@@ -99,7 +99,10 @@ jobs:
             | tar -xz -C "${ct_dir}"
           mv "${ct_dir}/ct" "${bin}/ct"
           {
-            echo "CT_LINT_CONF=${ct_dir}/etc/lintconf.yaml"
+            # Repo-owned yamllint config (release-please's Chart.yaml stamping
+            # style fails ct's shipped strict conf); lint:ct also passes it
+            # explicitly via --lint-conf.
+            echo "CT_LINT_CONF=${GITHUB_WORKSPACE}/taskfile/ct-lintconf.yaml"
             echo "CT_CHART_YAML_SCHEMA=${ct_dir}/etc/chart_schema.yaml"
           } >> "$GITHUB_ENV"
           # PIP_BREAK_SYSTEM_PACKAGES: Debian's PEP 668 guard refuses --user

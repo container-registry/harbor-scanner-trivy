@@ -30,13 +30,17 @@ tasks:
 
   lint:ct:
     desc: "chart-testing lint (Chart.yaml schema, yamllint, ci/*-values.yaml renders)"
+    # --lint-conf: repo-owned yamllint config (see taskfile/ct-lintconf.yaml)
+    # so release-please's Chart.yaml stamping style passes the gate.
     cmd: |
       if command -v ct >/dev/null 2>&1; then
-        ct lint --charts {{.CHART_DIR}} --validate-maintainers=false --target-branch main
+        ct lint --charts {{.CHART_DIR}} --lint-conf taskfile/ct-lintconf.yaml \
+          --validate-maintainers=false --target-branch main
       else
         docker run --rm -v "$(pwd)":/workdir -w /workdir \
           quay.io/helmpack/chart-testing:v{{.CT_VERSION}} \
-          ct lint --charts {{.CHART_DIR}} --validate-maintainers=false --target-branch main
+          ct lint --charts {{.CHART_DIR}} --lint-conf taskfile/ct-lintconf.yaml \
+          --validate-maintainers=false --target-branch main
       fi
 
   lint:ah:
