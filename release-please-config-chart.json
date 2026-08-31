@@ -26,8 +26,7 @@
       "package-name": "harbor-scanner-trivy",
       "component": "chart",
       "include-component-in-tag": true,
-      "changelog-path": "CHANGELOG.md",
-      "release-as": "1.0.0"
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }
