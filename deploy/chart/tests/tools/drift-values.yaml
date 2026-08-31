@@ -8,3 +8,6 @@ nested:
 undocumented: value
 freeform:
   anything: goes
+split:
+  first: a
+  second: b

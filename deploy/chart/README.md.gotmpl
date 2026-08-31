@@ -201,8 +201,14 @@ The cache PVCs are created by a StatefulSet volume claim template, so Helm does
 not delete them. That is deliberate - it makes an uninstall/reinstall cheap.
 Remove them explicitly when you mean it:
 
+The claim template carries no labels on purpose (`volumeClaimTemplates` is
+immutable, so a label that moves with the chart version would break every
+upgrade), which means the PVCs cannot be selected by label. They are named
+`data-<release>-<ordinal>`:
+
 ```sh
-kubectl -n harbor delete pvc -l app.kubernetes.io/name=harbor-scanner-trivy
+kubectl -n harbor get pvc | grep '^data-harbor-scanner-trivy-'
+kubectl -n harbor delete pvc data-harbor-scanner-trivy-0
 ```
 
 Remove the scanner registration in Harbor as well, or it keeps pointing at a

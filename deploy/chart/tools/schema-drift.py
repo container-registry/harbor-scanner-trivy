@@ -47,7 +47,17 @@ def walk(values, schema, path, findings):
 def unwrap(node):
     if "properties" in node:
         return node
-    for combinator in ("anyOf", "oneOf", "allOf"):
+    # allOf is a conjunction: properties can be split across branches and all of
+    # them apply, so taking the first would report later ones as drift.
+    merged = {}
+    for branch in node.get("allOf", []):
+        if isinstance(branch, dict) and "properties" in branch:
+            merged.update(branch["properties"])
+    if merged:
+        return {"properties": merged}
+    # anyOf/oneOf branches are alternatives, usually "this shape or null"; the
+    # object branch is the only one with properties to walk.
+    for combinator in ("anyOf", "oneOf"):
         for branch in node.get(combinator, []):
             if isinstance(branch, dict) and "properties" in branch:
                 return branch

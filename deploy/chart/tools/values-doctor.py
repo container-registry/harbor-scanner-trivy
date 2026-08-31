@@ -10,6 +10,7 @@ ERROR findings fail the run. WARN findings are advisory and do not.
 Usage: tools/values-doctor.py <values.yaml> [<values.yaml> ...]
 """
 
+import math
 import sys
 
 import yaml
@@ -70,7 +71,12 @@ def budget_blocks_eviction(budget, replicas, is_min):
             pct = float(budget.strip().rstrip("%"))
         except ValueError:
             return False
-        return pct >= 100 if is_min else pct <= 0
+        # Kubernetes rounds a percentage minAvailable UP and a percentage
+        # maxUnavailable DOWN, so "50%" of one replica requires all of it and
+        # blocks every eviction. Comparing the raw percentage misses that.
+        if is_min:
+            return math.ceil(pct * replicas / 100.0) >= replicas
+        return math.floor(pct * replicas / 100.0) <= 0
     try:
         value = int(budget)
     except (TypeError, ValueError):
@@ -91,8 +97,17 @@ def check(values):
     # The fs scan cache is a single BoltDB file that one process may open at a
     # time, so concurrent workers deadlock or fail rather than share it.
     backend = str(effective(values, "trivy.cacheBackend", "SCANNER_TRIVY_CACHE_BACKEND", "fs"))
-    workers = int(effective(values, "jobQueue.workerConcurrency",
-                            "SCANNER_JOB_QUEUE_WORKER_CONCURRENCY", 1))
+    raw_workers = effective(values, "jobQueue.workerConcurrency",
+                            "SCANNER_JOB_QUEUE_WORKER_CONCURRENCY", 1)
+    try:
+        workers = int(raw_workers)
+    except (TypeError, ValueError):
+        # A passthrough carries strings, so a typo here is a plausible input.
+        # Report it and keep going rather than dying on a traceback.
+        error("jobQueue.workerConcurrency",
+              f"{raw_workers!r} is not a number; the adapter fails to parse "
+              "SCANNER_JOB_QUEUE_WORKER_CONCURRENCY at startup.")
+        workers = 1
     # A PDB is judged against the replica count that actually applies: under an
     # autoscaler the chart omits replicas entirely and minReplicas is the floor.
     if get(values, "autoscaling.enabled", False):
@@ -204,8 +219,11 @@ def check(values):
         )
 
     # An air-gapped install that still reaches out.
-    if get(values, "global.imageRegistry") and not get(values, "trivy.offlineScan", False):
-        db = str(get(values, "trivy.dbRepository", "ghcr.io/aquasecurity/trivy-db"))
+    offline = effective(values, "trivy.offlineScan", "SCANNER_TRIVY_OFFLINE_SCAN", False)
+    offline = str(offline).strip().lower() in ("true", "1", "yes")
+    if get(values, "global.imageRegistry") and not offline:
+        db = str(effective(values, "trivy.dbRepository", "SCANNER_TRIVY_DB_REPOSITORY",
+                           "ghcr.io/aquasecurity/trivy-db"))
         if db.startswith("ghcr.io/"):
             warn(
                 "trivy.dbRepository",

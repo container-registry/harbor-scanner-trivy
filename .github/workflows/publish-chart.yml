@@ -137,6 +137,25 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}/bin" ah
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
 
+      - name: Validate the registry destination
+        # workflow_dispatch exposes registry_address as a free-form input, and
+        # the next step mints an OIDC token with that host as its audience. An
+        # arbitrary value would hand a signed token to a registry we do not
+        # control, so the destination is allowlisted rather than trusted.
+        env:
+          ALLOWED: ${{ vars.REGISTRY_ALLOWLIST || '8gears.container-registry.com' }}
+        run: |
+          set -euo pipefail
+          ok=false
+          for host in ${ALLOWED//,/ }; do
+            if [ "${REGISTRY_ADDRESS}" = "${host}" ]; then ok=true; break; fi
+          done
+          if [ "${ok}" != true ]; then
+            echo "::error::registry_address '${REGISTRY_ADDRESS}' is not in the allowlist (${ALLOWED})."
+            exit 1
+          fi
+          echo "Publishing to ${REGISTRY_ADDRESS}"
+
       - name: Mint OIDC token for Harbor
         id: harbor-oidc
         env:
