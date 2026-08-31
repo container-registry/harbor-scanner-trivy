@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.0.0...chart-v1.0.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* **chart:** make the values schema subchart-safe (enabled flag, open global) ([#68](https://github.com/container-registry/harbor-scanner-trivy/issues/68)) ([c217d2f](https://github.com/container-registry/harbor-scanner-trivy/commit/c217d2fc9290efecbde3b565ba57f32f4ce315ef))
+
 ## [1.0.0](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.0.0...chart-v1.0.0) (2026-08-31)
 
 
