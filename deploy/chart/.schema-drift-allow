@@ -1,3 +1,8 @@
 # Baseline for tools/schema-drift.py - acknowledged, intentional drift.
 # One finding ID per line, exactly as the report prints it ("[kind] path").
 # Every entry MUST carry a comment explaining why it is allowed.
+# `enabled` exists only for parent charts: a dependency `condition:
+# trivy.enabled` makes Helm pass the flag into this chart's values, and the
+# closed root schema must accept it. Deliberately absent from values.yaml -
+# it is a no-op standalone and would only invite confusion there.
+[dead] enabled

@@ -5,9 +5,14 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "No-op for standalone installs. Exists so a parent chart can gate this chart with a dependency condition (e.g. `condition: trivy.enabled`): Helm passes the flag into the subchart's values, and the strict schema must accept it."
+    },
     "global": {
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
+      "$comment": "Deliberately open: Helm shares the parent chart's entire `global` map with every subchart, so as a dependency this chart receives global keys it has never heard of and must not reject them.",
       "properties": {
         "imageRegistry": {
           "type": "string",
