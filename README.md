@@ -55,7 +55,7 @@ commits are cherry-picked back into this fork twice a day by
 
 - **Scan reports are gzip-compressed in Redis** ([#31]) - stored reports shrink about 7x (5.3x-17.2x depending on the report).
 - **The report lives in its own Redis key** ([#43]) - a 3,119-artifact "Scan All" finishes 30% faster and peaks at 274 MB, roughly 18x below the pre-compression baseline in [#28].
-- **Vulnerability scans can be served from an existing SBOM accessory** ([#38], opt-in) - 6x to 35x faster, with identical findings and a fallback to a full image scan.
+- **Vulnerability scans can be served from an existing SBOM accessory** ([#38], opt-in) - 6x to 35x faster per scan, with identical findings and a fallback to a full image scan. In production, a 4,221-artifact "Scan All" dropped from 3h 24m to 1h 30m with 100% fast-path uptake and zero fallbacks ([measurements](https://github.com/container-registry/harbor-scanner-trivy/pull/38#issuecomment-5506161158)).
 
 Hot-path Go benchmarks guard against regressions ([#12]): `go test -bench=. -benchmem ./pkg/trivy/... ./pkg/scan/...`.
 
