@@ -138,12 +138,14 @@ client certificate, so Harbor has to present one. See
 Chart releases are cosign-signed keylessly by the release workflow, with no
 long-lived key to manage:
 
+<!-- x-release-please-start-version -->
 ```sh
 cosign verify \
   --certificate-identity-regexp '^https://github\.com/container-registry/harbor-scanner-trivy/\.github/workflows/publish-chart\.yml@refs/heads/main$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy:1.0.0
+  8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy:1.0.1
 ```
+<!-- x-release-please-end -->
 
 Flux can enforce the same check on every reconcile - see
 [`example/flux/`](example/flux/).
