@@ -1,7 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "bootstrap-sha": "a187732b07e325c7c6067e43b256c53e1b005e86",
-  "pull-request-title-pattern": "chore: release ${version}",
+  "pull-request-header": "Adapter release. Merging tags `vX.Y.Z` and publishes the image and binaries.",
+  "pull-request-title-pattern": "chore: release adapter ${version}",
   "release-type": "go",
   "always-update": true,
   "include-v-in-tag": true,
