@@ -13,8 +13,11 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    outputs:
+      scope: ${{ steps.lint.outputs.scope }}
     steps:
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50  # v6.1.1
+        id: lint
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -35,3 +38,40 @@ jobs:
           subjectPattern: ^.{1,100}$
           subjectPatternError: |
             Subject must be 100 characters or less.
+
+  chart-scope-paths:
+    name: Chart Scope Paths
+    # release-please has no scope filter and drops a commit from the adapter
+    # line only when every file it touches is under exclude-paths. A
+    # (chart)-scoped PR that edits one root file therefore lands in the adapter
+    # changelog and bumps the adapter version. The negated patterns mirror
+    # exclude-paths in .release-please/config-adapter.json; keep them in sync.
+    # Gated on the scope the lint job parsed, not a title substring, so subject
+    # text mentioning "(chart):" cannot trigger it.
+    needs: lint
+    if: needs.lint.outputs.scope == 'chart'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        with:
+          predicate-quantifier: some-with-excludes
+          list-files: shell
+          filters: |
+            adapter:
+              - '**'
+              - '!.github/**'
+              - '!docs/**'
+              - '!deploy/**'
+              - '!taskfile/**'
+              - '!.release-please/**'
+
+      - name: Fail on adapter-release paths
+        if: steps.filter.outputs.adapter == 'true'
+        env:
+          FILES: ${{ steps.filter.outputs.adapter_files }}
+        run: |
+          echo "::error::A (chart)-scoped PR may only touch paths the adapter release line excludes. Offending: ${FILES}"
+          exit 1

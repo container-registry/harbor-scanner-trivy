@@ -7,8 +7,8 @@ instance, config, manifest, changelog and tag namespace:
 
 | Line | Covers | Tag | Config / manifest | Changelog |
 |------|--------|-----|-------------------|-----------|
-| Adapter | everything except `deploy/`, `.github/`, `docs/`, `taskfile/` | `vX.Y.Z` | `release-please-config.json` / `.release-please-manifest.json` | `CHANGELOG.md` |
-| Helm chart | `deploy/chart/` | `chart-vX.Y.Z` | `release-please-config-chart.json` / `.release-please-manifest-chart.json` | `deploy/chart/CHANGELOG.md` |
+| Adapter | everything except `deploy/`, `.github/`, `docs/`, `taskfile/`, `.release-please/` | `vX.Y.Z` | `.release-please/config-adapter.json` / `.release-please/manifest-adapter.json` | `CHANGELOG.md` |
+| Helm chart | `deploy/chart/` | `chart-vX.Y.Z` | `.release-please/config-chart.json` / `.release-please/manifest-chart.json` | `deploy/chart/CHANGELOG.md` |
 
 They are separate so a chart fix does not force an adapter release that
 republishes an identical image, and an adapter release does not republish an
@@ -27,8 +27,8 @@ Release state is defined by:
 
 1. PRs are squash-merged to `main` with conventional commit titles. The PR title becomes the commit release-please parses, so the repository must allow **squash merging only** (disable merge commits and rebase merging).
 2. On every push to `main`, the `Release Please` workflow opens or updates a release PR **per line**, for whichever line has releasable commits:
-   - `chore: release X.Y.Z` bumps `.release-please-manifest.json`, updates `CHANGELOG.md`, and stamps `appVersion` into `deploy/chart/Chart.yaml`.
-   - `chore: release harbor-scanner-trivy chart X.Y.Z` bumps `.release-please-manifest-chart.json`, updates the chart's `CHANGELOG.md`, and stamps `version` into `Chart.yaml`.
+   - `chore: release X.Y.Z` bumps `.release-please/manifest-adapter.json`, updates `CHANGELOG.md`, and stamps `appVersion` into `deploy/chart/Chart.yaml`.
+   - `chore: release harbor-scanner-trivy chart X.Y.Z` bumps `.release-please/manifest-chart.json`, updates the chart's `CHANGELOG.md`, and stamps `version` into `Chart.yaml`.
 3. Squash-merging a release PR creates its tag (`vX.Y.Z` or `chart-vX.Y.Z`) and GitHub Release.
 4. An **adapter** release then automatically:
    - builds and pushes the multi-arch (`linux/amd64`, `linux/arm64`) image `8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z`
@@ -69,12 +69,15 @@ next release is cut (or hidden entirely).
 Use `upstream:` for changes synced from `goharbor/harbor-scanner-trivy`.
 
 The same rules apply to both lines. Which line a commit lands on is decided by
-its paths: the adapter line ignores `.github/`, `docs/`, `deploy/` and `taskfile/`;
-the chart line only sees `deploy/chart/`. A commit touching both
+its paths: the adapter line ignores `.github/`, `docs/`, `deploy/`, `taskfile/` and
+`.release-please/`; the chart line only sees `deploy/chart/`. A commit touching both
 opens both release PRs. Use `ci:` for workflow-only changes.
 
-Scope chart commits explicitly - `feat(chart):`, `fix(chart):` - so the two
-changelogs read clearly side by side.
+Scope chart commits `feat(chart):` / `fix(chart):` and keep them inside the
+paths the adapter ignores. One file outside, even `README.md`, puts the commit
+in the adapter changelog and bumps the adapter version. The `Chart Scope Paths`
+check fails such a PR; split it rather than retype it. When `exclude-paths` in
+`.release-please/config-adapter.json` changes, update that check's patterns too.
 
 ## Tracking Upstream Trivy
 
@@ -213,9 +216,9 @@ Before merging a chart release PR:
 
 1. `deploy/chart/CHANGELOG.md` and `Chart.yaml` (`version`) show the new chart version.
 2. `Chart.yaml` `appVersion` points at an adapter version that is already published.
-3. `release-as` is **not** still pinned in `release-please-config-chart.json`. It
-   pins the first chart release at `1.0.0`, and must be removed after that
-   release ships, or every later chart release repeats `1.0.0`.
+3. Keep `release-as` **absent** from `.release-please/config-chart.json`.
+   The initial chart release used `release-as: 1.0.0`; do not re-add it,
+   or every later chart release repeats `1.0.0`.
 4. Merge method is **Squash and merge**.
 
 ## Manual Intervention

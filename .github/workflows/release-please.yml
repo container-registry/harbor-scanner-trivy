@@ -24,8 +24,8 @@ jobs:
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          config-file: .release-please/config-adapter.json
+          manifest-file: .release-please/manifest-adapter.json
 
   publish-image:
     name: Publish Release Image
@@ -44,12 +44,16 @@ jobs:
 
   release-please-chart:
     name: Release Please (chart)
-    # The Helm chart has its own release line, scoped to helm/ by its own config
-    # and manifest, so a chart fix does not force an adapter release (and an
-    # adapter release does not republish an unchanged chart). Kept as a SEPARATE
-    # release-please instance rather than a second package in the adapter
-    # manifest: adding a package switches every output to the "<path>--<name>"
-    # form, which would break the adapter jobs that read the unprefixed outputs.
+    # The Helm chart has its own release line, scoped to deploy/chart by its own
+    # config and manifest, so a chart fix does not force an adapter release (and
+    # an adapter release does not republish an unchanged chart). Kept as a
+    # SEPARATE release-please instance rather than a second package in the
+    # adapter manifest: adding a package switches every output to the
+    # "<path>--<name>" form, which would break the adapter jobs that read the
+    # unprefixed outputs. Both lines' config and manifest live in
+    # .release-please/, which the adapter line excludes: it filters by directory
+    # prefix only, so a chart-only commit editing a chart config file at the
+    # repo root would land in the adapter changelog too.
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -63,8 +67,8 @@ jobs:
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: release-please-config-chart.json
-          manifest-file: .release-please-manifest-chart.json
+          config-file: .release-please/config-chart.json
+          manifest-file: .release-please/manifest-chart.json
 
   publish-helm-chart:
     name: Publish Helm Chart

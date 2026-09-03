@@ -9,7 +9,8 @@
     ".github",
     "docs",
     "deploy",
-    "taskfile"
+    "taskfile",
+    ".release-please"
   ],
   "changelog-sections": [
     {
