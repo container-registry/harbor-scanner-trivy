@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "bootstrap-sha": "78ac2a526080c902fef38146da9303085a47a406",
   "pull-request-header": "Helm chart release. Merging tags `chart-vX.Y.Z` and publishes the chart.",
+  "pull-request-footer": "Squash-merge to release. See [docs/RELEASES.md](https://github.com/container-registry/harbor-scanner-trivy/blob/main/docs/RELEASES.md).",
   "pull-request-title-pattern": "chore: release chart ${version}",
   "label": "chart-release: pending",
   "release-label": "chart-release: tagged",
