@@ -147,7 +147,9 @@ Every adapter release `vX.Y.Z` ships:
   republishes the image
 
 A new Trivy release is picked up by Renovate and, once merged, cuts a matching adapter release. `main` publishes
-`:latest` on every push. How releases are cut, and what maintainers do, is in [docs/RELEASES.md](docs/RELEASES.md).
+`:latest` on every push, and a PR gets a preview image or preview chart in the dev project when it changes the
+respective inputs, linked from a comment on the PR. How releases are cut, and what maintainers do, is in
+[docs/RELEASES.md](docs/RELEASES.md).
 
 ## Configuration
 
