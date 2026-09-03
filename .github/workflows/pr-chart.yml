@@ -219,7 +219,9 @@ jobs:
         with:
           script: |
             const marker = process.env.MARKER;
-            const chart = `${process.env.REGISTRY_ADDRESS}/${process.env.PREVIEW_PROJECT}/charts/harbor-scanner-trivy`;
+            const registry = process.env.REGISTRY_ADDRESS;
+            const previewProject = process.env.PREVIEW_PROJECT;
+            const chart = `${registry}/${previewProject}/charts/harbor-scanner-trivy`;
             const previewVersion = process.env.PREVIEW_VERSION;
             const appVersion = process.env.APP_VERSION;
             const digest = process.env.DIGEST;
@@ -238,7 +240,16 @@ jobs:
 
             Digest: \`${digest}\`
 
-            The chart defaults to adapter \`${appVersion}\`. To run it against this PR's preview image, add \`--set image.repository=${process.env.PREVIEW_PROJECT}/harbor-scanner-trivy --set image.tag=pr-${issueNumber}\` (published only when the PR also changes image inputs).
+            The chart defaults to adapter \`${appVersion}\`. To run it against this PR's preview image instead (published only when the PR also changes image inputs):
+
+            \`\`\`
+            helm install harbor-scanner-trivy \\
+              oci://${chart} \\
+              --version ${previewVersion} \\
+              --set image.registry=${registry} \\
+              --set image.repository=${previewProject}/harbor-scanner-trivy \\
+              --set image.tag=pr-${issueNumber}
+            \`\`\`
 
             Verify the preview chart:
 
