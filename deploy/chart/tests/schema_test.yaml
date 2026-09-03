@@ -46,6 +46,13 @@ tests:
       - failedTemplate:
           errorPattern: "at '/trivy/severity'"
 
+  - it: rejects a log level the adapter does not understand
+    set:
+      logLevel: fatal
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/logLevel'"
+
   - it: rejects a malformed image digest
     set:
       image.digest: sha256:short
