@@ -70,7 +70,9 @@ the same tag, so `pr-N` and `X.Y.Z-pr.N` always point at the latest successful
 build; pin the digest from the comment when that matters. `X.Y.Z` is the chart
 version committed in `Chart.yaml`, and the preview keeps the committed
 `appVersion`, so it installs a released adapter by default. `--set
-image.tag=pr-N` pairs it with the PR's preview image when one exists.
+image.repository=8gcr-dev/harbor-scanner-trivy --set image.tag=pr-N` pairs it with
+the PR's preview image when one exists; the preview image lives in the dev
+project, so the tag alone is not enough.
 
 No preview is published for forked PRs and dependabot PRs (no OIDC token), nor
 for release-please PRs: a release PR changes no code, and the chart release PR

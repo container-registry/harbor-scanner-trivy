@@ -238,7 +238,7 @@ jobs:
 
             Digest: \`${digest}\`
 
-            The chart defaults to adapter \`${appVersion}\`. To run it against this PR's preview image, add \`--set image.tag=pr-${issueNumber}\` (published only when the PR also changes image inputs).
+            The chart defaults to adapter \`${appVersion}\`. To run it against this PR's preview image, add \`--set image.repository=${process.env.PREVIEW_PROJECT}/harbor-scanner-trivy --set image.tag=pr-${issueNumber}\` (published only when the PR also changes image inputs).
 
             Verify the preview chart:
 
