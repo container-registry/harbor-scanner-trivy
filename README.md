@@ -1,65 +1,89 @@
 [![GitHub Release][release-img]][release]
-[![Go Report Card][report-card-img]][report-card]
 [![License][license-img]][license]
 
 # Harbor Scanner Adapter for Trivy
 
-Translates the [Harbor] scanner API into [Trivy] commands, so Harbor can report vulnerabilities and SBOMs for the
-images it stores using Trivy. It is the default vulnerability scanner in Harbor >= 2.2.
+[Trivy] as a [Harbor] scanner: vulnerability reports and SBOMs for every image Harbor stores, shown in the Harbor
+UI and API. A drop-in for the adapter Harbor bundles, built for registries that scan thousands of artifacts at a
+time.
 
-This repository is a fork of [goharbor/harbor-scanner-trivy], maintained by [container-registry.com].
+Maintained by [container-registry.com], forked from [goharbor/harbor-scanner-trivy].
 
 <img src="docs/images/vulnerabilities.png" alt="Vulnerability report in the Harbor UI" width="720">
 
 ## Contents
 
-- [Why this fork](#why-this-fork)
-- [Performance](#performance)
+- [What it is](#what-it-is)
+- [How it works](#how-it-works)
+- [What it offers](#what-it-offers)
 - [Install](#install)
-- [Release flow](#release-flow)
+- [Releases](#releases)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 
-## Why this fork
+## What it is
 
-Upstream ships the adapter that Harbor bundles, on Harbor's release cadence. We run Harbor as a service and needed
-three things that cadence and scope do not cover:
+Harbor does not scan images itself. It talks to a scanner through its scanner adapter API, and this service is the
+adapter for Trivy: it accepts Harbor's scan requests, runs Trivy, and returns the results in the format Harbor
+renders. Harbor >= 2.2 ships the upstream version of this adapter as its default scanner.
 
-1. **Scan throughput and memory.** A bulk "Scan All" over a few thousand artifacts filled the Redis instance
-   the adapter shares with Harbor: 4.83 GiB peak, OOM-killed, Harbor down with it ([#28]). Fixing that meant
-   changing how scan reports are stored, not how they are produced.
-2. **The Trivy binary itself.** Upstream consumes the prebuilt `aquasec/trivy` binary. We compile Trivy from source
-   at the pinned version, which makes its dependencies patchable via `go mod` overrides when a CVE lands before
-   Aqua cuts a release.
-3. **Our own release train.** Signed, attested, multi-arch artifacts published on demand rather than when the next
-   Harbor version ships.
+This fork keeps the same API, report format and findings, and adds what running Harbor as a service demanded:
+predictable Redis memory under bulk scans, faster "Scan All" runs, a Trivy binary we can patch, and signed releases
+that follow Trivy's cadence instead of Harbor's. Upstream commits are cherry-picked into this fork twice a day by
+[an automated workflow](.github/workflows/upstream-cherry-pick.yml).
 
-Nothing here is a protocol fork: the Harbor scanner API, the report format and the findings are unchanged. Upstream
-commits are cherry-picked back into this fork twice a day by
-[an automated workflow](.github/workflows/upstream-cherry-pick.yml), and carry the `upstream:` commit type.
+## How it works
+
+```
+Harbor --POST /api/v1/scan--> adapter --> Redis job queue --> worker --> trivy image <ref>
+   ^         202 + job id                                                          |
+   +--GET /api/v1/scan/{id}/report--- report in Redis <-- Harbor report or SBOM <--+
+```
+
+1. Harbor posts a scan request with the artifact reference and a pull credential. The adapter validates it, queues
+   a job in Redis and answers at once with a job ID.
+2. A worker takes the job, runs the `trivy` CLI as a subprocess against the registry, and converts Trivy's JSON
+   into a Harbor vulnerability report or SBOM. The report is gzip-compressed and stored in Redis with a TTL.
+3. Harbor polls for the report. It gets a redirect while the scan runs, then the finished report.
+
+Trivy keeps its vulnerability database in the adapter's cache volume and refreshes it from an OCI registry
+(`ghcr.io` by default, or a mirror you configure). Redis is the only other dependency, and Harbor's own Redis works.
+
+## What it offers
+
+Compared with the adapter bundled in Harbor:
 
 | | Upstream | This fork |
 |---|---|---|
 | Published image | `goharbor/trivy-adapter-photon` (Photon OS, built in Harbor's release) | `8gears.container-registry.com/8gcr/harbor-scanner-trivy` (Alpine, via `aquasec/trivy`) |
 | Trivy binary | Prebuilt, from the base image | Compiled from source at the pinned version |
-| Releases | With Harbor | Independent, automated (release-please) |
+| Releases | With Harbor | Independent, follow Trivy releases |
 | Image signing | — | cosign keyless + SPDX SBOM attestation |
 | Release assets | None (image ships with Harbor) | Image, Helm chart, adapter + Trivy binaries, checksums |
 | Redis report storage | Plain JSON, single key | gzip, report split into its own key |
 | SBOM accessory fast path | — | Opt-in (`SCANNER_TRIVY_USE_SBOM_ACCESSORY`) |
 
+What that means in operation:
+
+- **"Scan All" that stays within memory.** Upstream, a bulk scan over a few thousand artifacts filled the Redis
+  instance the adapter shares with Harbor: 4.83 GiB peak, OOM-killed, Harbor down with it ([#28]). With reports
+  compressed ([#31]) and stored in their own key ([#43]), a 3,119-artifact "Scan All" peaks at 274 MB and finishes
+  30% faster.
+- **Reports 7x smaller in Redis** (5.3x to 17.2x depending on the report), which also lets you keep them longer.
+- **Vulnerability scans served from an existing SBOM** ([#38], opt-in). When Harbor already generated an SBOM for
+  the image with this adapter, the scan reads it instead of pulling layers: 6x to 35x faster per scan, identical
+  findings, automatic fallback to a full image scan. In production, a 4,221-artifact "Scan All" went from 3h 24m to
+  1h 30m with zero fallbacks ([measurements](https://github.com/container-registry/harbor-scanner-trivy/pull/38#issuecomment-5506161158)).
+- **A Trivy you can patch.** Trivy is compiled from source at the pinned version, so a vulnerable dependency can be
+  overridden via `go mod` before Aqua cuts a release. The Trivy version and commit the binary was built from show
+  up as the scanner version in Harbor's UI.
+- **Releases you can verify.** Every image is cosign-signed keyless and carries an SPDX SBOM attestation; see
+  [Install](#install) for the verify command.
+
 This fork has its own version line and is not tied to any Harbor release. Which upstream adapter and Trivy version
 a given Harbor release bundles is tracked in the [upstream README][goharbor/harbor-scanner-trivy].
-
-## Performance
-
-- **Scan reports are gzip-compressed in Redis** ([#31]) - stored reports shrink about 7x (5.3x-17.2x depending on the report).
-- **The report lives in its own Redis key** ([#43]) - a 3,119-artifact "Scan All" finishes 30% faster and peaks at 274 MB, roughly 18x below the pre-compression baseline in [#28].
-- **Vulnerability scans can be served from an existing SBOM accessory** ([#38], opt-in) - 6x to 35x faster per scan, with identical findings and a fallback to a full image scan. In production, a 4,221-artifact "Scan All" dropped from 3h 24m to 1h 30m with 100% fast-path uptake and zero fallbacks ([measurements](https://github.com/container-registry/harbor-scanner-trivy/pull/38#issuecomment-5506161158)).
-
-Hot-path Go benchmarks guard against regressions ([#12]): `go test -bench=. -benchmem ./pkg/trivy/... ./pkg/scan/...`.
 
 ## Install
 
@@ -95,26 +119,20 @@ cosign verify \
   8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z
 ```
 
-## Release flow
+## Releases
 
-Releases are fully automated with release-please. Full detail, including the separate Helm chart release line, in
-[docs/RELEASES.md](docs/RELEASES.md).
+Every adapter release `vX.Y.Z` ships:
 
-```
-conventional PR title -> squash merge to main -> release-please opens "chore: release adapter X.Y.Z"
-                                                            |
-                                          squash merge that PR -> vX.Y.Z tag + GitHub Release
-                                                            |
-                       multi-arch image + cosign signature + SBOM attestation + Helm chart + binaries
-```
+- the multi-arch image `8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z` (`linux/amd64`,
+  `linux/arm64`), cosign-signed keyless with an SPDX SBOM attestation
+- `scanner-trivy_linux-{amd64,arm64}.tar.gz`, `trivy_linux-{amd64,arm64}.tar.gz` and `checksums.txt` as GitHub
+  release assets, for running the adapter outside a container or reusing the source-built Trivy
+- a matching Helm chart release, `chart-vX.Y.Z` at `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy`,
+  with the adapter as its `appVersion`. The chart has its own version line, so a chart-only fix never republishes
+  the image
 
-The version comes from the squash commit title: `feat:` bumps the minor, `fix:` the patch. Publishing needs no
-registry credentials: the job mints a GitHub OIDC token and Harbor maps it to a secretless robot scoped to this
-repository ([harbor-workload-identity-federation]). `main` publishes `:latest` on every push, and every PR gets a
-preview image build.
-
-CI on every PR: unit, integration and component tests, `golangci-lint`, yamllint, Helm lint, `govulncheck`,
-`typos`, dependency review, and [zizmor] on the workflows (all actions pinned to full SHAs).
+A new Trivy release is picked up by Renovate and, once merged, cuts a matching adapter release. `main` publishes
+`:latest` on every push. How releases are cut, and what maintainers do, is in [docs/RELEASES.md](docs/RELEASES.md).
 
 ## Configuration
 
@@ -214,6 +232,11 @@ the title must be a [Conventional Commit](https://www.conventionalcommits.org) (
 release-please reads), and every commit needs a DCO sign-off (`git commit -s`). Both are enforced by lefthook
 hooks and in CI.
 
+CI on every PR: unit, integration and component tests, `golangci-lint`, yamllint, Helm lint, `govulncheck`,
+`typos`, dependency review, and [zizmor] on the workflows (all actions pinned to full SHAs). Hot-path Go benchmarks
+guard the scan and transform code against regressions ([#12]):
+`go test -bench=. -benchmem ./pkg/trivy/... ./pkg/scan/...`.
+
 ---
 Harbor Scanner Adapter for Trivy was originally an [Aqua Security](https://aquasec.com) open source project, later
 maintained under [goharbor](https://github.com/goharbor/harbor-scanner-trivy). This fork is maintained by
@@ -221,8 +244,6 @@ maintained under [goharbor](https://github.com/goharbor/harbor-scanner-trivy). T
 
 [release-img]: https://img.shields.io/github/release/container-registry/harbor-scanner-trivy.svg?logo=github
 [release]: https://github.com/container-registry/harbor-scanner-trivy/releases
-[report-card-img]: https://goreportcard.com/badge/github.com/container-registry/harbor-scanner-trivy
-[report-card]: https://goreportcard.com/report/github.com/container-registry/harbor-scanner-trivy
 [license-img]: https://img.shields.io/github/license/container-registry/harbor-scanner-trivy.svg
 [license]: https://github.com/container-registry/harbor-scanner-trivy/blob/main/LICENSE
 
@@ -233,7 +254,6 @@ maintained under [goharbor](https://github.com/goharbor/harbor-scanner-trivy). T
 [Trivy JAVA DB]: https://github.com/aquasecurity/trivy-java-db
 [goharbor/harbor-scanner-trivy]: https://github.com/goharbor/harbor-scanner-trivy
 [container-registry.com]: https://container-registry.com
-[harbor-workload-identity-federation]: https://github.com/container-registry/harbor-workload-identity-federation
 [zizmor]: https://github.com/zizmorcore/zizmor
 
 [#28]: https://github.com/container-registry/harbor-scanner-trivy/issues/28
