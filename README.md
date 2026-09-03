@@ -112,7 +112,8 @@ conventional PR title -> squash merge to main -> release-please opens "chore: re
 - **No registry credentials exist.** Publishing authenticates through Harbor's federated identity provider: the job
   mints a GitHub OIDC token and Harbor maps it to a secretless robot scoped to this repository. Nothing to rotate,
   nothing to leak. See [harbor-workload-identity-federation].
-- **`main` publishes `:latest`** on every push, and every PR gets a preview image build.
+- **`main` publishes `:latest`** on every push. A PR that changes image inputs gets a preview image, one that
+  changes the chart gets a preview chart, both in the dev project and linked from a comment on the PR.
 
 CI on every PR: unit, integration and component tests, `golangci-lint`, yamllint, Helm lint, `govulncheck`,
 `typos`, dependency review, and [zizmor] on the workflows (all actions pinned to full SHAs).

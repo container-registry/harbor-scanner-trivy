@@ -53,6 +53,29 @@ Release state is defined by:
 
 Every push to `main` additionally publishes `8gears.container-registry.com/8gcr/harbor-scanner-trivy:latest` via the `Main Image` workflow.
 
+## Pull Request Previews
+
+Two workflows publish review artifacts into the dev project (`8gcr-dev`, see
+`PR_REGISTRY_PROJECT`) and leave one sticky comment each on the PR with the
+reference, the digest and the cosign verification command. Each runs only when
+the PR diff touches an input that reaches its artifact:
+
+| Workflow | Triggers on | Publishes | Signing identity |
+|----------|-------------|-----------|------------------|
+| `PR Preview Image` (`pr-image.yml`) | `cmd/`, `pkg/`, `go.mod`, `go.sum`, `Dockerfile`, `versions.env`, `Taskfile.yml`, the image workflows, `.github/actions/setup/` | `8gears.container-registry.com/8gcr-dev/harbor-scanner-trivy:pr-N` | `publish-image.yml` |
+| `PR Preview Chart` (`pr-chart.yml`) | `deploy/chart/`, `pr-chart.yml`, `chart-annotate-images.sh` | `oci://8gears.container-registry.com/8gcr-dev/charts/harbor-scanner-trivy:X.Y.Z-pr.N` | `pr-chart.yml` |
+
+Both run on every push while the cumulative PR diff matches, and both overwrite
+the same tag, so `pr-N` and `X.Y.Z-pr.N` always point at the latest successful
+build; pin the digest from the comment when that matters. `X.Y.Z` is the chart
+version committed in `Chart.yaml`, and the preview keeps the committed
+`appVersion`, so it installs a released adapter by default. `--set
+image.tag=pr-N` pairs it with the PR's preview image when one exists.
+
+No preview is published for forked PRs and dependabot PRs (no OIDC token), nor
+for release-please PRs: a release PR changes no code, and the chart release PR
+only restamps version, changelog and README.
+
 ## Version Rules
 
 A release PR opens as soon as a line has at least one commit of a type that is
@@ -180,6 +203,7 @@ arbitrary reference, `PLATFORMS=...` a different expectation.
 |------|------|----------|---------|
 | `REGISTRY_ADDRESS` | Variable | No | Registry host, defaults to `8gears.container-registry.com` |
 | `REGISTRY_PROJECT` | Variable | No | Registry project, defaults to `8gcr` |
+| `PR_REGISTRY_PROJECT` | Variable | No | Project the PR preview image and chart go to, defaults to `8gcr-dev` |
 
 Artifact Hub listing (one-off): add the repository at
 [artifacthub.io](https://artifacthub.io) as kind *Helm*, URL

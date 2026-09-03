@@ -61,6 +61,10 @@ task helm:docs             # regenerate README.md
 `task helm:kubescape` is an on-demand audit, not part of the gate: it needs a
 local binary and fetches framework definitions at run time.
 
+A PR that touches the chart also gets a signed preview chart pushed to the dev
+project; the `PR Preview Chart` comment on the PR carries the `helm install`
+command to try it in a cluster (see [docs/RELEASES.md](../../docs/RELEASES.md#pull-request-previews)).
+
 ## Conventions
 
 - Commits touching only this directory should be scoped `feat(chart):`,
