@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.41.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.40.1...v0.41.0) (2026-09-03)
+
+
+### Features
+
+* **chart:** production-ready chart with an independent release line ([fa76805](https://github.com/container-registry/harbor-scanner-trivy/commit/fa768059b4f418419dddf8aaf20030ab08b7d215))
+
+
+### Bug Fixes
+
+* **chart:** let the chart release PR restamp the version in the generated README ([#72](https://github.com/container-registry/harbor-scanner-trivy/issues/72)) ([9102e9b](https://github.com/container-registry/harbor-scanner-trivy/commit/9102e9b77f39253b25f9b36ec01492a00762c6c8))
+
+
+### Documentation
+
+* add production Scan All numbers to the SBOM fast-path bullet ([#71](https://github.com/container-registry/harbor-scanner-trivy/issues/71)) ([3726fa8](https://github.com/container-registry/harbor-scanner-trivy/commit/3726fa8e4116b754a3421fb893745a86f6e4e1b5))
+* drop obsolete README content and fix config table facts ([#80](https://github.com/container-registry/harbor-scanner-trivy/issues/80)) ([bd4dd61](https://github.com/container-registry/harbor-scanner-trivy/commit/bd4dd6116c44d188eccb05a55e3f7c8dfedc7830))
+
 ## [0.40.1](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.40.0...v0.40.1) (2026-08-28)
 
 
