@@ -25,6 +25,9 @@ includes:
     # Chart paths in taskfile/helm.yml are repo-relative, so the tasks must not
     # inherit the included file's own directory as their working directory.
     dir: .
+  docs:
+    taskfile: taskfile/docs.yml
+    dir: .
 
 vars:
   BINARY: scanner-trivy

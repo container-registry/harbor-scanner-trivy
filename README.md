@@ -36,11 +36,24 @@ that follow Trivy's cadence instead of Harbor's. Upstream commits are cherry-pic
 
 ## How it works
 
+<!--
+```SVGBob
+┌──────────┐ "POST /api/v1/scan"      ┌───────────────┐   "enqueue job"    ┌─────────────┐   "dequeue job"   ┌────────────────┐
+│          │─────────────────────────▶│               │───────────────────▶│             │──────────────────▶│  "Adapter"     │
+│ "Harbor" │ "202 + job id"           │  "Adapter"    │                    │   "Redis"   │                   │  "worker"      │
+│          │◀─────────────────────────│  "API :8080"  │                    │ "job queue" │   "store report"  │                │
+│          │                          │               │   "read report"    │  "reports"  │◀──────────────────│ "trivy image"  │
+│          │ "GET .../{id}/report"    │               │◀───────────────────│             │                   │    "<ref>"     │
+│          │─────────────────────────▶│               │                    └─────────────┘                   └───────┬────────┘
+│          │◀─────────────────────────│               │                                                              │
+└──────────┘ "302 while running,"     └───────────────┘                                        "pull image layers,"  │
+             "then the report"                                                                 "refresh Trivy DB"    ▼
+                                                                                             ┌──────────────────────────────┐
+                                                                                             │  "Registry"      "ghcr.io"   │
+                                                                                             └──────────────────────────────┘
 ```
-Harbor --POST /api/v1/scan--> adapter --> Redis job queue --> worker --> trivy image <ref>
-   ^         202 + job id                                                          |
-   +--GET /api/v1/scan/{id}/report--- report in Redis <-- Harbor report or SBOM <--+
-```
+-->
+![Diagram](https://kroki.io/svgbob/svg/eNq9VcFOg0AQvfsVk7naQK2XxhgTjUY92Wh_YFu2sIqAC7RpjEnTswcPpO1HePbk1_AlwgKtFGhLEScbkt3svpl5M4_xvXffm2xcH4Cdu4cuyMRi8vBItvvEQBDmb3-dAQNAary41KXwaPawLIwAUGgKoHwYIdCB701hacGmPEbxmn2l0Ku7yALuDxdj4blCLIdyTOAEI3hDeM8MDsWm1WzBYcgzMAXTztcAsvmuLgLeU4XZWHgtghuZ_CkJZxlPKt_55C-LFOXQuYWTdrPdxI05YMiB6DpMcrIdk1Pg1DK5k_84LwcotNyOCR1xSpSVn4St6MDGqswEuTmcDcfAnolKsSBqvL7qgiRJ8itT3uT1YDKNOa9YFtjGWXyKp5wOzrC4Y-rXdH4pvZ2BF6Xef24A-g-97JL97haVzNtOER4HP6KRxvRAcK5hMENtYGmmi_nONbRcXY9UAToZU243YnWkrzkaNSD4_JZoJQukPeDU1qArdHl5EQlt9n0AddpeY7TMwK05-qmYMyqzHT6Oi4Cq1ucSM-PJU3cEXp38LX4AVaUSjA==)
 
 1. Harbor posts a scan request with the artifact reference and a pull credential. The adapter validates it, queues
    a job in Redis and answers at once with a job ID.
