@@ -6,6 +6,7 @@
   "label": "chart-release: pending",
   "release-label": "chart-release: tagged",
   "include-v-in-tag": true,
+  "always-update": true,
   "tag-separator": "-",
   "changelog-sections": [
     {"type": "feat", "section": "Features"},
