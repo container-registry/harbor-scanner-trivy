@@ -15,7 +15,7 @@ Check that it answers:
 {{ if not .Values.persistence.enabled }}
 WARNING: persistence is disabled. The Trivy vulnerability DB lives in an
 emptyDir, so every pod restart re-downloads it - which is both slow and a fast
-way to hit the GitHub rate limit.
+way to hit the DB registry's pull rate limit.
 {{ end }}
 {{- if and (not .Values.redis.existingSecret) (regexMatch "^rediss?(\\+sentinel)?://[^/@]*:[^/@]+@" .Values.redis.url) }}
 WARNING: redis.url embeds a password, which is now visible in the pod spec to

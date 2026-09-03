@@ -21,6 +21,7 @@ task run                # Run locally with debug logging on :8080
 task helm:ci            # Full Helm chart quality gate (what chart-ci.yml runs)
 task helm:unittest      # helm unittest only
 task helm:docs          # Regenerate the chart README from values.yaml
+task docs:svgbob        # Regenerate Kroki links for SVGBob diagrams in markdown (diagram in HTML comment, link follows)
 ```
 
 Tool and base-image pins live in `versions.env` (loaded by Taskfile via dotenv).

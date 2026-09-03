@@ -119,8 +119,10 @@ hours. Two settings follow from that:
 
 - **Keep `persistence.enabled`.** Without a volume the DB lives in an
   `emptyDir` and every pod restart re-downloads roughly a gigabyte - slow, and a
-  quick way to hit GitHub's anonymous rate limit of 60 requests/hour. Set
-  `trivy.gitHubToken` (or `trivy.existingSecret`) to raise that to 5000/hour.
+  quick way to hit the DB registry's anonymous pull rate limit. If that happens,
+  point `trivy.dbRepository` at a mirror (`mirror.gcr.io/aquasec/trivy-db`, or
+  your own - see [`example/air-gapped/`](example/air-gapped/)).
+  `trivy.gitHubToken` does not help here; Trivy uses it only for VEX repositories.
 - **Raise memory before raising `jobQueue.workerConcurrency`.** Each concurrent
   scan runs its own Trivy process with the DB loaded, so worker count multiplies
   the memory footprint. `replicaCount` scales throughput the same way, at one
@@ -183,9 +185,13 @@ source is behind a private CA. Use `extraCA` - see
 [`example/private-ca/`](example/private-ca/). Do not reach for `trivy.insecure`,
 which disables verification everywhere.
 
-**GitHub rate limit on the DB download.** Anonymous downloads get 60
-requests/hour. Set `trivy.existingSecret` with a token for 5000/hour, and keep
-`persistence.enabled` so the DB is not re-fetched on every restart.
+**Rate limited on the DB download.** Trivy pulls the DB from an OCI registry,
+and `trivy.gitHubToken` does not raise that limit (Trivy uses the token only for
+VEX repositories). Keep `persistence.enabled` so the DB is not re-fetched on
+every restart, and point the two databases at mirrors: `trivy.dbRepository` at
+`mirror.gcr.io/aquasec/trivy-db` and `trivy.javaDBRepository` at
+`mirror.gcr.io/aquasec/trivy-java-db`, or at mirrors of your own - see
+[`example/air-gapped/`](example/air-gapped/).
 
 **Permission denied on `/home/scanner/.cache`.** The cache volume is not owned
 by the pod's `fsGroup`. On OpenShift see [`example/openshift/`](example/openshift/);
