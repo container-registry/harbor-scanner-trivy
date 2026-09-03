@@ -17,7 +17,6 @@ This repository is a fork of [goharbor/harbor-scanner-trivy], maintained by [con
 - [Performance](#performance)
 - [Install](#install)
 - [Release flow](#release-flow)
-- [Version matrix](#version-matrix)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
@@ -51,6 +50,9 @@ commits are cherry-picked back into this fork twice a day by
 | Redis report storage | Plain JSON, single key | gzip, report split into its own key |
 | SBOM accessory fast path | — | Opt-in (`SCANNER_TRIVY_USE_SBOM_ACCESSORY`) |
 
+This fork has its own version line and is not tied to any Harbor release. Which upstream adapter and Trivy version
+a given Harbor release bundles is tracked in the [upstream README][goharbor/harbor-scanner-trivy].
+
 ## Performance
 
 - **Scan reports are gzip-compressed in Redis** ([#31]) - stored reports shrink about 7x (5.3x-17.2x depending on the report).
@@ -61,15 +63,8 @@ Hot-path Go benchmarks guard against regressions ([#12]): `go test -bench=. -ben
 
 ## Install
 
-**As Harbor's built-in scanner.** In Harbor >= 2.0 Trivy is the default scanner and the
-[official Harbor Helm chart][Harbor Helm chart] (>= 1.4) installs the adapter for you:
-
-```sh
-helm repo add harbor https://helm.goharbor.io
-helm install harbor harbor/harbor --create-namespace --namespace harbor
-```
-
-The adapter registers itself under **Interrogation Service** as the default scanner.
+Harbor >= 2.2 bundles the upstream adapter (`goharbor/trivy-adapter-photon`) as its default scanner. There are two
+ways to run this fork instead.
 
 **Standalone, as an external scanner.** Each release publishes a chart:
 
@@ -79,6 +74,17 @@ helm install harbor-scanner-trivy \
 ```
 
 Then register `http://harbor-scanner-trivy:8080` under **Interrogation Service > Scanners** in Harbor.
+
+**Inside the [Harbor Helm chart][Harbor Helm chart], replacing the bundled image.** The chart exposes the adapter
+image as values. This image runs under the chart's `runAsUser: 10000` security context and serves the scanner API
+from there:
+
+```sh
+helm repo add harbor https://helm.goharbor.io
+helm install harbor harbor/harbor --create-namespace --namespace harbor \
+  --set trivy.image.repository=8gears.container-registry.com/8gcr/harbor-scanner-trivy \
+  --set trivy.image.tag=vX.Y.Z
+```
 
 **Verify what you installed:**
 
@@ -91,7 +97,8 @@ cosign verify \
 
 ## Release flow
 
-Releases are fully automated. Full detail in [docs/RELEASES.md](docs/RELEASES.md).
+Releases are fully automated with release-please. Full detail, including the separate Helm chart release line, in
+[docs/RELEASES.md](docs/RELEASES.md).
 
 ```
 conventional PR title -> squash merge to main -> release-please opens "chore: release adapter X.Y.Z"
@@ -101,45 +108,13 @@ conventional PR title -> squash merge to main -> release-please opens "chore: re
                        multi-arch image + cosign signature + SBOM attestation + Helm chart + binaries
 ```
 
-- **Version comes from commits.** `feat:` bumps the minor, `fix:` the patch. `perf:`, `refactor:`, `docs:` and
-  `upstream:` show up in the changelog without cutting a release; `chore:`/`ci:`/`build:`/`test:` are hidden.
-  The repo allows squash merges only, because the PR title is the commit release-please parses.
-- **One release produces every artifact:** the multi-arch image (`linux/amd64`, `linux/arm64`), the Helm chart
-  at `oci://.../charts/harbor-scanner-trivy`, `scanner-trivy_linux-{amd64,arm64}.tar.gz` and
-  `trivy_linux-{amd64,arm64}.tar.gz` tarballs, and `checksums.txt`. Downstream consumers can take the adapter and
-  Trivy as version-coupled artifacts, as source, binary or image.
-- **Signed and attested.** Every image is cosign-signed keyless and carries an SPDX SBOM attestation.
-- **No registry credentials exist.** Publishing authenticates through Harbor's federated identity provider: the job
-  mints a GitHub OIDC token and Harbor maps it to a secretless robot scoped to this repository. Nothing to rotate,
-  nothing to leak. See [harbor-workload-identity-federation].
-- **`main` publishes `:latest`** on every push, and every PR gets a preview image build.
+The version comes from the squash commit title: `feat:` bumps the minor, `fix:` the patch. Publishing needs no
+registry credentials: the job mints a GitHub OIDC token and Harbor maps it to a secretless robot scoped to this
+repository ([harbor-workload-identity-federation]). `main` publishes `:latest` on every push, and every PR gets a
+preview image build.
 
 CI on every PR: unit, integration and component tests, `golangci-lint`, yamllint, Helm lint, `govulncheck`,
 `typos`, dependency review, and [zizmor] on the workflows (all actions pinned to full SHAs).
-
-## Version matrix
-
-Which adapter and Trivy version each [Harbor release](https://github.com/goharbor/harbor/releases) bundles. These
-are the *upstream* adapter versions; this fork releases independently and is not tied to a Harbor release.
-
-| Harbor          | Trivy Adapter | Trivy           |
-|-----------------|---------------|-----------------|
-| harbor v2.16.0  | v0.38.0       | [trivy v0.72.0](https://github.com/aquasecurity/trivy/releases/tag/v0.72.0) |
-| harbor v2.15.1  | v0.36.0       | [trivy v0.70.0](https://github.com/aquasecurity/trivy/releases/tag/v0.70.0) |
-| harbor v2.15.0  | v0.35.1       | [trivy v0.69.3](https://github.com/aquasecurity/trivy/releases/tag/v0.69.3) |
-| harbor v2.14.2  | v0.34.2       | [trivy v0.68.2](https://github.com/aquasecurity/trivy/releases/tag/v0.68.2) |
-| harbor v2.14.1  | v0.34.0       | [trivy v0.66.0](https://github.com/aquasecurity/trivy/releases/tag/v0.66.0) |
-| harbor v2.14.0  | v0.34.0       | [trivy v0.66.0](https://github.com/aquasecurity/trivy/releases/tag/v0.66.0) |
-| harbor v2.13.4  | v0.34.2       | [trivy v0.68.2](https://github.com/aquasecurity/trivy/releases/tag/v0.68.2) |
-| harbor v2.13.2  | v0.33.2       | [trivy v0.64.1](https://github.com/aquasecurity/trivy/releases/tag/v0.64.1) |
-| harbor v2.13.1  | v0.33.1       | [trivy v0.62.1](https://github.com/aquasecurity/trivy/releases/tag/v0.62.1) |
-| harbor v2.13.0  | v0.33.0-rc.2  | [trivy v0.61.0](https://github.com/aquasecurity/trivy/releases/tag/v0.61.0) |
-| harbor v2.12.3  | v0.32.4       | [trivy v0.61.1](https://github.com/aquasecurity/trivy/releases/tag/v0.61.1) |
-| harbor v2.12.2  | v0.32.3       | [trivy v0.58.2](https://github.com/aquasecurity/trivy/releases/tag/v0.58.2) |
-| harbor v2.12.1  | v0.32.2       | [trivy v0.57.1](https://github.com/aquasecurity/trivy/releases/tag/v0.57.1) |
-| harbor v2.12.0  | v0.32.0       | [trivy v0.56.1](https://github.com/aquasecurity/trivy/releases/tag/v0.56.1) |
-
-Not exhaustive. For older versions see [aquasecurity/harbor-scanner-trivy].
 
 ## Configuration
 
@@ -149,7 +124,7 @@ Everything is configured through environment variables at startup. No config fil
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `SCANNER_LOG_LEVEL` | `info` | One of `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `panic`. Logs that level and above. |
+| `SCANNER_LOG_LEVEL` | `info` | One of `trace`, `debug`, `info`, `warn`, `warning`, `error`. Logs that level and above; unknown values fall back to `info`. |
 
 ### API server
 
@@ -175,13 +150,13 @@ Everything is configured through environment variables at startup. No config fil
 | `SCANNER_TRIVY_SECURITY_CHECKS` | `vuln` | Comma-separated security issues to detect: `vuln`, `config`, `secret` |
 | `SCANNER_TRIVY_SEVERITY` | `UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL` | Comma-separated severities to report |
 | `SCANNER_TRIVY_IGNORE_UNFIXED` | `false` | Report only vulnerabilities with a fix available |
-| `SCANNER_TRIVY_IGNORE_POLICY` | `` | Path to a Trivy ignore policy OPA Rego file |
+| `SCANNER_TRIVY_IGNORE_POLICY` | N/A | Path to a Trivy ignore policy OPA Rego file |
 | `SCANNER_TRIVY_SKIP_UPDATE` | `false` | Disable [Trivy DB] downloads |
 | `SCANNER_TRIVY_SKIP_JAVA_DB_UPDATE` | `false` | Disable [Trivy JAVA DB] downloads |
-| `SCANNER_TRIVY_DB_REPOSITORY` | `mirror.gcr.io/aquasec/trivy-db,ghcr.io/aquasecurity/trivy-db` | OCI repositories to fetch the vulnerability DB from |
-| `SCANNER_TRIVY_JAVA_DB_REPOSITORY` | `ghcr.io/aquasecurity/trivy-java-db` | OCI repositories to fetch the Java vulnerability DB from |
+| `SCANNER_TRIVY_DB_REPOSITORY` | N/A | Comma-separated OCI repositories to fetch the vulnerability DB from, passed as `--db-repository`. When unset, Trivy's own default applies (`mirror.gcr.io/aquasec/trivy-db`, `ghcr.io/aquasecurity/trivy-db`) |
+| `SCANNER_TRIVY_JAVA_DB_REPOSITORY` | N/A | Comma-separated OCI repositories to fetch the Java DB from, passed as `--java-db-repository`. When unset, Trivy's own default applies (`mirror.gcr.io/aquasec/trivy-java-db`, `ghcr.io/aquasecurity/trivy-java-db`) |
 | `SCANNER_TRIVY_OFFLINE_SCAN` | `false` | Disable external API requests used to identify dependencies |
-| `SCANNER_TRIVY_GITHUB_TOKEN` | N/A | GitHub token for [Trivy DB] downloads (see [rate limiting][gh-rate-limit]) |
+| `SCANNER_TRIVY_GITHUB_TOKEN` | N/A | Forwarded to Trivy as `GITHUB_TOKEN`. Raises the GitHub API rate limit for VEX repository downloads (`SCANNER_TRIVY_VEX_SOURCE=repo`). Not involved in [Trivy DB] downloads, which come from OCI registries |
 | `SCANNER_TRIVY_INSECURE` | `false` | Skip verifying the registry certificate |
 | `SCANNER_TRIVY_TIMEOUT` | `5m0s` | How long to wait for a scan to complete |
 | `SCANNER_TRIVY_VEX_SOURCE` | N/A | Enable VEX: `oci` or `repo` [EXPERIMENTAL] |
@@ -201,7 +176,7 @@ Everything is configured through environment variables at startup. No config fil
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `SCANNER_REDIS_URL` | `redis://harbor-harbor-redis:6379` | Redis URI. Standalone: `redis://:password@host:port/db`. Sentinel: `redis+sentinel://:password@host1:port1,host2:port2/monitor-name/db` |
+| `SCANNER_REDIS_URL` | `redis://localhost:6379` | Redis URI. Standalone: `redis://:password@host:port/db`. Sentinel: `redis+sentinel://:password@host1:port1,host2:port2/monitor-name/db` |
 | `SCANNER_REDIS_POOL_MAX_ACTIVE` | `5` | Max connections allocated by the pool |
 | `SCANNER_REDIS_POOL_MAX_IDLE` | `5` | Max idle connections in the pool |
 | `SCANNER_REDIS_POOL_IDLE_TIMEOUT` | `5m` | Close idle connections after this duration. `0` never closes them |
@@ -224,33 +199,6 @@ Everything is configured through environment variables at startup. No config fil
 
 You set `SCANNER_TRIVY_SKIP_UPDATE=true` without providing a database. Download the [Trivy DB] and mount it at
 `/home/scanner/.cache/trivy/db/trivy.db`.
-</details>
-
-<details>
-<summary><b>failed to list releases: ... dial tcp: lookup api.github.com ... i/o timeout</b></summary>
-
-A Docker DNS or firewall issue. Trivy needs internet access to refresh its vulnerability database. Add a DNS server
-to the `docker-compose.yml` created by the Harbor installer:
-
-```yaml
-version: 2
-services:
-  trivy-adapter:
-    # NOTE Adjust IPs to your environment.
-    dns:
-      - 8.8.8.8
-      - 192.168.1.1
-```
-
-Alternatively configure the Docker daemon to use the host's DNS server; see [DNS services][docker-dns].
-</details>
-
-<details>
-<summary><b>failed to list releases: ... 403 API rate limit exceeded</b></summary>
-
-Trivy DB downloads from GitHub are [rate limited][gh-rate-limit]. Mount and cache the DB at
-`/home/scanner/.cache/trivy/db/trivy.db`. If that is not enough, set `SCANNER_TRIVY_GITHUB_TOKEN`; authenticated
-requests get a higher limit.
 </details>
 
 ## Documentation
@@ -284,12 +232,9 @@ maintained under [goharbor](https://github.com/goharbor/harbor-scanner-trivy). T
 [Trivy DB]: https://github.com/aquasecurity/trivy-db
 [Trivy JAVA DB]: https://github.com/aquasecurity/trivy-java-db
 [goharbor/harbor-scanner-trivy]: https://github.com/goharbor/harbor-scanner-trivy
-[aquasecurity/harbor-scanner-trivy]: https://github.com/aquasecurity/harbor-scanner-trivy
 [container-registry.com]: https://container-registry.com
 [harbor-workload-identity-federation]: https://github.com/container-registry/harbor-workload-identity-federation
 [zizmor]: https://github.com/zizmorcore/zizmor
-[gh-rate-limit]: https://github.com/aquasecurity/trivy#github-rate-limiting
-[docker-dns]: https://docs.docker.com/config/containers/container-networking/#dns-services
 
 [#28]: https://github.com/container-registry/harbor-scanner-trivy/issues/28
 [#12]: https://github.com/container-registry/harbor-scanner-trivy/pull/12

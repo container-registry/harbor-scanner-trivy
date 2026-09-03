@@ -408,9 +408,10 @@ trivy:
   vexSource: ""
   # -- Skip updating the VEX repository.
   skipVEXRepoUpdate: false
-  # -- GitHub token used for Trivy DB downloads, stored in a chart-managed
-  # Secret. Anonymous downloads are rate limited to 60 requests/hour. Prefer
-  # `existingSecret` outside throwaway installs.
+  # -- GitHub token forwarded to Trivy as `GITHUB_TOKEN`, stored in a
+  # chart-managed Secret. Trivy uses it only to lift the GitHub API rate limit
+  # on VEX repository downloads (`vexSource: repo`); it plays no part in the
+  # Trivy DB download. Prefer `existingSecret` outside throwaway installs.
   gitHubToken: ""
   # -- Existing Secret holding the GitHub token. Wins over `gitHubToken`.
   existingSecret: ""

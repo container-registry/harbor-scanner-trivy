@@ -117,8 +117,10 @@ hours. Two settings follow from that:
 
 - **Keep `persistence.enabled`.** Without a volume the DB lives in an
   `emptyDir` and every pod restart re-downloads roughly a gigabyte - slow, and a
-  quick way to hit GitHub's anonymous rate limit of 60 requests/hour. Set
-  `trivy.gitHubToken` (or `trivy.existingSecret`) to raise that to 5000/hour.
+  quick way to hit the DB registry's anonymous pull rate limit. If that happens,
+  point `trivy.dbRepository` at a mirror (`mirror.gcr.io/aquasec/trivy-db`, or
+  your own - see [`example/air-gapped/`](example/air-gapped/)).
+  `trivy.gitHubToken` does not help here; Trivy uses it only for VEX repositories.
 - **Raise memory before raising `jobQueue.workerConcurrency`.** Each concurrent
   scan runs its own Trivy process with the DB loaded, so worker count multiplies
   the memory footprint. `replicaCount` scales throughput the same way, at one
@@ -179,9 +181,12 @@ source is behind a private CA. Use `extraCA` - see
 [`example/private-ca/`](example/private-ca/). Do not reach for `trivy.insecure`,
 which disables verification everywhere.
 
-**GitHub rate limit on the DB download.** Anonymous downloads get 60
-requests/hour. Set `trivy.existingSecret` with a token for 5000/hour, and keep
-`persistence.enabled` so the DB is not re-fetched on every restart.
+**Rate limited on the DB download.** Trivy pulls the DB from an OCI registry,
+and `trivy.gitHubToken` does not raise that limit (Trivy uses the token only for
+VEX repositories). Keep `persistence.enabled` so the DB is not re-fetched on
+every restart, and point `trivy.dbRepository` / `trivy.javaDBRepository` at a
+mirror such as `mirror.gcr.io/aquasec/trivy-db`, or your own - see
+[`example/air-gapped/`](example/air-gapped/).
 
 **Permission denied on `/home/scanner/.cache`.** The cache volume is not owned
 by the pod's `fsGroup`. On OpenShift see [`example/openshift/`](example/openshift/);
@@ -387,7 +392,7 @@ Kubernetes: `>=1.28.0-0`
 | trivy.existingIgnorePolicyConfigMap | string | `""` | Existing ConfigMap holding the Rego policy. Wins over `ignorePolicy`. |
 | trivy.existingSecret | string | `""` | Existing Secret holding the GitHub token. Wins over `gitHubToken`. |
 | trivy.existingSecretKey | string | `"gitHubToken"` | Key within `trivy.existingSecret`. |
-| trivy.gitHubToken | string | `""` | GitHub token used for Trivy DB downloads, stored in a chart-managed Secret. Anonymous downloads are rate limited to 60 requests/hour. Prefer `existingSecret` outside throwaway installs. |
+| trivy.gitHubToken | string | `""` | GitHub token forwarded to Trivy as `GITHUB_TOKEN`, stored in a chart-managed Secret. Trivy uses it only to lift the GitHub API rate limit on VEX repository downloads (`vexSource: repo`); it plays no part in the Trivy DB download. Prefer `existingSecret` outside throwaway installs. |
 | trivy.ignorePolicy | string | `""` | Rego policy filtering scan results, rendered into a chart-managed ConfigMap. See <https://trivy.dev/latest/docs/configuration/filtering/>. |
 | trivy.ignorePolicyKey | string | `"policy.rego"` | Key within the ignore-policy ConfigMap. |
 | trivy.ignoreUnfixed | bool | `false` | Report only vulnerabilities with a known fix. |
