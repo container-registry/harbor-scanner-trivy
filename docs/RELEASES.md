@@ -11,11 +11,15 @@ instance, config, manifest, changelog and tag namespace:
 | Helm chart | `deploy/chart/` | `chart-vX.Y.Z` | `.release-please/config-chart.json` / `.release-please/manifest-chart.json` | `deploy/chart/CHANGELOG.md` |
 
 They are separate so a chart fix does not force an adapter release that
-republishes an identical image, and an adapter release does not republish an
-unchanged chart. The two are linked in one direction only: the adapter line owns
+republishes an identical image, and an adapter release does not republish the
+chart by itself. The two are linked in one direction only: the adapter line owns
 `appVersion` in `deploy/chart/Chart.yaml` (via the
-`x-release-please-version` marker), the chart line owns `version`. Both are
-driven by the same `Release Please` workflow on every push to `main`.
+`x-release-please-version` marker), the chart line owns `version`. Because the
+adapter release commit touches `Chart.yaml`, and `chore:` is visible in the chart
+changelog, every adapter release also opens or refreshes the chart release PR
+with a `release adapter X.Y.Z` entry; merging that PR publishes a chart whose
+`appVersion` is the new adapter. Both lines are driven by the same
+`Release Please` workflow on every push to `main`.
 
 Release state is defined by:
 
@@ -35,6 +39,7 @@ Release state is defined by:
    - signs the image with cosign (keyless) and attaches an SPDX SBOM attestation
    - uploads the adapter and Trivy binaries as release assets
    - appends image references and cosign verification commands to the release notes
+   - opens or refreshes the chart release PR (`chore: release chart X.Y.Z`), so a chart with the new `appVersion` ships as soon as that PR is merged
 5. A **chart** release automatically:
    - appends the per-release `artifacthub.io/images` annotation to `Chart.yaml` (not committed - the tag is only known at release time)
    - packages the chart at the tag's version and pushes it to `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy`
@@ -50,25 +55,24 @@ Every push to `main` additionally publishes `8gears.container-registry.com/8gcr/
 
 ## Version Rules
 
-Only `feat:`, `fix:`, and breaking changes trigger a release. All other types
-do not cause a release on their own; they are listed in the changelog when the
-next release is cut (or hidden entirely).
+A release PR opens as soon as a line has at least one commit of a type that is
+shown in its changelog. Hidden types never open a release on their own. The
+bump is decided by the highest-ranking commit: breaking > `feat:` > everything
+else.
 
 | Commit type | Bump | Notes section |
 |-------------|------|---------------|
+| `feat!:` or `BREAKING CHANGE:` | Major (Minor while on 0.x, via `bump-minor-pre-major`) | Breaking changes |
 | `feat:` | Minor | Features |
 | `fix:` | Patch | Bug Fixes |
-| `feat!:` or `BREAKING CHANGE:` | Major (Minor while on 0.x, via `bump-minor-pre-major`) | Breaking changes |
-| `perf:` | None (changelog only) | Performance Improvements |
-| `upstream:` | None (changelog only) | Upstream |
-| `revert:` | None (changelog only) | Reverts |
-| `refactor:` | None (changelog only) | Code Refactoring |
-| `docs:` | None (changelog only) | Documentation |
-| `ci:`, `chore:`, `build:`, `test:` | None | Hidden |
+| `perf:`, `upstream:`, `revert:`, `refactor:`, `docs:` | Patch | Performance Improvements, Upstream, Reverts, Code Refactoring, Documentation |
+| `chore:` | Adapter: hidden, no release. Chart: Patch | Chart only: Miscellaneous. This is what carries an adapter release (`chore: release adapter X.Y.Z` stamps `appVersion`) into a chart release |
+| `ci:`, `build:`, `test:` | Hidden, no release | - |
 
 Use `upstream:` for changes synced from `goharbor/harbor-scanner-trivy`.
 
-The same rules apply to both lines. Which line a commit lands on is decided by
+The same rules apply to both lines, except that `chore:` is shown only in the
+chart changelog. Which line a commit lands on is decided by
 its paths: the adapter line ignores `.github/`, `docs/`, `deploy/`, `taskfile/` and
 `.release-please/`; the chart line only sees `deploy/chart/`. A commit touching both
 opens both release PRs. Use `ci:` for workflow-only changes.
@@ -215,7 +219,7 @@ Before merging an adapter release PR:
 Before merging a chart release PR:
 
 1. `deploy/chart/CHANGELOG.md`, `Chart.yaml` (`version`) and `README.md` (cosign example) show the new chart version. A release PR that does not touch `README.md` means the restamp markers broke.
-2. `Chart.yaml` `appVersion` points at an adapter version that is already published.
+2. `Chart.yaml` `appVersion` points at an adapter version that is already published. After an adapter release the chart changelog shows `release adapter X.Y.Z` under Miscellaneous; that entry is expected.
 3. Keep `release-as` **absent** from `.release-please/config-chart.json`.
    The initial chart release used `release-as: 1.0.0`; do not re-add it,
    or every later chart release repeats `1.0.0`.
