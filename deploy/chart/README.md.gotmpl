@@ -188,8 +188,9 @@ which disables verification everywhere.
 **Rate limited on the DB download.** Trivy pulls the DB from an OCI registry,
 and `trivy.gitHubToken` does not raise that limit (Trivy uses the token only for
 VEX repositories). Keep `persistence.enabled` so the DB is not re-fetched on
-every restart, and point `trivy.dbRepository` / `trivy.javaDBRepository` at a
-mirror such as `mirror.gcr.io/aquasec/trivy-db`, or your own - see
+every restart, and point the two databases at mirrors: `trivy.dbRepository` at
+`mirror.gcr.io/aquasec/trivy-db` and `trivy.javaDBRepository` at
+`mirror.gcr.io/aquasec/trivy-java-db`, or at mirrors of your own - see
 [`example/air-gapped/`](example/air-gapped/).
 
 **Permission denied on `/home/scanner/.cache`.** The cache volume is not owned

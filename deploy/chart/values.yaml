@@ -301,8 +301,8 @@ imageCredentials:
   # -- Registry account email, which some registries still require.
   email: ""
 
-# -- Adapter log level: `trace`, `debug`, `info`, `warn`, `error`. Anything
-# unrecognized falls back to `info`. `debug` also turns on Trivy debug mode
+# -- Adapter log level: `trace`, `debug`, `info`, `warn`, `warning`, `error`.
+# Anything unrecognized falls back to `info`. `debug` also turns on Trivy debug mode
 # unless `trivy.debugMode` is set explicitly.
 logLevel: info
 

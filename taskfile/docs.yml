@@ -54,7 +54,7 @@ tasks:
           return m.group(1) + body + m.group(3) + m.group(4) + encode(body) + (m.group(5) or ')')
 
       # Same, but for blocks without a following image link: add one.
-      pattern_missing = r'(<!--\s*```SVGBob\n)((?:(?!\n```).)*?)(\n```[^>]*?-->)(?!\s*!\[)'
+      pattern_missing = r'(<!--\s*```SVGBob\n)((?:(?!\n```).)*?)(\n```[^>]*?-->)(?!\s*!\[[^\]]*\]\(https://kroki\.io/svgbob/svg/)'
 
       def add_url(m):
           body = m.group(2).replace('-->', DASH)

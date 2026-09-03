@@ -61,8 +61,9 @@ that follow Trivy's cadence instead of Harbor's. Upstream commits are cherry-pic
    into a Harbor vulnerability report or SBOM. The report is gzip-compressed and stored in Redis with a TTL.
 3. Harbor polls for the report. It gets a redirect while the scan runs, then the finished report.
 
-Trivy keeps its vulnerability database in the adapter's cache volume and refreshes it from an OCI registry
-(`ghcr.io` by default, or a mirror you configure). Redis is the only other dependency, and Harbor's own Redis works.
+Trivy keeps its vulnerability database in the adapter's cache volume and refreshes it from an OCI registry:
+Trivy's default repositories on `mirror.gcr.io` and `ghcr.io`, or a mirror you configure. Redis is the only other
+dependency, and Harbor's own Redis works.
 
 ## What it offers
 
@@ -140,9 +141,10 @@ Every adapter release `vX.Y.Z` ships:
   `linux/arm64`), cosign-signed keyless with an SPDX SBOM attestation
 - `scanner-trivy_linux-{amd64,arm64}.tar.gz`, `trivy_linux-{amd64,arm64}.tar.gz` and `checksums.txt` as GitHub
   release assets, for running the adapter outside a container or reusing the source-built Trivy
-- a matching Helm chart release, `chart-vX.Y.Z` at `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy`,
-  with the adapter as its `appVersion`. The chart has its own version line, so a chart-only fix never republishes
-  the image
+- a follow-up Helm chart release with the adapter as its `appVersion`. The chart has its own version line:
+  `chart-vA.B.C` on GitHub, version `A.B.C` at `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy`.
+  The adapter release opens the chart release PR; merging it publishes the chart. A chart-only fix never
+  republishes the image
 
 A new Trivy release is picked up by Renovate and, once merged, cuts a matching adapter release. `main` publishes
 `:latest` on every push. How releases are cut, and what maintainers do, is in [docs/RELEASES.md](docs/RELEASES.md).
@@ -245,9 +247,10 @@ the title must be a [Conventional Commit](https://www.conventionalcommits.org) (
 release-please reads), and every commit needs a DCO sign-off (`git commit -s`). Both are enforced by lefthook
 hooks and in CI.
 
-CI on every PR: unit, integration and component tests, `golangci-lint`, yamllint, Helm lint, `govulncheck`,
-`typos`, dependency review, and [zizmor] on the workflows (all actions pinned to full SHAs). Hot-path Go benchmarks
-guard the scan and transform code against regressions ([#12]):
+Every PR runs `typos`, dependency review and [zizmor] on the workflows (all actions pinned to full SHAs). Code
+changes also run unit, integration and component tests, `golangci-lint`, yamllint and `govulncheck`; chart changes
+run the chart gate (`task helm:ci`). Hot-path Go benchmarks guard the scan and transform code against regressions
+([#12]):
 `go test -bench=. -benchmem ./pkg/trivy/... ./pkg/scan/...`.
 
 ---

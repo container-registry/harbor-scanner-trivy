@@ -184,8 +184,9 @@ which disables verification everywhere.
 **Rate limited on the DB download.** Trivy pulls the DB from an OCI registry,
 and `trivy.gitHubToken` does not raise that limit (Trivy uses the token only for
 VEX repositories). Keep `persistence.enabled` so the DB is not re-fetched on
-every restart, and point `trivy.dbRepository` / `trivy.javaDBRepository` at a
-mirror such as `mirror.gcr.io/aquasec/trivy-db`, or your own - see
+every restart, and point the two databases at mirrors: `trivy.dbRepository` at
+`mirror.gcr.io/aquasec/trivy-db` and `trivy.javaDBRepository` at
+`mirror.gcr.io/aquasec/trivy-java-db`, or at mirrors of your own - see
 [`example/air-gapped/`](example/air-gapped/).
 
 **Permission denied on `/home/scanner/.cache`.** The cache volume is not owned
@@ -302,7 +303,7 @@ Kubernetes: `>=1.28.0-0`
 | jobQueue.redisNamespace | string | `"harbor.scanner.trivy:job-queue"` | Key namespace for the scan job queue. |
 | jobQueue.workerConcurrency | int | `1` | Workers per replica. Each concurrent scan runs its own Trivy process and holds the vulnerability DB in memory, so raise `resources` alongside this. Above 1 also requires `trivy.cacheBackend` to be Redis or `memory`: those processes cannot share the single-writer `fs` scan cache. |
 | lifecycle | object | `{}` | Container lifecycle hooks. |
-| logLevel | string | `"info"` | Adapter log level: `trace`, `debug`, `info`, `warn`, `error`. Anything unrecognized falls back to `info`. `debug` also turns on Trivy debug mode unless `trivy.debugMode` is set explicitly. |
+| logLevel | string | `"info"` | Adapter log level: `trace`, `debug`, `info`, `warn`, `warning`, `error`. Anything unrecognized falls back to `info`. `debug` also turns on Trivy debug mode unless `trivy.debugMode` is set explicitly. |
 | metrics.enabled | bool | `true` | Serve Prometheus metrics on `/metrics` of the API port (`SCANNER_API_SERVER_METRICS_ENABLED`). |
 | metrics.serviceMonitor.annotations | object | `{}` | Extra annotations. |
 | metrics.serviceMonitor.enabled | bool | `false` | Create a Prometheus Operator ServiceMonitor. Requires the `monitoring.coreos.com/v1` CRD. |
