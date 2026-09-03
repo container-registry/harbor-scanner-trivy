@@ -27,8 +27,8 @@ Release state is defined by:
 
 1. PRs are squash-merged to `main` with conventional commit titles. The PR title becomes the commit release-please parses, so the repository must allow **squash merging only** (disable merge commits and rebase merging).
 2. On every push to `main`, the `Release Please` workflow opens or updates a release PR **per line**, for whichever line has releasable commits:
-   - `chore: release X.Y.Z` bumps `.release-please/manifest-adapter.json`, updates `CHANGELOG.md`, and stamps `appVersion` into `deploy/chart/Chart.yaml`.
-   - `chore: release harbor-scanner-trivy chart X.Y.Z` bumps `.release-please/manifest-chart.json`, updates the chart's `CHANGELOG.md`, and stamps `version` into `Chart.yaml` and the cosign example in the chart `README.md`.
+   - `chore: release adapter X.Y.Z` bumps `.release-please/manifest-adapter.json`, updates `CHANGELOG.md`, and stamps `appVersion` into `deploy/chart/Chart.yaml`.
+   - `chore: release chart X.Y.Z` bumps `.release-please/manifest-chart.json`, updates the chart's `CHANGELOG.md`, and stamps `version` into `Chart.yaml` and the cosign example in the chart `README.md`.
 3. Squash-merging a release PR creates its tag (`vX.Y.Z` or `chart-vX.Y.Z`) and GitHub Release.
 4. An **adapter** release then automatically:
    - builds and pushes the multi-arch (`linux/amd64`, `linux/arm64`) image `8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z`

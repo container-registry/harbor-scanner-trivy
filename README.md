@@ -94,7 +94,7 @@ cosign verify \
 Releases are fully automated. Full detail in [docs/RELEASES.md](docs/RELEASES.md).
 
 ```
-conventional PR title -> squash merge to main -> release-please opens "chore: release X.Y.Z"
+conventional PR title -> squash merge to main -> release-please opens "chore: release adapter X.Y.Z"
                                                             |
                                           squash merge that PR -> vX.Y.Z tag + GitHub Release
                                                             |

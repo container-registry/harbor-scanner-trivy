@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "bootstrap-sha": "78ac2a526080c902fef38146da9303085a47a406",
-  "pull-request-header": "This PR prepares the next Helm chart release from conventional commits scoped to deploy/chart. The chart versions independently of the adapter; Chart.yaml `appVersion` is owned by the adapter release line, not this one.",
-  "pull-request-title-pattern": "chore: release harbor-scanner-trivy chart ${version}",
+  "pull-request-header": "Helm chart release. Merging tags `chart-vX.Y.Z` and publishes the chart.",
+  "pull-request-title-pattern": "chore: release chart ${version}",
   "label": "chart-release: pending",
   "release-label": "chart-release: tagged",
   "include-v-in-tag": true,
