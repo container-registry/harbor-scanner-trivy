@@ -547,9 +547,7 @@
         "info",
         "warn",
         "warning",
-        "error",
-        "fatal",
-        "panic"
+        "error"
       ]
     },
     "api": {
