@@ -451,11 +451,14 @@ tasks:
           # Keyed like a buildx platform string, os/arch with the variant when
           # there is one, so linux/arm/v6 and linux/arm/v7 are two platforms.
           # buildx records provenance and SBOM attestations as unknown/unknown
-          # entries of the index; they are attachments, not platforms. An entry
-          # with no platform object at all defaults to the same key so it is
-          # dropped by the select instead of surfacing as an unexpected "?/?".
+          # entries of the index; they are attachments, not platforms. The
+          # select reads os and architecture directly rather than the finished
+          # key, so an attachment is dropped whether or not it carries a
+          # variant, and so is an entry with no platform object at all. An
+          # empty-string variant is treated as absent: jq counts "" as truthy,
+          # and a trailing slash would fail the exact match below.
           actual=$(printf '%s' "${raw}" \
-            | jq -r '.manifests[]? | .platform // {} | "\(.os // "unknown")/\(.architecture // "unknown")\(if .variant then "/" + .variant else "" end)" | select(. != "unknown/unknown")' \
+            | jq -r '.manifests[]? | .platform // {} | select((.os // "unknown") != "unknown" or (.architecture // "unknown") != "unknown") | "\(.os // "unknown")/\(.architecture // "unknown")\(if (.variant // "") == "" then "" else "/" + .variant end)"' \
             | normalize | sort)
           if [ -z "${actual}" ]; then
             echo "No platform manifests in ${reference}" >&2
