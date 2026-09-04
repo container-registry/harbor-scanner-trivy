@@ -262,8 +262,7 @@ tasks:
     cmds:
       - |
         base='{{.BASE}}'
-        # No silent fallback to a fixed window: checking the last N commits and
-        # reporting "all commits" is a false pass on a longer branch.
+        # No fallback to a fixed window: five checked, "all commits" reported.
         if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
           echo "ERROR: base ref '${base}' not found. Fetch it, or run with BASE=<ref>."
           exit 1
@@ -285,22 +284,17 @@ tasks:
     vars:
       BASE: '{{.BASE | default "origin/main"}}'
     cmds:
-      # --no-merges matches the DCO workflow and the dco2 app, both of which
-      # exempt merge commits. The bot exemption they also share has no local
-      # equivalent: it needs the API to tell a real bot account from a git
-      # user.name ending in [bot].
+      # No local bot exemption, unlike the workflow and dco2: telling a real bot
+      # account from a git user.name ending in [bot] needs the API.
       - |
         base='{{.BASE}}'
-        # No silent fallback to a fixed window: checking the last N commits and
-        # reporting "all commits" is a false pass on a longer branch.
+        # No fallback to a fixed window: five checked, "all commits" reported.
         if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
           echo "ERROR: base ref '${base}' not found. Fetch it, or run with BASE=<ref>."
           exit 1
         fi
         for commit in $(git log --no-merges --format=%H "${base}..HEAD"); do
-          # Same last-paragraph extraction and regex as the DCO workflow and the
-          # lefthook hook: a Signed-off-by inside a cherry-picked or quoted body
-          # is not a sign-off, and a bare "Signed-off-by:" is not one either.
+          # Same extraction and regex as dco.yml and lefthook.yml; keep in sync.
           trailers=$(git log -1 --format=%B "$commit" | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
           if ! printf '%s' "$trailers" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
             echo "ERROR: Commit $commit missing DCO sign-off"

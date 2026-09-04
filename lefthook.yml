@@ -23,12 +23,9 @@ commit-msg:
         fi
     dco-signoff:
       run: |
-        # Same last-paragraph extraction and regex as `task dco-check` and the
-        # DCO workflow, so all three agree. A plain grep over the message
-        # accepts a bare "Signed-off-by:" and accepts one carried inside a
-        # cherry-picked body; both of the other gates reject those.
-        # Comment lines are dropped first: git has not stripped them yet when
-        # commit-msg runs, so they would look like the final paragraph.
+        # Same extraction and regex as dco.yml and `task dco-check`; keep in sync.
+        # ^# lines go first: git has not stripped them when commit-msg runs, so
+        # they would look like the final paragraph.
         trailers=$(grep -v '^#' {1} | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
         if ! printf '%s' "$trailers" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
           echo "ERROR: Missing DCO sign-off. Use 'git commit -s'"

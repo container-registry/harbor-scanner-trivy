@@ -1,20 +1,11 @@
 ---
 name: DCO
 
-# In-repo Developer Certificate of Origin gate.
+# Deliberately duplicates the cncf/dco2 App, which already gates this: the
+# App's installation lives outside the repository and can change with no commit.
 #
-# The cncf/dco2 App is installed on this repository and already posts a DCO
-# check on every pull request, so this is a second copy of that gate. It is
-# kept in the repository because the App's installation and configuration live
-# outside it: the gate can be removed or reconfigured with no commit and no
-# review here. dco2 gives the nicer remediation UX and stays.
-#
-# It applies the same two exemptions dco2 does, so the two never disagree on a
-# pull request: merge commits and bot commits.
-#
-# Reads the commits over the API rather than checking the branch out. That
-# resolves each author to a GitHub account, so `type: Bot` cannot be forged by
-# setting a local git user.name, and no fork code reaches the runner.
+# DO NOT ADD actions/checkout. Reading commits over the API is what keeps fork
+# code off the runner and `type: Bot` unforgeable by a local git user.name.
 
 on:
   pull_request:
@@ -42,18 +33,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The endpoint lists at most 250 commits. Fail rather than report a
-          # partial read as a pass.
+          # The endpoint lists at most 250 commits; a partial read must not pass.
           if [ "${TOTAL_COMMITS}" -gt 250 ]; then
             echo "::error::This pull request has ${TOTAL_COMMITS} commits and the API lists at most 250, so the sign-off check cannot cover it. Split the pull request."
             exit 1
           fi
 
-          # Assigned, not read straight into the loop: a process substitution
-          # hides the exit status from set -e, so a failed API call would empty
-          # the loop and pass the gate.
-          # Messages are multi-line, so the filter base64-encodes each one to
-          # keep a commit per line.
+          # Assigned, not piped into the loop: a process substitution hides the
+          # exit status from set -e, so a failed call would pass the gate.
+          # Messages are multi-line, hence one base64 blob per commit.
           commits=$(gh api --paginate "repos/${REPO}/pulls/${PR}/commits" \
             --jq '.[] | select((.parents | length) < 2) | select(.author.type != "Bot") | "\(.sha):\(.commit.message | @base64)"')
 
@@ -62,13 +50,9 @@ jobs:
             [ -n "$entry" ] || continue
             sha=${entry%%:*}
             message=$(printf '%s' "${entry#*:}" | base64 -d)
-            # Only the final non-empty paragraph is considered. git puts trailers
-            # in the last block, so a Signed-off-by carried inside a cherry-picked
-            # or quoted body is not a sign-off for this commit, and grepping the
-            # whole message would accept it. Trailing blank lines are ignored.
+            # Final paragraph only: a Signed-off-by inside a cherry-picked body
+            # is not a trailer, and a bare "Signed-off-by:" is not a sign-off.
             trailers=$(printf '%s\n' "$message" | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
-            # Requires a name and an address, not just the trailer key: a
-            # bare "Signed-off-by:" line satisfies a plain grep for the key.
             if ! printf '%s' "$trailers" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
               echo "::error::Missing DCO sign-off: $sha $(printf '%s\n' "$message" | head -1)"
               missing=1
