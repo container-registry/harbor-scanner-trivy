@@ -9,22 +9,11 @@ on:
 
 permissions: {}
 
-# In container-registry/oss-project-template two pushes to main seconds apart
-# ran this workflow twice in parallel, and each run opened its own chart
-# release pull request on the same branch. Serialise them instead.
-#
-# The group is a fixed string, not keyed on github.ref: target-branch is
-# unset, so release-please detects the default branch and a run dispatched
-# from any ref still reconciles main. Keying on the ref would let such a
-# dispatch run beside the push-triggered run it must wait for.
-#
-# cancel-in-progress: false keeps a run that is already executing. It does
-# not queue every event: GitHub allows one pending run per group and cancels
-# the previous pending one. That is harmless here because release-please
-# reconciles from the full commit history, so the run that does execute
-# covers the displaced one's commits and still cuts its release.
 concurrency:
+  # Fixed, not keyed on github.ref: target-branch is unset, so a run
+  # dispatched from any ref still reconciles main and must share the lock.
   group: release-please
+  # Never true: a cancelled run can skip a publish.
   cancel-in-progress: false
 
 jobs:
