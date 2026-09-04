@@ -108,6 +108,85 @@ in the adapter changelog and bumps the adapter version. The `Chart Scope Paths`
 check fails such a PR; split it rather than retype it. When `exclude-paths` in
 `.release-please/config-adapter.json` changes, update that check's patterns too.
 
+## Behaviour That Looks Like a Bug
+
+Each of these cost a debugging session in this repository. None of them is a bug.
+
+- **Without `always-update`, an open release PR is refreshed only when its body would change.**
+  `createOrUpdatePullRequest` in release-please's `src/manifest.ts` branches on the option: with it,
+  `updateExistingPullRequest` runs unconditionally; without it, `maybeUpdateExistingPullRequest`
+  returns early when `existing.body === pullRequest.body.toString()` and logs `PR #N remained the
+  same`. Moving or renaming the config and manifest files does not change that body, so the open PR
+  keeps pointing at the old paths. Editing `pull-request-header` is the opposite case, because the
+  header is the first line of the body being compared. Both configs here set `always-update: true`,
+  so neither line is exposed now; its absence on the chart line is what stranded chart PR #74 when
+  #75 moved the manifests into `.release-please/` (fixed in #76). Keep it on both lines.
+
+- **`release-as` in a config is permanent, not one-shot.** It pins every later release to the same
+  version, so the release after the one it was meant for proposes that version again and merging it
+  collides with the existing tag. The chart line hit exactly this: with `chart-v1.0.0` already tagged,
+  the next chart release PR proposed `1.0.0` again, and the fix was to delete the pin (#70). The
+  schema now marks `release-as` deprecated in favour of a `Release-As: X.Y.Z` commit footer, which
+  applies once.
+
+- **A new release line starts at 1.0.0 whatever its manifest says.** With no tag to walk back to,
+  `initialReleaseVersion()` in release-please's `src/strategies/base.ts` returns the config's
+  `initial-version` when set and `1.0.0` otherwise. A manifest seeded with `0.0.0` is never consulted
+  on that path. Neither line here is exposed today, because `0.40.1` and `1.0.1` both have matching
+  tags, but a third line added later needs `initial-version` in its config. Do not reach for
+  `release-as`, which is the trap above.
+
+- **`exclude-paths` drops a commit only when every file it touches is excluded.** The schema is
+  explicit: "If all files from commit belong to one of the paths it will be skipped". One file outside
+  `.github`, `docs`, `deploy`, `taskfile` and `.release-please` therefore pulls a whole workflow-only
+  commit into the adapter changelog and bumps the adapter version. The inverse surprises more: a
+  `feat:` whose every file sits under an excluded path releases nothing at all, and that reads as
+  release-please being broken rather than as configuration doing its job.
+
+- **A hidden commit type cannot carry a release into the other line.** `chore: release adapter X.Y.Z`
+  is a `chore:` commit as far as the chart line is concerned. While `chore` was hidden there,
+  release-please found an empty changelog and opened nothing, so a chart with the new `appVersion`
+  only shipped when the next `fix(chart)` happened to land (#78). That is the whole reason `chore` is
+  visible in `config-chart.json` and hidden in `config-adapter.json`. Do not tidy it away.
+
+## The Release PR's Checks Wait for Approval
+
+Both release-please jobs in `release-please.yml` pass `secrets.GITHUB_TOKEN`, so the release PR is
+opened by `github-actions[bot]`. GitHub does create the workflow runs, and then holds every one of
+them in the `action_required` state until somebody with write access clicks **Approve and run**. On
+the two open release PRs, `CI`, `Hygiene`, `Chart CI`, `PR Title` and `PR Preview Chart` all sit at
+`action_required`; on the merged adapter release #44 those same workflows ran to success once a
+maintainer approved them. A release PR whose checks list looks empty is waiting for a person, not
+broken.
+
+That approval is a manual step on every release PR, and it is what a required status check turns into
+a merge block, because the context reports nothing until the run is approved. The active `Min` ruleset
+on `main` blocks branch deletion and force-pushes and requires no status check, so nothing is blocked
+today.
+
+To require checks without the approval step, make release-please open its PR as a GitHub App, whose
+pushes are not gated this way:
+
+```yaml
+- uses: actions/create-github-app-token@<sha>  # vX.Y.Z
+  id: app-token
+  with:
+    app-id: ${{ vars.RELEASE_APP_ID }}
+    private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+- uses: googleapis/release-please-action@<sha>  # vX.Y.Z
+  with:
+    token: ${{ steps.app-token.outputs.token }}
+```
+
+Then require only a context that reports on every pull request. `Hygiene` is the one workflow here
+with no path filter; `CI` has `paths-ignore` and `Chart CI` has `paths`. A path-filtered workflow does
+not report at all on a PR that misses its filter, so requiring one leaves that PR waiting forever.
+
+Do not work around a blocked release PR by pushing its tag by hand. The tag and that line's manifest
+then disagree permanently: release-please finds no previous release, walks the whole history, and
+replays old commits into the next changelog.
+
 ## Tracking Upstream Trivy
 
 The adapter tracks upstream Trivy's release cadence via the org's self-hosted
@@ -237,18 +316,17 @@ Before merging a normal PR:
 
 Before merging an adapter release PR:
 
-1. Version bump matches the commits since the last release.
+1. Version bump matches the commits since the last release. If it does not, the cause is usually a commit type or a path, see [Behaviour That Looks Like a Bug](#behaviour-that-looks-like-a-bug); fix the config and push to `main`, and the PR rewrites itself.
 2. `CHANGELOG.md` and `Chart.yaml` (`appVersion`) both show the new version.
-3. Merge method is **Squash and merge**.
-4. After merge, the `Release Please` workflow completes and the release notes include the image references.
+3. `release-as` is absent from `.release-please/config-adapter.json`.
+4. Merge method is **Squash and merge**.
+5. After merge, the `Release Please` workflow completes and the release notes include the image references.
 
 Before merging a chart release PR:
 
 1. `deploy/chart/CHANGELOG.md`, `Chart.yaml` (`version`) and `README.md` (cosign example) show the new chart version. A release PR that does not touch `README.md` means the restamp markers broke.
 2. `Chart.yaml` `appVersion` points at an adapter version that is already published. After an adapter release the chart changelog shows `release adapter X.Y.Z` under Miscellaneous; that entry is expected.
-3. Keep `release-as` **absent** from `.release-please/config-chart.json`.
-   The initial chart release used `release-as: 1.0.0`; do not re-add it,
-   or every later chart release repeats `1.0.0`.
+3. `release-as` is absent from `.release-please/config-chart.json` (see [Behaviour That Looks Like a Bug](#behaviour-that-looks-like-a-bug)).
 4. Merge method is **Squash and merge**.
 
 ## Manual Intervention
