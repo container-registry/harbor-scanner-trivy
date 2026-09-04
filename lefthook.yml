@@ -23,7 +23,10 @@ commit-msg:
         fi
     dco-signoff:
       run: |
-        if ! grep -q "^Signed-off-by:" {1}; then
+        # Same regex as `task dco-check` and the DCO workflow. A plain grep for
+        # the trailer key accepts a bare "Signed-off-by:" that both of those
+        # reject, so the local hook has to require a name and an address too.
+        if ! grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$" {1}; then
           echo "ERROR: Missing DCO sign-off. Use 'git commit -s'"
           exit 1
         fi

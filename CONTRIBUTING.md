@@ -114,6 +114,9 @@ see [docs/RELEASES.md](docs/RELEASES.md). Two rules follow from that:
 * Every commit must carry a DCO sign-off (`git commit -s`).
 
 Both are enforced locally by [lefthook](lefthook.yml) hooks (installed via `task setup`)
-and in CI.
+and in CI: the [PR Title](.github/workflows/pr-title.yml) workflow checks the title that
+becomes the squash commit, and the [DCO](.github/workflows/dco.yml) workflow checks the
+sign-off on every commit in the pull request. Run the same two checks over your branch
+before pushing with `task commit-lint` and `task dco-check`.
 
 [fowler-testing-strategies]: https://www.martinfowler.com/articles/microservice-testing/
