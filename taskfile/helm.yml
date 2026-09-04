@@ -358,7 +358,6 @@ tasks:
     cmds:
       - task: lint:helm
       - task: lint:ct
-      - task: lint:ct-drift
       - task: lint:kube
       - task: lint:ah
       - task: lint:schema
@@ -367,6 +366,7 @@ tasks:
     desc: "Full chart quality gate (what chart-ci.yml runs)"
     cmds:
       - task: lint
+      - task: lint:ct-drift
       - task: template
       - task: unittest
       - task: tools:test
