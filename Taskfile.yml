@@ -396,6 +396,11 @@ tasks:
       IMAGE_TAG: '{{.IMAGE_TAG | default .VERSION}}'
       IMAGE_REF: '{{.IMAGE_REF | default (printf "%s/%s/%s:%s" .REGISTRY_ADDRESS .REGISTRY_PROJECT .IMAGE_NAME .IMAGE_TAG)}}'
       PLATFORMS: '{{.PLATFORMS | default .IMAGE_PLATFORMS}}'
+    env:
+      # Reached through the environment rather than templated into the script,
+      # so a value containing shell metacharacters cannot alter the command.
+      IMAGE_REF: '{{.IMAGE_REF}}'
+      PLATFORMS: '{{.PLATFORMS}}'
     preconditions:
       - sh: docker buildx version >/dev/null 2>&1
         msg: "docker buildx is required to inspect a published image index"
@@ -403,10 +408,23 @@ tasks:
         msg: "jq is required to inspect a published image index"
     cmds:
       - cmd: |
-          reference='{{.IMAGE_REF}}'
+          reference="${IMAGE_REF}"
+          # Mirrors containerd's aliasing, which buildx applies before writing
+          # the index, so the two sides can spell one platform differently.
+          normalize() {
+            sed -E \
+              -e 's#^linux/(aarch64|arm64)#linux/arm64#' \
+              -e 's#^linux/(x86_64|x86-64|amd64)#linux/amd64#' \
+              -e 's#^linux/i386$#linux/386#' \
+              -e 's#^linux/armhf$#linux/arm/v7#' \
+              -e 's#^linux/armel$#linux/arm/v6#' \
+              -e 's#^linux/arm64/v?8$#linux/arm64#' \
+              -e 's#^linux/arm$#linux/arm/v7#' \
+              -e 's#^linux/arm/([5-8])$#linux/arm/v\1#'
+          }
           # grep exits 1 on an all-empty list, which errexit would turn into a
           # silent abort before the guard below can say what is wrong.
-          expected=$(printf '%s' '{{.PLATFORMS}}' | tr ',' '\n' | tr -d '[:blank:]' | grep -v '^$' | sort -u || true)
+          expected=$(printf '%s' "${PLATFORMS}" | tr ',' '\n' | tr -d '[:blank:]' | grep -v '^$' | normalize | sort -u || true)
           if [ -z "${expected}" ]; then
             echo "No expected platforms given (PLATFORMS/IMAGE_PLATFORMS is empty)" >&2
             exit 1
@@ -426,11 +444,18 @@ tasks:
             exit 1
           fi
 
-          # buildx records provenance/SBOM attestations as unknown/unknown entries
-          # of the index; they are attachments, not platforms.
+          # Attestations ride in the index as unknown/unknown entries, hence the
+          # field-level selects; jq counts "" as true and "/" + 7 aborts it.
           actual=$(printf '%s' "${raw}" \
-            | jq -r '.manifests[]? | "\(.platform.os // "?")/\(.platform.architecture // "?")" | select(. != "unknown/unknown")' \
-            | sort)
+            | jq -r '
+                .manifests[]? | .platform // {}
+                | select((.os | type) == "string" and .os != ""
+                         and (.architecture | type) == "string" and .architecture != "")
+                | select(.os != "unknown" or .architecture != "unknown")
+                | "\(.os)/\(.architecture)"
+                  + (if (.variant | type) == "string" and .variant != ""
+                     then "/" + .variant else "" end)' \
+            | normalize | sort)
           if [ -z "${actual}" ]; then
             echo "No platform manifests in ${reference}" >&2
             exit 1
