@@ -445,9 +445,16 @@ tasks:
           fi
 
           # Attestations ride in the index as unknown/unknown entries, hence the
-          # select; jq counts "" as truthy, hence the explicit variant test.
+          # field-level selects; jq counts "" as true and "/" + 7 aborts it.
           actual=$(printf '%s' "${raw}" \
-            | jq -r '.manifests[]? | .platform // {} | select((.os // "unknown") != "unknown" or (.architecture // "unknown") != "unknown") | "\(.os // "unknown")/\(.architecture // "unknown")\(if (.variant // "") == "" then "" else "/" + .variant end)"' \
+            | jq -r '
+                .manifests[]? | .platform // {}
+                | select((.os | type) == "string" and .os != ""
+                         and (.architecture | type) == "string" and .architecture != "")
+                | select(.os != "unknown" or .architecture != "unknown")
+                | "\(.os)/\(.architecture)"
+                  + (if (.variant | type) == "string" and .variant != ""
+                     then "/" + .variant else "" end)' \
             | normalize | sort)
           if [ -z "${actual}" ]; then
             echo "No platform manifests in ${reference}" >&2
