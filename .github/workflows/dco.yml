@@ -41,7 +41,6 @@ jobs:
 
           # Assigned, not piped into the loop: a process substitution hides the
           # exit status from set -e, so a failed call would pass the gate.
-          # Messages are multi-line, hence one base64 blob per commit.
           commits=$(gh api --paginate "repos/${REPO}/pulls/${PR}/commits" \
             --jq '.[] | select((.parents | length) < 2) | select(.author.type != "Bot") | "\(.sha):\(.commit.message | @base64)"')
 

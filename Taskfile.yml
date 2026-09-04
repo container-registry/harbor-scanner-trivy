@@ -294,7 +294,6 @@ tasks:
           exit 1
         fi
         for commit in $(git log --no-merges --format=%H "${base}..HEAD"); do
-          # Same extraction and regex as dco.yml and lefthook.yml; keep in sync.
           trailers=$(git log -1 --format=%B "$commit" | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
           if ! printf '%s' "$trailers" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
             echo "ERROR: Commit $commit missing DCO sign-off"
