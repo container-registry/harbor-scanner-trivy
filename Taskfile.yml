@@ -259,9 +259,12 @@ tasks:
     desc: "Check commits follow Conventional Commits (BASE=<ref> to change the base)"
     vars:
       BASE: '{{.BASE | default "origin/main"}}'
+    env:
+      # Through the environment, not templated: a quote in a ref name would run as shell.
+      BASE: '{{.BASE}}'
     cmds:
       - |
-        base='{{.BASE}}'
+        base="${BASE}"
         # No fallback to a fixed window: five checked, "all commits" reported.
         if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
           echo "ERROR: base ref '${base}' not found. Fetch it, or run with BASE=<ref>."
@@ -283,11 +286,14 @@ tasks:
     desc: "Check commits carry a DCO sign-off (BASE=<ref> to change the base)"
     vars:
       BASE: '{{.BASE | default "origin/main"}}'
+    env:
+      # Through the environment, not templated: a quote in a ref name would run as shell.
+      BASE: '{{.BASE}}'
     cmds:
       # No local bot exemption, unlike the workflow and dco2: telling a real bot
       # account from a git user.name ending in [bot] needs the API.
       - |
-        base='{{.BASE}}'
+        base="${BASE}"
         # No fallback to a fixed window: five checked, "all commits" reported.
         if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
           echo "ERROR: base ref '${base}' not found. Fetch it, or run with BASE=<ref>."

@@ -23,9 +23,9 @@ commit-msg:
         fi
     dco-signoff:
       run: |
-        # ^# lines go first: git has not stripped them when commit-msg runs, so
-        # they would look like the final paragraph.
-        trailers=$(grep -v '^#' {1} | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
+        # Comments go first: git has not stripped them when commit-msg runs, so
+        # they would look like the final paragraph. stripspace honours commentChar.
+        trailers=$(git stripspace --strip-comments < {1} | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
         if ! printf '%s' "$trailers" | grep -E "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$" >/dev/null; then
           echo "ERROR: Missing DCO sign-off. Use 'git commit -s'"
           exit 1
