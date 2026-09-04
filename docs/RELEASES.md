@@ -112,14 +112,15 @@ check fails such a PR; split it rather than retype it. When `exclude-paths` in
 
 Each of these cost a debugging session in this repository. None of them is a bug.
 
-- **An open release PR is refreshed only when its body would change.** Moving or renaming the config
-  and manifest files does not change the generated body, so the next push to `main` leaves the open PR
-  pointing at the old paths and logs `PR #N remained the same`. Editing `pull-request-header` is the
-  opposite case, because the header is the first line of the body that comparison is made against.
-  Both configs set `always-update: true`, which release-please's config schema documents as "Always
-  update the pull request with the latest changes. Defaults to `false`." Keep it on both lines. Its
-  absence is what stranded chart PR #74 when #75 moved the manifests into `.release-please/` (fixed in
-  #76).
+- **Without `always-update`, an open release PR is refreshed only when its body would change.**
+  `createOrUpdatePullRequest` in release-please's `src/manifest.ts` branches on the option: with it,
+  `updateExistingPullRequest` runs unconditionally; without it, `maybeUpdateExistingPullRequest`
+  returns early when `existing.body === pullRequest.body.toString()` and logs `PR #N remained the
+  same`. Moving or renaming the config and manifest files does not change that body, so the open PR
+  keeps pointing at the old paths. Editing `pull-request-header` is the opposite case, because the
+  header is the first line of the body being compared. Both configs here set `always-update: true`,
+  so neither line is exposed now; its absence on the chart line is what stranded chart PR #74 when
+  #75 moved the manifests into `.release-please/` (fixed in #76). Keep it on both lines.
 
 - **`release-as` in a config is permanent, not one-shot.** It pins every later release to the same
   version, so the release after the one it was meant for proposes that version again and merging it
@@ -148,18 +149,23 @@ Each of these cost a debugging session in this repository. None of them is a bug
   only shipped when the next `fix(chart)` happened to land (#78). That is the whole reason `chore` is
   visible in `config-chart.json` and hidden in `config-adapter.json`. Do not tidy it away.
 
-## The Release PR Gets No Workflow Runs
+## The Release PR's Checks Wait for Approval
 
-GitHub raises no workflow events for a ref pushed with `GITHUB_TOKEN`, and both release-please jobs in
-`release-please.yml` pass exactly that token. So **a release PR gets zero workflow runs**: no `CI`, no
-`Hygiene`, no `Chart CI`. An empty checks list on `chore: release adapter X.Y.Z` is expected, not a
-broken pipeline.
+Both release-please jobs in `release-please.yml` pass `secrets.GITHUB_TOKEN`, so the release PR is
+opened by `github-actions[bot]`. GitHub does create the workflow runs, and then holds every one of
+them in the `action_required` state until somebody with write access clicks **Approve and run**. On
+the two open release PRs, `CI`, `Hygiene`, `Chart CI`, `PR Title` and `PR Preview Chart` all sit at
+`action_required`; on the merged adapter release #44 those same workflows ran to success once a
+maintainer approved them. A release PR whose checks list looks empty is waiting for a person, not
+broken.
 
-It stops being cosmetic the moment a ruleset requires a status check: the release PR then waits for a
-context that will never be reported and can never be merged. The active `Min` ruleset on `main` blocks
-branch deletion and force-pushes and requires no status check, which is why release PRs merge today.
+That approval is a manual step on every release PR, and it is what a required status check turns into
+a merge block, because the context reports nothing until the run is approved. The active `Min` ruleset
+on `main` blocks branch deletion and force-pushes and requires no status check, so nothing is blocked
+today.
 
-To require checks, first make release-please open its PR as a GitHub App, whose pushes do raise events:
+To require checks without the approval step, make release-please open its PR as a GitHub App, whose
+pushes are not gated this way:
 
 ```yaml
 - uses: actions/create-github-app-token@<sha>  # vX.Y.Z
