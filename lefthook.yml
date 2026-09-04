@@ -23,10 +23,14 @@ commit-msg:
         fi
     dco-signoff:
       run: |
-        # Same regex as `task dco-check` and the DCO workflow. A plain grep for
-        # the trailer key accepts a bare "Signed-off-by:" that both of those
-        # reject, so the local hook has to require a name and an address too.
-        if ! grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$" {1}; then
+        # Same last-paragraph extraction and regex as `task dco-check` and the
+        # DCO workflow, so all three agree. A plain grep over the message
+        # accepts a bare "Signed-off-by:" and accepts one carried inside a
+        # cherry-picked body; both of the other gates reject those.
+        # Comment lines are dropped first: git has not stripped them yet when
+        # commit-msg runs, so they would look like the final paragraph.
+        trailers=$(grep -v '^#' {1} | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
+        if ! printf '%s' "$trailers" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
           echo "ERROR: Missing DCO sign-off. Use 'git commit -s'"
           exit 1
         fi

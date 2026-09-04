@@ -62,9 +62,14 @@ jobs:
             [ -n "$entry" ] || continue
             sha=${entry%%:*}
             message=$(printf '%s' "${entry#*:}" | base64 -d)
+            # Only the final non-empty paragraph is considered. git puts trailers
+            # in the last block, so a Signed-off-by carried inside a cherry-picked
+            # or quoted body is not a sign-off for this commit, and grepping the
+            # whole message would accept it. Trailing blank lines are ignored.
+            trailers=$(printf '%s\n' "$message" | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
             # Requires a name and an address, not just the trailer key: a
             # bare "Signed-off-by:" line satisfies a plain grep for the key.
-            if ! printf '%s\n' "$message" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
+            if ! printf '%s' "$trailers" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
               echo "::error::Missing DCO sign-off: $sha $(printf '%s\n' "$message" | head -1)"
               missing=1
             fi

@@ -256,11 +256,20 @@ tasks:
         fi
 
   commit-lint:
-    desc: "Check commits follow Conventional Commits"
+    desc: "Check commits follow Conventional Commits (BASE=<ref> to change the base)"
+    vars:
+      BASE: '{{.BASE | default "origin/main"}}'
     cmds:
       - |
+        base='{{.BASE}}'
+        # No silent fallback to a fixed window: checking the last N commits and
+        # reporting "all commits" is a false pass on a longer branch.
+        if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+          echo "ERROR: base ref '${base}' not found. Fetch it, or run with BASE=<ref>."
+          exit 1
+        fi
         pattern="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|upstream)(\(.+\))?(!)?: .+"
-        for commit in $(git log --format=%H origin/main..HEAD 2>/dev/null || git log --format=%H -5); do
+        for commit in $(git log --format=%H "${base}..HEAD"); do
           msg=$(git log -1 --format=%s "$commit")
           if ! echo "$msg" | grep -Eq "$pattern"; then
             echo "ERROR: Commit $commit does not follow Conventional Commits"
@@ -272,18 +281,28 @@ tasks:
         echo "All commits follow Conventional Commits format"
 
   dco-check:
-    desc: "Check commits carry a DCO sign-off"
+    desc: "Check commits carry a DCO sign-off (BASE=<ref> to change the base)"
+    vars:
+      BASE: '{{.BASE | default "origin/main"}}'
     cmds:
       # --no-merges matches the DCO workflow and the dco2 app, both of which
       # exempt merge commits. The bot exemption they also share has no local
       # equivalent: it needs the API to tell a real bot account from a git
       # user.name ending in [bot].
       - |
-        for commit in $(git log --no-merges --format=%H origin/main..HEAD 2>/dev/null || git log --no-merges --format=%H -5); do
-          # Same regex as the DCO workflow and the lefthook hook: a name and an
-          # address are required, so a bare "Signed-off-by:" fails here rather
-          # than on the pull request.
-          if ! grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$" <<< "$(git log -1 --format=%B "$commit")"; then
+        base='{{.BASE}}'
+        # No silent fallback to a fixed window: checking the last N commits and
+        # reporting "all commits" is a false pass on a longer branch.
+        if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+          echo "ERROR: base ref '${base}' not found. Fetch it, or run with BASE=<ref>."
+          exit 1
+        fi
+        for commit in $(git log --no-merges --format=%H "${base}..HEAD"); do
+          # Same last-paragraph extraction and regex as the DCO workflow and the
+          # lefthook hook: a Signed-off-by inside a cherry-picked or quoted body
+          # is not a sign-off, and a bare "Signed-off-by:" is not one either.
+          trailers=$(git log -1 --format=%B "$commit" | awk '/^[[:space:]]*$/ {blank=1; next} {if (blank) {block=""; blank=0} block = block $0 "\n"} END {printf "%s", block}')
+          if ! printf '%s' "$trailers" | grep -qE "^Signed-off-by: .+ <[^<>@[:space:]]+@[^<>[:space:]]+>[[:space:]]*$"; then
             echo "ERROR: Commit $commit missing DCO sign-off"
             echo "Fix with: git commit --amend -s"
             exit 1
