@@ -12,7 +12,7 @@ commit-msg:
       run: |
         msg=$(head -1 {1})
         pattern="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|upstream)(\(.+\))?(!)?: .+"
-        if ! echo "$msg" | grep -Eq "$pattern"; then
+        if ! echo "$msg" | grep -E "$pattern" >/dev/null; then
           echo "ERROR: Commit message must follow Conventional Commits format"
           echo "  Format: <type>[optional scope]: <description>"
           echo "  Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert, upstream"
