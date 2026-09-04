@@ -9,12 +9,23 @@ on:
 
 permissions: {}
 
+# In container-registry/oss-project-template two pushes to main seconds apart
+# ran this workflow twice in parallel, and each run opened its own chart
+# release pull request on the same branch. Queue the runs instead; never
+# cancel one, a cancelled run can skip publishing.
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      # release-please labels its own PR (autorelease: pending/tagged) via the
+      # Issues API, which is a separate scope from pull-requests.
+      issues: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -58,6 +69,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     outputs:
       release_created: ${{ steps.release.outputs['deploy/chart--release_created'] }}
       tag_name: ${{ steps.release.outputs['deploy/chart--tag_name'] }}
