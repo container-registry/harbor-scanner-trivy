@@ -36,8 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # The chart's Trivy SARIF goes to the Security tab. On a private
-      # repository that upload also needs actions: read.
+      # actions: read is what upload-sarif additionally needs on a private repo.
       security-events: write
       actions: read
     steps:
@@ -81,14 +80,11 @@ jobs:
       - name: Install chart tools
         # Binaries rather than `docker run -v`: a bind mount resolves on the
         # Docker host, which is not the runner workspace when the daemon is
-        # remote. helm-docs, chart-testing and kube-linter are verified against
-        # the sha256 committed in versions.env; ah and trivy against the
-        # checksums file published alongside their own release.
+        # remote.
         run: |
           set -euo pipefail
-          # The committed pins are of the linux/amd64 assets, and this job is
-          # fixed to ubuntu-latest. Fail rather than install unverified
-          # binaries if that ever stops being true.
+          # The pins are linux/amd64 and this job is fixed to ubuntu-latest;
+          # refuse rather than install unverified binaries if that ever changes.
           if [ "$(uname -m)" != "x86_64" ]; then
             echo "::error::the committed checksums are for x86_64 and this runner is $(uname -m)"
             exit 1
@@ -99,7 +95,6 @@ jobs:
           cd "${dl}"
 
           fetch() {
-            # $1 name, $2 url, $3 sha256, $4 archive member to extract
             curl -fsSL "$2" -o "$1.tar.gz"
             echo "$3  $1.tar.gz" | sha256sum -c -
             tar -xzf "$1.tar.gz" -C "${bin}" "$4"
@@ -110,7 +105,6 @@ jobs:
             "https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_x86_64.tar.gz" \
             "${HELM_DOCS_SHA256_LINUX_AMD64}" helm-docs
 
-          # kube-linter (upstream's amd64 asset carries no arch suffix)
           fetch kube-linter \
             "https://github.com/stackrox/kube-linter/releases/download/v${KUBE_LINTER_VERSION}/kube-linter-linux.tar.gz" \
             "${KUBE_LINTER_SHA256_LINUX_AMD64}" kube-linter
@@ -128,8 +122,6 @@ jobs:
             # explicitly via --lint-conf.
             echo "CT_LINT_CONF=${GITHUB_WORKSPACE}/taskfile/ct-lintconf.yaml"
             echo "CT_CHART_YAML_SCHEMA=${ct_dir}/etc/chart_schema.yaml"
-            # The drift guard reads the release just extracted rather than
-            # downloading the tarball a second time.
             echo "CT_UPSTREAM_LINT_CONF=${ct_dir}/etc/lintconf.yaml"
           } >> "$GITHUB_ENV"
           # PIP_BREAK_SYSTEM_PACKAGES: Debian's PEP 668 guard refuses --user
@@ -140,7 +132,6 @@ jobs:
             "yamale==${YAMALE_VERSION}" "yamllint==${YAMLLINT_VERSION}" "pyyaml==${PYYAML_VERSION}"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-          # Artifact Hub CLI (checksum-verified against the release's own file)
           ah_archive="ah_${AH_VERSION}_linux_amd64.tar.gz"
           ah_base="https://github.com/artifacthub/hub/releases/download/v${AH_VERSION}"
           curl -fsSL "${ah_base}/${ah_archive}" -o "${dl}/${ah_archive}"
@@ -148,7 +139,6 @@ jobs:
           grep "  ${ah_archive}$" ah_checksums.txt | sha256sum -c -
           tar -xzf "${dl}/${ah_archive}" -C "${bin}" ah
 
-          # trivy (checksum-verified against the release's own file)
           trivy_archive="trivy_${TRIVY_BASE_IMAGE_VERSION}_Linux-64bit.tar.gz"
           trivy_base="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_BASE_IMAGE_VERSION}"
           curl -fsSL "${trivy_base}/${trivy_archive}" -o "${dl}/${trivy_archive}"
@@ -158,8 +148,6 @@ jobs:
 
           echo "${bin}" >> "$GITHUB_PATH"
 
-      # A CT_VERSION bump that rewrites any other rule of chart-testing's
-      # lintconf must be noticed rather than silently dropped by the fork.
       - name: Chart-testing lint config drift
         run: task helm:lint:ct-drift
 

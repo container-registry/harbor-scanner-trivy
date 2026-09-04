@@ -98,11 +98,8 @@ tasks:
 
   lint:ct-drift:
     desc: "Fail when taskfile/ct-lintconf.yaml drifts from chart-testing's own etc/lintconf.yaml"
-    # The fork is upstream's file with exactly one rule changed, so a CT_VERSION
-    # bump that rewrites any other rule has to be noticed rather than inherited
-    # in silence. CT_UPSTREAM_LINT_CONF lets chart-ci.yml point at the release
-    # it already extracted; unset, the pinned linux/amd64 tarball is downloaded
-    # (etc/ is identical in every platform archive and the binary is not run).
+    # CT_UPSTREAM_LINT_CONF lets chart-ci.yml pass the release it already
+    # extracted; the amd64 tarball is safe to read on any host, nothing runs it.
     cmd: |
       set -eu
       work="$(mktemp -d "${TMPDIR:-/tmp}/ct-lintconf.XXXXXX")"
@@ -122,8 +119,7 @@ tasks:
         upstream="${work}/etc/lintconf.yaml"
       fi
 
-      # The whole intended fork: one rule value. Our header comment sits above
-      # the document marker, so the comparison starts there.
+      # Comparison starts at the document marker: our header comment sits above it.
       sed 's/^\( *min-spaces-from-content:\) 2$/\1 1/' "${upstream}" > "${work}/expected.yaml"
       sed -n '/^---$/,$p' taskfile/ct-lintconf.yaml > "${work}/actual.yaml"
       if ! diff -u "${work}/expected.yaml" "${work}/actual.yaml"; then
@@ -166,9 +162,8 @@ tasks:
 
   trivy:
     desc: "Scan the rendered manifests for misconfigurations"
-    # One shell: the manifests are rendered into a directory of this run's own,
-    # outside the chart, so an interrupt cannot leave a dump where `helm
-    # package` would ship it and two runs cannot delete each other's.
+    # One shell with an EXIT trap, not `defer:`: an interrupted run must not
+    # leave a manifest dump inside the chart for `helm package` to ship.
     cmd: |
       set -eu
       scan="$(mktemp -d "${TMPDIR:-/tmp}/chart-trivy.XXXXXX")"
