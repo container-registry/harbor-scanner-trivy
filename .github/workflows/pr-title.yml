@@ -1,15 +1,9 @@
 ---
 name: PR Title
 
-# DO NOT ADD actions/checkout TO THIS WORKFLOW.
-#
-# pull_request_target, not pull_request: with pull_request, a pull request that
-# edits this file runs its own edited copy, so the check it is supposed to pass
-# can be replaced with one that always succeeds. pull_request_target runs the
-# definition from the base branch instead. Neither job needs the head code:
-# the title comes from the event payload and the changed file list comes from
-# the API, so the usual danger of this trigger does not apply as long as
-# nothing checks out the head.
+# DO NOT ADD actions/checkout TO THIS WORKFLOW. pull_request_target is only
+# safe here because neither job touches the head code; under pull_request a
+# pull request editing this file would run its own copy of the check.
 on:  # zizmor: ignore[dangerous-triggers]
   pull_request_target:
     types: [opened, edited, synchronize]
@@ -55,9 +49,7 @@ jobs:
     # changelog and bumps the adapter version. The negated patterns mirror
     # exclude-paths in .release-please/config-adapter.json; keep them in sync.
     # Gated on the scope the lint job parsed, not a title substring, so subject
-    # text mentioning "(chart):" cannot trigger it. dorny/paths-filter lists
-    # the changed files through the API when there is no checkout, which is
-    # what keeps this job safe under pull_request_target.
+    # text mentioning "(chart):" cannot trigger it.
     needs: lint
     if: needs.lint.outputs.scope == 'chart'
     runs-on: ubuntu-latest
