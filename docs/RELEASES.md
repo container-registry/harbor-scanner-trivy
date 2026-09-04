@@ -113,8 +113,9 @@ check fails such a PR; split it rather than retype it. When `exclude-paths` in
 Each of these cost a debugging session in this repository. None of them is a bug.
 
 - **An open release PR is refreshed only when its body would change.** Moving or renaming the config
-  and manifest files, or editing `pull-request-header`, does not change the generated body, so the
-  next push to `main` leaves the open PR pointing at the old paths and logs `PR #N remained the same`.
+  and manifest files does not change the generated body, so the next push to `main` leaves the open PR
+  pointing at the old paths and logs `PR #N remained the same`. Editing `pull-request-header` is the
+  opposite case, because the header is the first line of the body that comparison is made against.
   Both configs set `always-update: true`, which release-please's config schema documents as "Always
   update the pull request with the latest changes. Defaults to `false`." Keep it on both lines. Its
   absence is what stranded chart PR #74 when #75 moved the manifests into `.release-please/` (fixed in
