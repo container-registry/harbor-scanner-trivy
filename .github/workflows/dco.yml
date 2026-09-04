@@ -3,14 +3,14 @@ name: DCO
 
 # In-repo Developer Certificate of Origin gate.
 #
-# CONTRIBUTING.md requires a sign-off on every commit and nothing in CI checked
-# it: the only gate was the lefthook commit-msg hook, which is skippable with
-# LEFTHOOK=0 and absent entirely until someone runs `task setup`.
+# The cncf/dco2 App is installed on this repository and already posts a DCO
+# check on every pull request, so this is a second copy of that gate. It is
+# kept in the repository because the App's installation and configuration live
+# outside it: the gate can be removed or reconfigured with no commit and no
+# review here. dco2 gives the nicer remediation UX and stays.
 #
-# The dco2 GitHub App gives nicer remediation UX, but it is an app somebody has
-# to remember to install. This runs in the repository. It applies the same two
-# exemptions dco2 does, so the two never disagree on a pull request: merge
-# commits and bot commits.
+# It applies the same two exemptions dco2 does, so the two never disagree on a
+# pull request: merge commits and bot commits.
 #
 # Reads the commits over the API rather than checking the branch out. That
 # resolves each author to a GitHub account, so `type: Bot` cannot be forged by
