@@ -409,12 +409,8 @@ tasks:
     cmds:
       - cmd: |
           reference="${IMAGE_REF}"
-          # containerd's platform normalisation, which buildx applies to
-          # --platform before it writes the index: aarch64 and x86_64 are
-          # aliases, a bare arm means arm/v7, and arm64/v8 is arm64. Applied to
-          # both sides, so an index entry that inherited a variant from its base
-          # image, or an alias the build was legitimately asked for, still
-          # matches.
+          # Mirrors containerd's aliasing, which buildx applies before writing
+          # the index, so the two sides can spell one platform differently.
           normalize() {
             sed -E \
               -e 's#^linux/(aarch64|arm64)#linux/arm64#' \
@@ -448,15 +444,8 @@ tasks:
             exit 1
           fi
 
-          # Keyed like a buildx platform string, os/arch with the variant when
-          # there is one, so linux/arm/v6 and linux/arm/v7 are two platforms.
-          # buildx records provenance and SBOM attestations as unknown/unknown
-          # entries of the index; they are attachments, not platforms. The
-          # select reads os and architecture directly rather than the finished
-          # key, so an attachment is dropped whether or not it carries a
-          # variant, and so is an entry with no platform object at all. An
-          # empty-string variant is treated as absent: jq counts "" as truthy,
-          # and a trailing slash would fail the exact match below.
+          # Attestations ride in the index as unknown/unknown entries, hence the
+          # select; jq counts "" as truthy, hence the explicit variant test.
           actual=$(printf '%s' "${raw}" \
             | jq -r '.manifests[]? | .platform // {} | select((.os // "unknown") != "unknown" or (.architecture // "unknown") != "unknown") | "\(.os // "unknown")/\(.architecture // "unknown")\(if (.variant // "") == "" then "" else "/" + .variant end)"' \
             | normalize | sort)
