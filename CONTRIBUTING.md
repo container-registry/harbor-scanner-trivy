@@ -113,7 +113,10 @@ see [docs/RELEASES.md](docs/RELEASES.md). Two rules follow from that:
   release, `fix:` a patch release; `chore:`/`ci:`/`build:`/`test:` do not trigger releases.
 * Every commit must carry a DCO sign-off (`git commit -s`).
 
-Both are enforced locally by [lefthook](lefthook.yml) hooks (installed via `task setup`)
-and in CI.
+On a pull request the [PR Title](.github/workflows/pr-title.yml) workflow checks the title
+that becomes the squash commit, and the [dco2](https://github.com/apps/dco-2) app checks the
+sign-off on every commit. The [lefthook](lefthook.yml) hooks (installed via `task setup`) and
+`task commit-lint` / `task dco-check` mirror the same two rules locally, so a branch that
+passes them passes the pull request.
 
 [fowler-testing-strategies]: https://www.martinfowler.com/articles/microservice-testing/
