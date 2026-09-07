@@ -57,6 +57,7 @@ jobs:
             ^Dockerfile$
             ^versions\.env$
             ^Taskfile\.yml$
+            ^trivy-cve-overrides\.txt$
             ^\.github/workflows/pr-image\.yml$
             ^\.github/workflows/publish-image\.yml$
             ^\.github/actions/setup/

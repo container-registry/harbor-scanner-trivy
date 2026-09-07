@@ -62,7 +62,7 @@ the diff touches an input that reaches its artifact:
 
 | Workflow | Builds when the diff touches | Publishes | Signing identity |
 |----------|------------------------------|-----------|------------------|
-| `PR Preview Image` (`pr-image.yml`) | `cmd/`, `pkg/`, `go.mod`, `go.sum`, `Dockerfile`, `versions.env`, `Taskfile.yml`, the image workflows, `.github/actions/setup/` | `8gears.container-registry.com/8gcr-dev/harbor-scanner-trivy:pr-N` | `publish-image.yml` |
+| `PR Preview Image` (`pr-image.yml`) | `cmd/`, `pkg/`, `go.mod`, `go.sum`, `Dockerfile`, `versions.env`, `Taskfile.yml`, `trivy-cve-overrides.txt`, the image workflows, `.github/actions/setup/` | `8gears.container-registry.com/8gcr-dev/harbor-scanner-trivy:pr-N` | `publish-image.yml` |
 | `PR Preview Chart` (`pr-chart.yml`) | `deploy/chart/`, `pr-chart.yml`, `chart-annotate-images.sh` | `oci://8gears.container-registry.com/8gcr-dev/charts/harbor-scanner-trivy:X.Y.Z-pr.N` | `pr-chart.yml` |
 
 Both run on every push while the cumulative diff matches, and both overwrite
