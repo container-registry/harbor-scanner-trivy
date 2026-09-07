@@ -94,8 +94,9 @@ top head against the stack base (`main`) instead.
 A change to a lower PR shows up in the stack image only after the stack is
 restacked (`gh stack rebase && gh stack push`), which is also what will merge.
 Manually chained PRs (base set to another PR's branch without `gh stack`) are
-not a stack to GitHub and get no preview at all, because the trigger only fires
-for PRs that target `main`.
+not a stack to GitHub: the bottom one targets `main` and gets an ordinary
+`pr-N` preview of its own changes, the ones above it match no trigger and get
+nothing.
 
 The chart preview keeps its own rule (a chart PR changes `deploy/chart/` in its
 own slice); its pairing hint points at `stack-<n>` when the PR is stacked.
