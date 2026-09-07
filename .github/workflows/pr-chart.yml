@@ -211,6 +211,8 @@ jobs:
       PREVIEW_VERSION: ${{ needs.preview-chart.outputs.version }}
       APP_VERSION: ${{ needs.preview-chart.outputs.app_version }}
       DIGEST: ${{ needs.preview-chart.outputs.digest }}
+      # In a stack only the top PR publishes an image, tagged stack-<n>
+      STACK_TAG: ${{ github.event.pull_request.stack && format('stack-{0}', github.event.pull_request.stack.number) || '' }}
     steps:
       - name: Create or update PR comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
@@ -225,9 +227,14 @@ jobs:
             const previewVersion = process.env.PREVIEW_VERSION;
             const appVersion = process.env.APP_VERSION;
             const digest = process.env.DIGEST;
+            const stackTag = process.env.STACK_TAG;
             const repository = process.env.GITHUB_REPOSITORY;
             const issueNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
+            const imageTag = stackTag || `pr-${issueNumber}`;
+            const imageHint = stackTag
+              ? `the image built from the top of this PR's stack (published when the stack changes image inputs)`
+              : `this PR's preview image (published only when the PR also changes image inputs)`;
 
             const body = `${marker}
             A preview chart for this PR is available:
@@ -240,7 +247,7 @@ jobs:
 
             Digest: \`${digest}\`
 
-            The chart defaults to adapter \`${appVersion}\`. To run it against this PR's preview image instead (published only when the PR also changes image inputs):
+            The chart defaults to adapter \`${appVersion}\`. To run it against ${imageHint} instead:
 
             \`\`\`
             helm install harbor-scanner-trivy \\
@@ -248,7 +255,7 @@ jobs:
               --version ${previewVersion} \\
               --set image.registry=${registry} \\
               --set image.repository=${previewProject}/harbor-scanner-trivy \\
-              --set image.tag=pr-${issueNumber}
+              --set image.tag=${imageTag}
             \`\`\`
 
             Verify the preview chart:

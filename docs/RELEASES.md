@@ -58,14 +58,14 @@ Every push to `main` additionally publishes `8gears.container-registry.com/8gcr/
 Two workflows publish review artifacts into the dev project (`8gcr-dev`, see
 `PR_REGISTRY_PROJECT`) and leave one sticky comment each on the PR with the
 reference, the digest and the cosign verification command. Each runs only when
-the PR diff touches an input that reaches its artifact:
+the diff touches an input that reaches its artifact:
 
-| Workflow | Triggers on | Publishes | Signing identity |
-|----------|-------------|-----------|------------------|
+| Workflow | Builds when the diff touches | Publishes | Signing identity |
+|----------|------------------------------|-----------|------------------|
 | `PR Preview Image` (`pr-image.yml`) | `cmd/`, `pkg/`, `go.mod`, `go.sum`, `Dockerfile`, `versions.env`, `Taskfile.yml`, the image workflows, `.github/actions/setup/` | `8gears.container-registry.com/8gcr-dev/harbor-scanner-trivy:pr-N` | `publish-image.yml` |
 | `PR Preview Chart` (`pr-chart.yml`) | `deploy/chart/`, `pr-chart.yml`, `chart-annotate-images.sh` | `oci://8gears.container-registry.com/8gcr-dev/charts/harbor-scanner-trivy:X.Y.Z-pr.N` | `pr-chart.yml` |
 
-Both run on every push while the cumulative PR diff matches, and both overwrite
+Both run on every push while the cumulative diff matches, and both overwrite
 the same tag, so `pr-N` and `X.Y.Z-pr.N` always point at the latest successful
 build; pin the digest from the comment when that matters. `X.Y.Z` is the chart
 version committed in `Chart.yaml`, and the preview keeps the committed
@@ -77,6 +77,28 @@ project, so the tag alone is not enough.
 No preview is published for forked PRs and dependabot PRs (no OIDC token), nor
 for release-please PRs: a release PR changes no code, and the chart release PR
 only restamps version, changelog and README.
+
+### Stacked pull requests
+
+For a native GitHub stack (`gh stack init`, the PRs carry a `1/N` badge) only
+the **top** PR publishes an image. Its head already contains every lower PR,
+so that one image is the whole stack; lower PRs would only produce prefixes of
+it. The image is tagged `pr-N` for the top PR and `stack-<n>` for the stack, and
+the comment on the top PR lists the PRs it contains.
+
+The image-input allowlist is checked in a job, not in the trigger's `paths`
+filter: GitHub evaluates `paths` against the PR's own slice, so a chart-only or
+docs-only top PR would otherwise never build the stack image. The job diffs the
+top head against the stack base (`main`) instead.
+
+A change to a lower PR shows up in the stack image only after the stack is
+restacked (`gh stack rebase && gh stack push`), which is also what will merge.
+Manually chained PRs (base set to another PR's branch without `gh stack`) are
+not a stack to GitHub and get no preview at all, because the trigger only fires
+for PRs that target `main`.
+
+The chart preview keeps its own rule (a chart PR changes `deploy/chart/` in its
+own slice); its pairing hint points at `stack-<n>` when the PR is stacked.
 
 ## Version Rules
 
