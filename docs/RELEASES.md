@@ -67,8 +67,9 @@ PR with the reference, the digest and the cosign command.
 - A workflow publishes when the PR's diff against `main` touches one of its
   inputs. The check is a job, not a `paths` trigger filter, so every PR gets a
   status.
-- Stacked PRs (`gh stack`): only the top PR publishes; its diff against `main`
-  is the whole stack. A change to a lower PR reaches the preview after
+- Stacked PRs (`gh stack`): only the top PR publishes, when the stack is
+  linked and on every push to the top; its diff against `main` is the whole
+  stack. A change to a lower PR reaches the preview after
   `gh stack rebase && gh stack push`. PRs chained by hand are not a stack: the
   bottom one is an ordinary PR, the ones above it match no trigger.
 - `pr-N` and `X.Y.Z-pr.N` are overwritten on every push. Pin the digest from
