@@ -258,3 +258,5 @@ Manual intervention should be rare:
 
 - Rerun a failed release workflow job.
 - Never push replacement tags or edit published releases unless maintainers agree the release is unrecoverable.
+
+<!-- stack probe 3: docs-only, tests the stacked event -->
