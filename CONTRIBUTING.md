@@ -120,4 +120,9 @@ sign-off on every commit. The [lefthook](lefthook.yml) hooks (installed via `tas
 you push. The pull request title is a separate value that only the workflow checks, so give
 it the same conventional format.
 
+The dco2 app is the authoritative sign-off gate, so where it and the local check disagree,
+the app decides. The local check is deliberately stricter about placement, requiring the
+sign-off in the trailer block rather than anywhere in the message, and it does not verify
+that the sign-off identity matches the commit author or committer, which the app does.
+
 [fowler-testing-strategies]: https://www.martinfowler.com/articles/microservice-testing/
