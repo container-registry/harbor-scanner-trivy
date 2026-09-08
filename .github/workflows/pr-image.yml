@@ -12,9 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  # Keyed by stack when stacked: a PR pushed on top of an in-flight top would
-  # otherwise let the older build finish last and repoint stack-<n> backwards.
-  group: pr-image-${{ github.event.pull_request.stack && format('stack-{0}', github.event.pull_request.stack.number) || github.event.pull_request.number }}
+  group: pr-image-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -34,7 +32,6 @@ jobs:
     outputs:
       build: ${{ steps.diff.outputs.build }}
       stack_number: ${{ github.event.pull_request.stack.number || '' }}
-      stack_tag: ${{ github.event.pull_request.stack && format('stack-{0}', github.event.pull_request.stack.number) || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -86,8 +83,6 @@ jobs:
     with:
       checkout_ref: ${{ github.event.pull_request.head.sha }}
       image_tag: pr-${{ github.event.pull_request.number }}
-      # stack-<n> follows the top of the stack; empty for a plain PR
-      extra_tags: ${{ needs.changes.outputs.stack_tag }}
       # version omitted: publish-image derives it via git describe
       registry_address: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
       registry_project: ${{ vars.PR_REGISTRY_PROJECT || '8gcr-dev' }}
@@ -103,7 +98,6 @@ jobs:
       REGISTRY_PROJECT: ${{ vars.PR_REGISTRY_PROJECT || '8gcr-dev' }}
       PREVIEW_TAG: pr-${{ github.event.pull_request.number }}
       STACK_NUMBER: ${{ needs.changes.outputs.stack_number }}
-      STACK_TAG: ${{ needs.changes.outputs.stack_tag }}
       DIGEST: ${{ needs.preview-image.outputs.digest }}
     steps:
       - name: Create or update PR comment
@@ -116,7 +110,6 @@ jobs:
             const image = `${process.env.REGISTRY_ADDRESS}/${process.env.REGISTRY_PROJECT}/harbor-scanner-trivy`;
             const previewTag = process.env.PREVIEW_TAG;
             const stackNumber = process.env.STACK_NUMBER;
-            const stackTag = process.env.STACK_TAG;
             const digest = process.env.DIGEST;
             const repository = process.env.GITHUB_REPOSITORY;
             const issueNumber = context.payload.pull_request.number;
@@ -141,7 +134,7 @@ jobs:
 
             ${members}
 
-            \`${image}:${stackTag}\` always points at the latest build of the top of the stack. Lower PRs do not get their own image; push a fix there and \`gh stack rebase && gh stack push\` to rebuild.
+            Lower PRs do not get an image of their own; push a fix there and \`gh stack rebase && gh stack push\` to rebuild this one.
             `;
             }
 

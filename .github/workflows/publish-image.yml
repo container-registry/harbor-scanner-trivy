@@ -15,11 +15,6 @@ on:
         required: false
         type: string
         default: ""
-      extra_tags:
-        description: Additional tags for the same manifest list, one per line
-        required: false
-        type: string
-        default: ""
       registry_address:
         required: false
         type: string
@@ -179,7 +174,6 @@ jobs:
     env:
       IMAGE: ${{ inputs.registry_address }}/${{ inputs.registry_project }}/harbor-scanner-trivy
       IMAGE_TAG: ${{ inputs.image_tag }}
-      EXTRA_TAGS: ${{ inputs.extra_tags }}
     steps:
       - name: Prepare BuildKit
         run: |
@@ -232,15 +226,10 @@ jobs:
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
-          tags=(-t "${IMAGE}:${IMAGE_TAG}")
-          while IFS= read -r tag; do
-            if [ -n "${tag}" ]; then
-              tags+=(-t "${IMAGE}:${tag}")
-            fi
-          done <<<"${EXTRA_TAGS}"
           # Each downloaded artifact is an empty file named after its digest
           # shellcheck disable=SC2046
-          docker buildx imagetools create "${tags[@]}" \
+          docker buildx imagetools create \
+            -t "${IMAGE}:${IMAGE_TAG}" \
             $(printf "${IMAGE}@sha256:%s " *)
 
       - name: Capture manifest digest

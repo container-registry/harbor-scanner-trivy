@@ -83,8 +83,8 @@ only restamps version, changelog and README.
 For a native GitHub stack (`gh stack init`, the PRs carry a `1/N` badge) only
 the **top** PR publishes an image. Its head already contains every lower PR,
 so that one image is the whole stack; lower PRs would only produce prefixes of
-it. The image is tagged `pr-N` for the top PR and `stack-<n>` for the stack, and
-the comment on the top PR lists the PRs it contains.
+it. The top PR's `pr-N` is the stack image, and the comment on it lists the PRs
+it contains.
 
 The image-input allowlist is checked in a job, not in the trigger's `paths`
 filter: GitHub evaluates `paths` against the PR's own slice, so a chart-only or
@@ -99,7 +99,7 @@ not a stack to GitHub: the bottom one targets `main` and gets an ordinary
 nothing.
 
 The chart preview keeps its own rule (a chart PR changes `deploy/chart/` in its
-own slice); its pairing hint points at `stack-<n>` when the PR is stacked.
+own slice); in a stack its `pr-N` image pairing only exists on the top PR.
 
 ## Version Rules
 
