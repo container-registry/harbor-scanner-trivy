@@ -116,7 +116,8 @@ see [docs/RELEASES.md](docs/RELEASES.md). Two rules follow from that:
 On a pull request the [PR Title](.github/workflows/pr-title.yml) workflow checks the title
 that becomes the squash commit, and the [dco2](https://github.com/apps/dco-2) app checks the
 sign-off on every commit. The [lefthook](lefthook.yml) hooks (installed via `task setup`) and
-`task commit-lint` / `task dco-check` mirror the same two rules locally, so a branch that
-passes them passes the pull request.
+`task commit-lint` / `task dco-check` apply the same two rules to your commits before you
+push. The pull request title is a separate value that only the workflow checks, so give it
+the same conventional format.
 
 [fowler-testing-strategies]: https://www.martinfowler.com/articles/microservice-testing/
