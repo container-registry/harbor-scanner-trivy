@@ -179,9 +179,12 @@ pushes are not gated this way:
     token: ${{ steps.app-token.outputs.token }}
 ```
 
-Then require only a context that reports on every pull request. `Hygiene` is the one workflow here
-with no path filter; `CI` has `paths-ignore` and `Chart CI` has `paths`. A path-filtered workflow does
-not report at all on a PR that misses its filter, so requiring one leaves that PR waiting forever.
+Then require only a context that reports on every pull request. Six workflows run on a pull request
+here and only two carry no path filter: `Hygiene`, and `PR Title`, whose `lint` job always runs while
+its `Chart Scope Paths` job is conditional on the title's scope. The other four are filtered, `CI` by
+`paths-ignore` and `Chart CI`, `PR Preview Chart` and `PR Preview Image` by `paths`. A path-filtered
+workflow does not report at all on a pull request that misses its filter, so requiring one leaves that
+PR waiting forever.
 
 Do not work around a blocked release PR by pushing its tag by hand. The tag and that line's manifest
 then disagree permanently: release-please finds no previous release, walks the whole history, and
