@@ -43,10 +43,14 @@ Every suffix below has prefix **`harbor_scanner_trivy_`**. Histograms export
 | `build_info` | gauge | adapter_version, trivy_version | Adapter and Trivy binary versions. |
 | `http_requests_total` | counter | route, method, code | API requests by route template. |
 | `http_request_duration_seconds` | histogram | route, method | API handler duration. |
-| `jobs_enqueued_total` | counter | capability, format | Successfully published tasks (including zero-subscriber publications). |
+| `jobs_enqueued_total` | counter | capability, format | Durably enqueued tasks. |
 | `job_dispatch_total` | counter | result | Worker dispatch outcomes, including skipped locks. |
-| `publish_no_subscribers_total` | counter | — | Publications reaching no subscribers. |
-| `job_attempts_total` | counter | capability, format, outcome | Terminal observed executions, not unique artifacts. |
+| `publish_no_subscribers_total` | counter | — | Deprecated: Streams do not require online subscribers. |
+| `scan_retries_total` | counter | — | Attempts after interrupted execution or cache failure. |
+| `lease_losses_total` | counter | — | Failed lease renewal or lost ownership. |
+| `queue_unacknowledged_jobs` | gauge | — | Shared stream length including pending jobs; use max across pods. |
+| `queue_oldest_age_seconds` | gauge | — | Age of oldest unacknowledged delivery, sampled between scans. |
+| `job_attempts_total` | counter | capability, format, outcome | Observed attempts, including retryable failures; not unique artifacts or terminal jobs. |
 | `job_failures_total` | counter | stage, category | Primary failures of controller executions. |
 | `job_duration_seconds` | histogram | capability, outcome | Controller processing and persistence duration after lock acquisition. |
 | `queue_wait_duration_seconds` | histogram | capability | Adapter enqueue-to-lock-acquisition duration, excluding Harbor's queue. |
@@ -97,12 +101,12 @@ come from a Redis/Valkey exporter, with shared-instance scope documented.
 
 ## Counting and interpreting results
 
-- A request can publish multiple tasks by capability/format. Pub/Sub broadcasts
-  to replicas; `job_dispatch_total{result="lock_busy"}` counts skipped copies,
-  not failed scans. An accepted publication can have zero subscribers. There is
-  no durable queue-depth metric and no exactly-once guarantee: the existing
-  fixed lock lifetime can be exceeded by long executions.
-- `queue_wait_duration_seconds` measures adapter enqueue to lock acquisition.
+- A request can enqueue multiple tasks by capability/format. Redis Streams retain
+  deliveries until acknowledged, and workers use renewable leases.
+  `job_dispatch_total{result="lock_busy"}` counts ownership contention, not failed
+  scans. Delivery is at least once; fencing prevents stale workers from storing
+  results, but does not guarantee exactly-once execution.
+- `queue_wait_duration_seconds` measures adapter enqueue to first-attempt lock acquisition.
   Harbor's own queue is upstream. Old messages without an enqueue timestamp and
   future timestamps are excluded. Controller duration includes target resolution,
   fallback, report transformation and persistence. Subprocess duration measures

@@ -98,11 +98,11 @@ Rollback follows the same stop-submissions/drain/stop-all sequence. Confirm the 
 
 The existing `/metrics` endpoint exports:
 
-- `scanner_active_scans`: active attempts in this pod, at most one.
-- `scanner_scan_attempts_total{outcome="terminal|interrupted"}`: finished attempts (including permanent failures) versus attempts left for recovery.
-- `scanner_scan_duration_seconds`: attempt latency histogram, including report persistence.
-- `scanner_scan_retries_total` and `scanner_lease_losses_total`: recovery and ownership trouble.
-- `scanner_queue_unacknowledged_jobs` and `scanner_queue_oldest_age_seconds`: shared backlog, including pending scans. Use `max` across pods, not `sum`. These are sampled between scans (at most every ten seconds); busy pods can expose samples as old as their scan timeout.
+- `harbor_scanner_trivy_jobs_in_progress`: active attempts in this pod, at most one.
+- `harbor_scanner_trivy_job_attempts_total{outcome="success|failed"}`: observed attempts, including retryable failures; a failed attempt does not necessarily mean a terminally failed job.
+- `harbor_scanner_trivy_job_duration_seconds`: attempt latency histogram, including report persistence.
+- `harbor_scanner_trivy_scan_retries_total` and `harbor_scanner_trivy_lease_losses_total`: recovery and ownership trouble.
+- `harbor_scanner_trivy_queue_unacknowledged_jobs` and `harbor_scanner_trivy_queue_oldest_age_seconds`: shared backlog, including pending scans. Use `max` across pods, not `sum`. These are sampled between scans (at most every ten seconds); busy pods can expose samples as old as their scan timeout.
 
 Pair these with Harbor completion/failure rates, registry transfer metrics, pod CPU/memory/temporary-storage usage and the dedicated cache's memory, eviction, hit/miss and latency statistics. Raising replicas helps only while registry bandwidth, CPU, local storage, job delivery and cache service have spare capacity.
 

@@ -97,7 +97,9 @@ func (s *store) Enqueue(ctx context.Context, scanJob job.ScanJob, stream string,
 // Acknowledge starts report retention only when delivery is retired. A crash
 // after storing the result but before XACK cannot expire the completion record
 // and cause a recovered delivery to repeat an already completed scan.
-func (s *store) Acknowledge(ctx context.Context, key job.ScanJobKey, stream, group, deliveryID string) error {
+func (s *store) Acknowledge(ctx context.Context, key job.ScanJobKey, stream, group, deliveryID string) (err error) {
+	result := "success"
+	defer s.operation("acknowledge", &err, &result)()
 	state, err := s.getJob(ctx, key)
 	if err != nil {
 		return err
