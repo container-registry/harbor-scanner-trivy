@@ -1,18 +1,20 @@
 ---
 name: PR Title
 
-# pull_request (not pull_request_target): the action only reads the PR title
-# via the API, so the fork-safe read-only token is sufficient.
-on:
-  pull_request:
+# DO NOT ADD actions/checkout TO THIS WORKFLOW. pull_request_target is only
+# safe here because neither job touches the head code; under pull_request a
+# pull request editing this file would run its own copy of the check.
+on:  # zizmor: ignore[dangerous-triggers]
+  pull_request_target:
     types: [opened, edited, synchronize]
 
-permissions:
-  pull-requests: read
+permissions: {}
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     outputs:
       scope: ${{ steps.lint.outputs.scope }}
     steps:
