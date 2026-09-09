@@ -9,12 +9,22 @@ on:
 
 permissions: {}
 
+concurrency:
+  # Fixed, not keyed on github.ref: target-branch is unset, so a run
+  # dispatched from any ref still reconciles main and must share the lock.
+  group: release-please
+  # Never true: a cancelled run can skip a publish.
+  cancel-in-progress: false
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      # release-please labels its own PR (autorelease: pending/tagged) via the
+      # Issues API, which is a separate scope from pull-requests.
+      issues: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -58,6 +68,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     outputs:
       release_created: ${{ steps.release.outputs['deploy/chart--release_created'] }}
       tag_name: ${{ steps.release.outputs['deploy/chart--tag_name'] }}
