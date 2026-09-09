@@ -145,7 +145,7 @@ long-lived key to manage:
 cosign verify \
   --certificate-identity-regexp '^https://github\.com/container-registry/harbor-scanner-trivy/\.github/workflows/publish-chart\.yml@refs/heads/main$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy:1.0.1
+  8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy:1.0.2
 ```
 <!-- x-release-please-end -->
 
