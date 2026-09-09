@@ -177,7 +177,21 @@
           "unit": "short",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
           }
         },
         "overrides": []
@@ -232,7 +246,21 @@
           "unit": "short",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
           }
         },
         "overrides": []
@@ -287,8 +315,10 @@
           "unit": "short",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
-          }
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
         },
         "overrides": []
       },
@@ -324,7 +354,7 @@
     },
     {
       "id": 5,
-      "title": "Completed executions in selected range",
+      "title": "Completed (selected range)",
       "type": "stat",
       "description": "Successful adapter task executions in the selected range. Reports containing vulnerabilities count as successful; rescans, retries, and separate tasks count individually.",
       "datasource": {
@@ -342,8 +372,10 @@
           "unit": "short",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
-          }
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "decimals": 0
         },
         "overrides": []
       },
@@ -379,7 +411,7 @@
     },
     {
       "id": 6,
-      "title": "Failed executions in selected range",
+      "title": "Failed (selected range)",
       "type": "stat",
       "description": "Failed adapter task executions in the selected range. Investigate Failure categories and Scanner errors; vulnerability findings do not count as failures.",
       "datasource": {
@@ -397,7 +429,21 @@
           "unit": "short",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
           }
         },
         "overrides": []
@@ -452,7 +498,8 @@
           "unit": "s",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "blue"
           }
         },
         "overrides": []
@@ -951,8 +998,8 @@
     {
       "id": 60,
       "title": "Last container termination was OOM",
-      "type": "timeseries",
-      "description": "1 means the container\u2019s last recorded termination was OOMKilled, possibly before the selected range. Check restart timing and container memory limits. Empty without termination history or kube-state-metrics.",
+      "type": "state-timeline",
+      "description": "Last recorded container termination state. OOMKilled may predate the selected range; check restart timing and memory limits. Empty without termination history or kube-state-metrics.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -965,37 +1012,44 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "none",
           "noValue": "No observations",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 8,
-            "showPoints": "never",
-            "spanNulls": false,
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "scaleDistribution": {
-              "type": "linear"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Other reason",
+                  "color": "light-gray",
+                  "index": 0
+                },
+                "1": {
+                  "text": "OOMKilled",
+                  "color": "red",
+                  "index": 1
+                }
+              }
             }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
           }
         },
         "overrides": []
       },
       "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "alignValue": "center",
         "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -1032,7 +1086,7 @@
       "id": 18,
       "title": "Execution throughput",
       "type": "timeseries",
-      "description": "Finished adapter task executions per second, split by outcome. Falling throughput with a growing queue indicates a processing bottleneck.",
+      "description": "Finished adapter task executions per minute, split by outcome. Falling throughput with a growing queue indicates a processing bottleneck.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1045,7 +1099,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:executions/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -1063,7 +1117,38 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^success$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^failed$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1081,7 +1166,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (outcome) (rate(harbor_scanner_trivy_job_attempts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (outcome) (rate(harbor_scanner_trivy_job_attempts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{outcome}}",
           "range": true,
           "instant": false,
@@ -1130,7 +1215,38 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^success$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^failed$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1365,7 +1481,7 @@
       "id": 23,
       "title": "Failure categories",
       "type": "timeseries",
-      "description": "Execution failures per second by stage and category. Use categories to narrow log searches; classifications are heuristic. Empty before the first recorded failure.",
+      "description": "Execution failures per minute by stage and category. Use categories to narrow log searches; classifications are heuristic. Empty before the first recorded failure.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1378,10 +1494,11 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:errors/min",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "red"
           },
           "custom": {
             "drawStyle": "line",
@@ -1414,7 +1531,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (stage,category) (rate(harbor_scanner_trivy_job_failures_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (stage,category) (rate(harbor_scanner_trivy_job_failures_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{stage}} \u00b7 {{category}}",
           "range": true,
           "instant": false,
@@ -1432,7 +1549,7 @@
       "id": 24,
       "title": "Dispatch outcomes",
       "type": "timeseries",
-      "description": "Dispatch decisions per second. lock_busy usually reflects duplicate delivery; decode_error and lock_error prevent execution and warrant investigating message handling or Redis.",
+      "description": "Dispatch decisions per minute. lock_busy usually reflects duplicate delivery; decode_error and lock_error prevent execution and warrant investigating message handling or Redis.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1445,7 +1562,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:events/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -1463,7 +1580,53 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^lock_acquired$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^lock_busy$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(decode_error|lock_error)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1481,7 +1644,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (result) (rate(harbor_scanner_trivy_job_dispatch_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (result) (rate(harbor_scanner_trivy_job_dispatch_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{result}}",
           "range": true,
           "instant": false,
@@ -1530,7 +1693,38 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 success$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 (failed|nonzero_exit|signal|start_error)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1566,7 +1760,7 @@
       "id": 26,
       "title": "SBOM reuse and fallback",
       "type": "timeseries",
-      "description": "Existing-SBOM lookup, reuse, and image-scan fallback events per second. Repeated lookup errors or fallbacks warrant checking Harbor accessory access and SBOM compatibility.",
+      "description": "Existing-SBOM lookup, reuse, and image-scan fallback events per minute. Repeated lookup errors or fallbacks warrant checking Harbor accessory access and SBOM compatibility.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1579,7 +1773,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:events/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -1597,7 +1791,68 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(lookup_hit|reuse_success)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^lookup_miss$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^fallback$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^lookup_error$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1615,7 +1870,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (event) (rate(harbor_scanner_trivy_sbom_accessory_events_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (event) (rate(harbor_scanner_trivy_sbom_accessory_events_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{event}}",
           "range": true,
           "instant": false,
@@ -1633,7 +1888,7 @@
       "id": 27,
       "title": "Publications with no subscribers",
       "type": "timeseries",
-      "description": "Job publications per second with no Redis subscribers. These messages are not retained. Check worker subscriptions and Redis connectivity when nonzero.",
+      "description": "Job publications per minute with no Redis subscribers. These messages are not retained. Check worker subscriptions and Redis connectivity when nonzero.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1646,10 +1901,11 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:messages/min",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "red"
           },
           "custom": {
             "drawStyle": "line",
@@ -1682,7 +1938,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(harbor_scanner_trivy_publish_no_subscribers_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum(rate(harbor_scanner_trivy_publish_no_subscribers_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "Publications with no subscribers",
           "range": true,
           "instant": false,
@@ -1700,7 +1956,7 @@
       "id": 28,
       "title": "Child termination reasons",
       "type": "timeseries",
-      "description": "Trivy subprocess completions per second by termination reason. Investigate nonzero_exit, signal, and start_error in logs; a signal alone does not establish OOM.",
+      "description": "Trivy subprocess completions per minute by termination reason. Investigate nonzero_exit, signal, and start_error in logs; a signal alone does not establish OOM.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1713,7 +1969,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:exits/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -1731,7 +1987,38 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 success$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 (failed|nonzero_exit|signal|start_error)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1749,7 +2036,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (command,reason) (rate(harbor_scanner_trivy_subprocess_exits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (command,reason) (rate(harbor_scanner_trivy_subprocess_exits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{command}} \u00b7 {{reason}}",
           "range": true,
           "instant": false,
@@ -1912,8 +2199,8 @@
     {
       "id": 32,
       "title": "Database presence",
-      "type": "timeseries",
-      "description": "Local database file and readable metadata present: 1=yes, 0=no. Missing vulnerability DB prevents vulnerability scanning; Java DB may be absent until Java analysis needs it.",
+      "type": "state-timeline",
+      "description": "Availability of each replica\u2019s local database. A missing vulnerability DB prevents vulnerability scanning; Java DB may be absent until Java analysis needs it.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1926,37 +2213,44 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "none",
           "noValue": "No observations",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 8,
-            "showPoints": "never",
-            "spanNulls": false,
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "scaleDistribution": {
-              "type": "linear"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Missing",
+                  "color": "light-gray",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Present",
+                  "color": "blue",
+                  "index": 1
+                }
+              }
             }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
           }
         },
         "overrides": []
       },
       "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "alignValue": "center",
         "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -2044,8 +2338,8 @@
     {
       "id": 34,
       "title": "Automatic updates enabled",
-      "type": "timeseries",
-      "description": "Database downloads allowed: 1=enabled, 0=disabled by skip-update configuration. Check this when database content stays old. Offline-scan alone does not disable database downloads.",
+      "type": "state-timeline",
+      "description": "Whether automatic database downloads are enabled. Check this when database content stays old. Offline-scan alone does not disable database downloads.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2058,37 +2352,44 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "none",
           "noValue": "No observations",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 8,
-            "showPoints": "never",
-            "spanNulls": false,
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "scaleDistribution": {
-              "type": "linear"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Disabled",
+                  "color": "light-gray",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Enabled",
+                  "color": "blue",
+                  "index": 1
+                }
+              }
             }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
           }
         },
         "overrides": []
       },
       "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "alignValue": "center",
         "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -2110,8 +2411,8 @@
     {
       "id": 35,
       "title": "Metadata collection status",
-      "type": "timeseries",
-      "description": "Latest metadata collection: 1=success, 0=failure. On failure, check version discovery and database metadata access. Database presence is reported separately.",
+      "type": "state-timeline",
+      "description": "Latest metadata collection result. On failure, check version discovery and database metadata access. Database presence is reported separately.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2124,37 +2425,44 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "none",
           "noValue": "No observations",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 8,
-            "showPoints": "never",
-            "spanNulls": false,
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "scaleDistribution": {
-              "type": "linear"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Healthy",
+                  "color": "green",
+                  "index": 1
+                }
+              }
             }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
           }
         },
         "overrides": []
       },
       "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "alignValue": "center",
         "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -2586,8 +2894,8 @@
     {
       "id": 43,
       "title": "Storage collection status",
-      "type": "timeseries",
-      "description": "Latest storage collection: 1=success, 0=failure. Check permissions, missing paths, and collection limits on failure. Cache-walk metrics are absent when disabled.",
+      "type": "state-timeline",
+      "description": "Latest storage collection result. On failure, check permissions, missing paths, and collection limits. Cache-walk metrics are absent when disabled.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2600,37 +2908,44 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "none",
           "noValue": "No observations",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 8,
-            "showPoints": "never",
-            "spanNulls": false,
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "scaleDistribution": {
-              "type": "linear"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Healthy",
+                  "color": "green",
+                  "index": 1
+                }
+              }
             }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
           }
         },
         "overrides": []
       },
       "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "alignValue": "center",
         "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -2868,7 +3183,7 @@
       "id": 48,
       "title": "Report fetch outcomes",
       "type": "timeseries",
-      "description": "Harbor report polls per second by result. pending is expected during scanning; investigate persistent error or not_found responses. not_found can indicate expiry or an unknown job ID.",
+      "description": "Harbor report polls per minute by result. pending is expected during scanning; investigate persistent error or not_found responses. not_found can indicate expiry or an unknown job ID.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2881,7 +3196,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:requests/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -2899,7 +3214,68 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^ok$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^pending$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^not_found$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(failed|error|invalid_request)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -2917,7 +3293,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (result) (rate(harbor_scanner_trivy_report_fetch_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (result) (rate(harbor_scanner_trivy_report_fetch_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{result}}",
           "range": true,
           "instant": false,
@@ -3068,7 +3444,7 @@
       "id": 51,
       "title": "Store operation outcomes",
       "type": "timeseries",
-      "description": "Adapter Redis store operations per second by operation and outcome. Investigate error outcomes; not_found and not_applied indicate missing records or conditional writes that did not apply.",
+      "description": "Adapter Redis store operations per minute by operation and outcome. Investigate error outcomes; not_found and not_applied indicate missing records or conditional writes that did not apply.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3081,7 +3457,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:ops/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -3099,7 +3475,68 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^success \u00b7 .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^error \u00b7 .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^not_found \u00b7 .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^not_applied \u00b7 .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -3117,7 +3554,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (operation,outcome) (rate(harbor_scanner_trivy_store_operations_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (operation,outcome) (rate(harbor_scanner_trivy_store_operations_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{outcome}} \u00b7 {{operation}}",
           "range": true,
           "instant": false,
@@ -3268,7 +3705,7 @@
       "id": 54,
       "title": "Redis pool timeouts",
       "type": "timeseries",
-      "description": "Redis connection-pool wait timeouts per second. Nonzero values can interrupt job coordination and persistence; check pool contention and Redis responsiveness.",
+      "description": "Redis connection-pool wait timeouts per minute. Nonzero values can interrupt job coordination and persistence; check pool contention and Redis responsiveness.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3281,10 +3718,11 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:timeouts/min",
           "noValue": "No observations",
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "red"
           },
           "custom": {
             "drawStyle": "line",
@@ -3317,7 +3755,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(harbor_scanner_trivy_redis_pool_timeouts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum(rate(harbor_scanner_trivy_redis_pool_timeouts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "Redis pool timeouts",
           "range": true,
           "instant": false,
@@ -3482,7 +3920,7 @@
       "id": 58,
       "title": "API request rate",
       "type": "timeseries",
-      "description": "Adapter HTTP requests per second by route and status, excluding probes and scrapes. Investigate unexpected error responses; report polling can produce many requests per scan.",
+      "description": "Adapter HTTP requests per minute by route and status, excluding probes and scrapes. Investigate unexpected error responses; report polling can produce many requests per scan.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3495,7 +3933,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:requests/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -3513,7 +3951,89 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*/api/v1/metadata.*"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Metadata \u00b7 ${__field.labels.code}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*/api/v1/scan/\\{scan_request_id\\}/report.*"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Report \u00b7 ${__field.labels.code}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*/api/v1/scan(?!/).*"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Submit scan \u00b7 ${__field.labels.code}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*2[0-9][0-9].*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*3[0-9][0-9].*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*[45][0-9][0-9].*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -3531,7 +4051,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (route,code) (rate(harbor_scanner_trivy_http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "expr": "(sum by (route,code) (rate(harbor_scanner_trivy_http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{route}} \u00b7 {{code}}",
           "range": true,
           "instant": false,
@@ -3580,7 +4100,44 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*/api/v1/metadata.*"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Metadata"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*/api/v1/scan/\\{scan_request_id\\}/report.*"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Report"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*/api/v1/scan(?!/).*"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Submit scan"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -3828,7 +4385,7 @@
       "id": 64,
       "title": "Harbor scan job outcomes",
       "type": "timeseries",
-      "description": "Processed Harbor IMAGE_SCAN tasks per second by jobservice status, across scanner registrations. Compare failures with adapter outcomes to distinguish orchestration from execution problems.",
+      "description": "Processed Harbor IMAGE_SCAN tasks per minute by jobservice status, across scanner registrations. Compare failures with adapter outcomes to distinguish orchestration from execution problems.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3841,7 +4398,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix:tasks/min",
           "noValue": "No observations",
           "color": {
             "mode": "palette-classic"
@@ -3859,7 +4416,38 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(success|Success)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(error|failed|Error|Failed|Stopped)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -3877,7 +4465,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (rate(harbor_jobservice_task_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}[$__rate_interval]))",
+          "expr": "(sum by (status) (rate(harbor_jobservice_task_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}[$__rate_interval]))) * 60",
           "legendFormat": "{{status}}",
           "range": true,
           "instant": false,

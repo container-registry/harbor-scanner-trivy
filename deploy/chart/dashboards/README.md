@@ -69,6 +69,15 @@ requirements and missing-data guidance are documented below. **p95** estimates t
 maximum. Rate and percentile panels use a recent sliding window, while the
 completed/failed execution totals use the selected dashboard range. Counter
 increases are estimates between scrapes and can produce fractional totals.
+Event rates use per-minute units (`rate(...) * 60`) for readability at scanner
+workload volumes. They retain the same averaging window; completed/failed totals
+still cover the selected range. Payload traffic remains bytes per second.
+
+Outcome panels use green for success and red for errors. Blue identifies normal
+waiting or skipped work; orange highlights fallbacks and missing records for
+investigation. Database presence, update policy, collection health, and OOM
+termination state use named state timelines. Disabled updates and an absent Java
+DB are not automatically treated as failures. Gaps remain unknown observations.
 
 Prometheus query **Min step** is set to `1m` on rate-based targets. This makes
 Grafana's `$__rate_interval` at least four minutes, allowing rate calculations
