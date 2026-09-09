@@ -1,0 +1,11 @@
+---
+# Same Valkey chart as Harbor-next, in an independent instance for analysis.
+# redis.* remains the existing job/report store.
+replicaCount: 3
+podManagementPolicy: Parallel
+jobQueue:
+  workerConcurrency: 1
+valkey:
+  enabled: true
+trivy:
+  cacheTTL: 168h

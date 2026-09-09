@@ -12,7 +12,7 @@ Run **one worker per adapter pod**, increase replicas, and share image/layer ana
 
 The job backend requires Redis 6.2+ (for `XAUTOCLAIM`) or compatible Valkey. Startup checks command availability before opening the API; its ACL needs `COMMAND INFO` as well as Streams, string, expiry and Lua commands. Integration tests exercise Redis 7.4 and Valkey 8.1 with authentication and mutual TLS. The Trivy analysis-cache client supports `redis://` and adapter-normalized `rediss://`, not Sentinel or Redis Cluster endpoints. The existing job connection still supports Sentinel.
 
-Provision the analysis cache separately from Harbor's Redis/Valkey. A different logical database number provides no independent `maxmemory`, eviction policy, CPU or failure isolation. Keep operational job storage on a non-evicting instance with persistence/replication appropriate to the required durability. Streams survive client disconnects and worker restarts; surviving a Redis server failure also depends on Redis persistence and failover configuration. Accepted backlog consumes storage until it completes, so monitor and limit submission rates when workers cannot keep up.
+Enable the optional dedicated Valkey subchart (`valkey.enabled: true`) or provision an external analysis cache separately from Harbor's Redis/Valkey. The dependency is the same official chart and version as Harbor-next: `valkey` 0.9.3 from `oci://ghcr.io/valkey-io/valkey-helm`. A different logical database number provides no independent `maxmemory`, eviction policy, CPU or failure isolation. Keep operational job storage on a non-evicting instance with persistence/replication appropriate to the required durability. Streams survive client disconnects and worker restarts; surviving a Redis server failure also depends on Redis persistence and failover configuration. Accepted backlog consumes storage until it completes, so monitor and limit submission rates when workers cannot keep up.
 
 ## Helm deployment
 
@@ -23,10 +23,13 @@ replicaCount: 2
 podManagementPolicy: Parallel
 jobQueue:
   workerConcurrency: 1
+valkey:
+  enabled: true
 trivy:
-  cacheBackend: redis://dedicated-scan-cache:6379/0
   cacheTTL: 168h
 ```
+
+With `valkey.enabled`, the default `fs` backend resolves to the subchart's primary Service. Its release-scoped name keeps it separate from Harbor's existing `valkey` Service; do not override that name to collide. See the [dedicated cache example](../deploy/chart/example/dedicated-cache/) for upstream ACL and TLS configuration. External caches remain supported by disabling the subchart and setting `trivy.cacheBackend` explicitly.
 
 For credentials, provision a Secret `trivy-analysis-cache` with a `url` key containing the full URL, then override the environment entry:
 
@@ -62,7 +65,7 @@ Merge these settings into one values file rather than repeating the `trivy` mapp
 
 ## Cache budget and reuse
 
-Configure the dedicated instance's `maxmemory` and a cache eviction policy such as `allkeys-lru`; the chart does not provision or configure this instance. Reserve memory beyond `maxmemory` for process/allocator overhead, clients, replication buffers and persistence overhead. A pod/container memory limit equal to `maxmemory` leaves insufficient headroom. Check [Valkey's eviction guidance](https://valkey.io/topics/lru-cache/).
+Configure the dedicated instance's `maxmemory` and a cache eviction policy such as `allkeys-lru`; the bundled subchart defaults to `maxmemory 512mb`, `allkeys-lru`, a 1 GiB container limit, and disabled snapshots/AOF. Change `valkey.valkeyConfig` and `valkey.resources` together when sizing it. The subchart is disabled by default; its upstream persistence, ACL and TLS values pass through under `valkey`. Reserve memory beyond `maxmemory` for process/allocator overhead, clients, replication buffers and persistence overhead. A pod/container memory limit equal to `maxmemory` leaves insufficient headroom. Check [Valkey's eviction guidance](https://valkey.io/topics/lru-cache/).
 
 Choose a positive TTL longer than the expected rescan interval with margin. Reads do not renew the TTL, and eviction can remove entries earlier. Expired entries are analyzed again. If entries disappear during a scan, or the cache cannot accept writes, the scan may need a retry. A budget too small for the working set causes repeated analysis and lower throughput; it is not solved by adding workers. `trivy.cacheMaxSize` is deprecated and ignored: no filesystem cache size cap was implemented.
 

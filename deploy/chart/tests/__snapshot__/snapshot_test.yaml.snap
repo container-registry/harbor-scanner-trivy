@@ -570,11 +570,9 @@ matches the multi-replica render:
                 - name: SCANNER_TRIVY_REPORTS_DIR
                   value: /home/scanner/.cache/reports
                 - name: SCANNER_TRIVY_CACHE_BACKEND
-                  value: redis://harbor-scan-cache:6379/0
+                  value: redis://harbor-scanner-trivy-valkey:6379/0
                 - name: SCANNER_TRIVY_CACHE_TTL
                   value: 168h
-                - name: SCANNER_TRIVY_CACHE_REDIS_TLS
-                  value: "false"
                 - name: SCANNER_TRIVY_VULN_TYPE
                   value: os,library
                 - name: SCANNER_TRIVY_SECURITY_CHECKS

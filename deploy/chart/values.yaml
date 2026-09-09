@@ -362,6 +362,54 @@ api:
       keys:
         - ca.crt
 
+# -- Dedicated analysis-cache instance using the same official Valkey chart as
+# Harbor-next (0.9.3). Upstream chart values pass through under this key.
+# This instance must not store Harbor jobs/reports: its keys can be evicted.
+valkey:
+  # -- Deploy a dedicated cache and automatically select it when trivy.cacheBackend
+  # is fs. Disabled by default so existing external-cache deployments are preserved.
+  enabled: false
+  # -- Resource name overrides pass through to the upstream chart. Empty names
+  # are release-scoped, avoiding Harbor's operational Valkey service.
+  fullnameOverride: ""
+  # -- Start a standalone cache. Replication options pass through to upstream;
+  # the adapter connects to its primary service, never a read-replica service.
+  replica:
+    enabled: false
+  # -- Cache data is disposable; restart warms it again. Configure upstream
+  # dataStorage and persistence separately if retaining a warm cache is desired.
+  dataStorage:
+    enabled: false
+  # -- Instance-wide cache policy. Budget memory below the container limit.
+  # Disable snapshots/AOF for this disposable cache; never use this for job data.
+  valkeyConfig: |
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+    save ""
+    appendonly no
+  # -- Main cache resources, including headroom above maxmemory.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 768Mi
+    limits:
+      memory: 1Gi
+  # -- Resources for the upstream configuration init container.
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+  # -- Upstream ACL configuration. With auth enabled, supply the adapter's full
+  # credential-bearing URL through a Secret override; see example/dedicated-cache.
+  auth:
+    enabled: false
+  # -- Upstream TLS configuration. Also configure the adapter's cache CA/client
+  # certificate paths when using a private CA or mutual TLS.
+  tls:
+    enabled: false
+
 trivy:
   # -- Trivy cache directory. Must sit under the mounted cache volume.
   cacheDir: /home/scanner/.cache/trivy
@@ -371,6 +419,7 @@ trivy:
   # URL. Use a dedicated Redis/Valkey instance for cache reuse across replicas;
   # memory limits and eviction policies cannot be isolated by logical DB number.
   # Credentials can override SCANNER_TRIVY_CACHE_BACKEND through secret or extraEnv.
+  # With valkey.enabled=true, fs selects the bundled cache automatically.
   # Sentinel URLs are not supported by Trivy's cache client.
   cacheBackend: fs
   # -- TTL for Redis/Valkey analysis entries, set on writes (reads do not renew it).

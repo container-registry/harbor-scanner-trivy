@@ -326,7 +326,7 @@ the user claimed through .Values.config / .Values.secret.
 - name: SCANNER_TRIVY_REPORTS_DIR
   value: {{ .Values.trivy.reportsDir | quote }}
 - name: SCANNER_TRIVY_CACHE_BACKEND
-  value: {{ .Values.trivy.cacheBackend | quote }}
+  value: {{ include "harbor-scanner-trivy.cacheBackend" . | quote }}
 - name: SCANNER_TRIVY_CACHE_TTL
   value: {{ .Values.trivy.cacheTTL | quote }}
 {{- if or (hasPrefix "redis" .Values.trivy.cacheBackend) .Values.trivy.cacheRedisTLS .Values.trivy.cacheRedisCACert .Values.trivy.cacheRedisCert .Values.trivy.cacheRedisKey }}

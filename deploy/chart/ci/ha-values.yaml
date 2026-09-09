@@ -10,8 +10,10 @@ jobQueue:
 # a dedicated Redis/Valkey instance. Configure that instance's memory budget and
 # eviction policy independently of Harbor's operational Redis/Valkey.
 trivy:
-  cacheBackend: redis://harbor-scan-cache:6379/0
   cacheTTL: 168h
+
+valkey:
+  enabled: true
 
 resources:
   requests:

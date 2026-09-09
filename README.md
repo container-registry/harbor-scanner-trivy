@@ -244,10 +244,16 @@ and during Helm rendering. Use the `SCANNER_TRIVY_CACHE_*` settings; they take p
 replicaCount: 2
 jobQueue:
   workerConcurrency: 1
+valkey:
+  enabled: true
 trivy:
-  cacheBackend: redis://dedicated-scan-cache:6379/0
   cacheTTL: 168h
 ```
+
+This enables the same official Valkey chart as Harbor-next (`0.9.3`) as a separate analysis-cache instance.
+Defaults are `maxmemory 512mb`, `allkeys-lru`, and a 1 GiB container limit; tune them for your workload.
+For an external cache, leave `valkey.enabled: false` and set `trivy.cacheBackend` to its URL.
+See the [dedicated cache example](deploy/chart/example/dedicated-cache/) for Secret and TLS configuration.
 
 The job backend now uses Redis Streams with acknowledgement and recovery, requiring Redis **6.2+** or compatible
 Valkey. **Upgrades from Pub/Sub releases require draining scans before replacing all adapter pods.** Read the

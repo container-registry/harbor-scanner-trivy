@@ -201,7 +201,9 @@ jobs:
       - name: Package chart
         # appVersion is left as committed, so the default image tag resolves to
         # an adapter release that has already been published.
-        run: helm package deploy/chart --version "${PREVIEW_VERSION}" --destination dist
+        run: |
+          helm dependency build deploy/chart --skip-refresh
+          helm package deploy/chart --version "${PREVIEW_VERSION}" --destination dist
 
       - name: Mint OIDC token for Harbor
         id: harbor-oidc

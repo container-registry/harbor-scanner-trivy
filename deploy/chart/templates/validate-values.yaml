@@ -90,7 +90,19 @@ every pod after the first Pending forever.
 Keep one CLI worker per pod regardless of scan backend: local vulnerability
 databases still need isolation. Redis TTL must be positive.
 */}}
-{{- $cacheBackend := toString .Values.trivy.cacheBackend }}
+{{- $cacheBackend := include "harbor-scanner-trivy.cacheBackend" . }}
+{{- if .Values.valkey.enabled }}
+{{- if eq $cacheBackend "memory" }}
+{{- fail "valkey.enabled cannot be combined with trivy.cacheBackend=memory; disable the subchart for an in-process cache." }}
+{{- end }}
+{{- if and .Values.valkey.auth.enabled (eq .Values.trivy.cacheBackend "fs") }}
+{{- $claimed := include "harbor-scanner-trivy.claimedEnvNames" . | fromYamlArray }}
+{{- range .Values.extraEnv }}{{- $claimed = append $claimed .name }}{{- end }}
+{{- if not (has "SCANNER_TRIVY_CACHE_BACKEND" $claimed) }}
+{{- fail "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)." }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- if contains "+sentinel://" $cacheBackend }}
 {{- fail "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://." }}
 {{- end }}

@@ -16,6 +16,11 @@ vars:
   HELM_SET: ""
 
 tasks:
+  dependencies:
+    desc: "Fetch the locked Valkey subchart used by Harbor-next"
+    run: once
+    cmd: helm dependency build {{.CHART_DIR}} --skip-refresh
+
   # ============================================================================
   # Individual checks
   # ============================================================================
@@ -293,6 +298,7 @@ tasks:
 
   package:
     desc: "Package the chart into dist/ (the release pipeline overrides --version)"
+    deps: [dependencies]
     cmds:
       - mkdir -p dist
       - helm package {{.CHART_DIR}} -d dist
@@ -303,6 +309,7 @@ tasks:
 
   release:dry-run:
     desc: "Everything the release job does before it talks to the registry"
+    deps: [dependencies]
     cmds:
       # Runs on a copy: the image annotation is appended to Chart.yaml, and the
       # worktree must not be left modified.
@@ -351,6 +358,7 @@ tasks:
 
   lint:
     desc: "All chart linters"
+    deps: [dependencies]
     cmds:
       - task: lint:helm
       - task: lint:ct

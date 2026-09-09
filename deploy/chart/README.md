@@ -42,7 +42,8 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
 
 Keep `jobQueue.workerConcurrency: 1`; larger values fail validation. Increase
 `replicaCount` and give each pod its own local database volume. For cache reuse,
-set `trivy.cacheBackend` to a **dedicated Redis/Valkey instance**, with a positive
+enable `valkey.enabled` to deploy Harbor-next's official Valkey chart (`0.9.3`)
+as a **dedicated cache instance**, or set `trivy.cacheBackend` to an external cache. Use a positive
 `trivy.cacheTTL` and an instance-level memory/eviction budget. Another logical
 DB on Harbor's instance cannot isolate that budget. `redis.url` remains the
 separate job/report connection.
@@ -51,6 +52,11 @@ This version uses Redis Streams. Upgrades from Pub/Sub versions must stop scan
 submissions, drain existing scans, and replace all adapter pods before resuming.
 See the [scaling and migration guide](../../docs/SCALING.md) for Secret/TLS
 examples, recovery semantics, sizing, metrics, and rollback.
+
+The [dedicated cache example](example/dedicated-cache/) runs three scanner pods
+with one worker each and a separate Valkey cache with memory headroom and
+`allkeys-lru` eviction. When working from source, run `task helm:dependencies`
+before rendering or installing the chart.
 
 ## What this chart gives you
 
@@ -267,6 +273,10 @@ TLS, FluxCD, and air-gapped installs. CI renders all of them on every change.
 
 Kubernetes: `>=1.28.0-0`
 
+| Repository | Name | Version |
+|------------|------|---------|
+| oci://ghcr.io/valkey-io/valkey-helm | valkey | 0.9.3 |
+
 ## Values
 
 | Key | Type | Default | Description |
@@ -411,7 +421,7 @@ Kubernetes: `>=1.28.0-0`
 | terminationGracePeriodSeconds | int | `60` | Grace period for HTTP shutdown and cancellation of an in-flight Trivy scan. Unacknowledged jobs remain in the stream for another pod to recover. |
 | tolerations | list | `[]` | Tolerations for pod assignment. |
 | topologySpreadConstraints | list | `[]` | Topology spread constraints. |
-| trivy.cacheBackend | string | `"fs"` | Trivy image/layer analysis cache: `fs`, `memory`, or a `redis://` / `rediss://` URL. Use a dedicated Redis/Valkey instance for cache reuse across replicas; memory limits and eviction policies cannot be isolated by logical DB number. Credentials can override SCANNER_TRIVY_CACHE_BACKEND through secret or extraEnv. Sentinel URLs are not supported by Trivy's cache client. |
+| trivy.cacheBackend | string | `"fs"` | Trivy image/layer analysis cache: `fs`, `memory`, or a `redis://` / `rediss://` URL. Use a dedicated Redis/Valkey instance for cache reuse across replicas; memory limits and eviction policies cannot be isolated by logical DB number. Credentials can override SCANNER_TRIVY_CACHE_BACKEND through secret or extraEnv. With valkey.enabled=true, fs selects the bundled cache automatically. Sentinel URLs are not supported by Trivy's cache client. |
 | trivy.cacheDir | string | `"/home/scanner/.cache/trivy"` | Trivy cache directory. Must sit under the mounted cache volume. |
 | trivy.cacheMaxSize | string | `"0"` | Deprecated: ignored. The adapter never implemented this filesystem size cap. Use a dedicated Redis/Valkey cache with an instance-level memory budget. |
 | trivy.cacheRedisCACert | string | `""` | CA certificate for a Redis scan cache, as a path inside the container; mount it with `extraVolumes`/`extraVolumeMounts`. CA, cert and key are required together. |
@@ -442,3 +452,13 @@ Kubernetes: `>=1.28.0-0`
 | trivy.vexSource | string | `""` | VEX source used to filter vulnerabilities: `oci` or `repo`. |
 | trivy.vulnType | string | `"os,library"` | Comma-separated vulnerability types: `os`, `library`. |
 | updateStrategy | object | `{}` | StatefulSet update strategy. Empty means the Kubernetes default (`RollingUpdate`). |
+| valkey | object | `{"auth":{"enabled":false},"dataStorage":{"enabled":false},"enabled":false,"fullnameOverride":"","initResources":{"limits":{"memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"replica":{"enabled":false},"resources":{"limits":{"memory":"1Gi"},"requests":{"cpu":"100m","memory":"768Mi"}},"tls":{"enabled":false},"valkeyConfig":"maxmemory 512mb\nmaxmemory-policy allkeys-lru\nsave \"\"\nappendonly no\n"}` | Dedicated analysis-cache instance using the same official Valkey chart as Harbor-next (0.9.3). Upstream chart values pass through under this key. This instance must not store Harbor jobs/reports: its keys can be evicted. |
+| valkey.auth | object | `{"enabled":false}` | Upstream ACL configuration. With auth enabled, supply the adapter's full credential-bearing URL through a Secret override; see example/dedicated-cache. |
+| valkey.dataStorage | object | `{"enabled":false}` | Cache data is disposable; restart warms it again. Configure upstream dataStorage and persistence separately if retaining a warm cache is desired. |
+| valkey.enabled | bool | `false` | Deploy a dedicated cache and automatically select it when trivy.cacheBackend is fs. Disabled by default so existing external-cache deployments are preserved. |
+| valkey.fullnameOverride | string | `""` | Resource name overrides pass through to the upstream chart. Empty names are release-scoped, avoiding Harbor's operational Valkey service. |
+| valkey.initResources | object | `{"limits":{"memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}` | Resources for the upstream configuration init container. |
+| valkey.replica | object | `{"enabled":false}` | Start a standalone cache. Replication options pass through to upstream; the adapter connects to its primary service, never a read-replica service. |
+| valkey.resources | object | `{"limits":{"memory":"1Gi"},"requests":{"cpu":"100m","memory":"768Mi"}}` | Main cache resources, including headroom above maxmemory. |
+| valkey.tls | object | `{"enabled":false}` | Upstream TLS configuration. Also configure the adapter's cache CA/client certificate paths when using a private CA or mutual TLS. |
+| valkey.valkeyConfig | string | `"maxmemory 512mb\nmaxmemory-policy allkeys-lru\nsave \"\"\nappendonly no\n"` | Instance-wide cache policy. Budget memory below the container limit. Disable snapshots/AOF for this disposable cache; never use this for job data. |

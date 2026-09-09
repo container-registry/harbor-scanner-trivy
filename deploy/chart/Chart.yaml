@@ -33,6 +33,12 @@ maintainers:
     email: vadim@8gears.com
     url: https://github.com/container-registry/harbor-scanner-trivy
 
+dependencies:
+  - name: valkey
+    version: "0.9.3"
+    repository: "oci://ghcr.io/valkey-io/valkey-helm"
+    condition: valkey.enabled
+
 # Artifact Hub metadata (https://artifacthub.io/docs/topics/annotations/helm/).
 # Keep this the LAST top-level key: the release pipeline appends the
 # per-release artifacthub.io/images annotation to this block before
