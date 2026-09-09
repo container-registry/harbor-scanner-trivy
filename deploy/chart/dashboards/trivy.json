@@ -2817,62 +2817,45 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Age of the installed vulnerability database content. If age grows during active scanning, check update policy and download errors.",
+      "description": "Age of the installed vulnerability database content, per replica. Orange from 12h; red from 24h. Old content does not necessarily mean an update failed.",
       "fieldConfig": {
         "defaults": {
+          "unit": "s",
+          "noValue": "Unknown",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3",
+                  "index": 0
+                }
+              }
             }
-          },
-          "noValue": "No observations",
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 43200
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 86400
               }
             ]
-          },
-          "unit": "s"
-        }
+          }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
@@ -2882,38 +2865,44 @@
       },
       "id": 31,
       "options": {
-        "legend": {
+        "reduceOptions": {
+          "values": false,
           "calcs": [
             "lastNotNull"
           ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+          "fields": ""
         },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       },
       "pluginVersion": "13.3.0-34259522365",
       "targets": [
         {
+          "refId": "A",
+          "expr": "((time() - harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)",
+          "legendFormat": "{{pod}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{pod}}",
-          "range": true,
-          "refId": "A"
+          }
         }
       ],
       "title": "Content age",
-      "type": "timeseries"
+      "type": "stat",
+      "links": [
+        {
+          "title": "View history",
+          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=94&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
+          "targetBlank": false
+        }
+      ]
     },
     {
       "datasource": {
@@ -3259,62 +3248,45 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Age of the installed Java package index. If age grows during Java scanning, check update policy and download errors.",
+      "description": "Age of the installed Java package index content, per replica. Orange from 48h; red from 72h. Old content does not necessarily mean an update failed.",
       "fieldConfig": {
         "defaults": {
+          "unit": "s",
+          "noValue": "Unknown",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3",
+                  "index": 0
+                }
+              }
             }
-          },
-          "noValue": "No observations",
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 172800
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 259200
               }
             ]
-          },
-          "unit": "s"
-        }
+          }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
@@ -3324,38 +3296,44 @@
       },
       "id": 69,
       "options": {
-        "legend": {
+        "reduceOptions": {
+          "values": false,
           "calcs": [
             "lastNotNull"
           ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+          "fields": ""
         },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       },
       "pluginVersion": "13.3.0-34259522365",
       "targets": [
         {
+          "refId": "A",
+          "expr": "((time() - harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)",
+          "legendFormat": "{{pod}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{pod}}",
-          "range": true,
-          "refId": "A"
+          }
         }
       ],
       "title": "Content age",
-      "type": "timeseries"
+      "type": "stat",
+      "links": [
+        {
+          "title": "View history",
+          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=95&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
+          "targetBlank": false
+        }
+      ]
     },
     {
       "datasource": {
@@ -7000,7 +6978,7 @@
           "gridPos": {
             "x": 6,
             "y": 146,
-            "w": 18,
+            "w": 9,
             "h": 6
           },
           "id": 87,
@@ -7036,6 +7014,109 @@
             }
           ],
           "title": "Vulnerability DB update eligibility",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Age of the installed vulnerability database content. If age grows during active scanning, check update policy and download errors.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 8,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "noValue": "No observations",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "x": 15,
+            "y": 146,
+            "w": 9,
+            "h": 6
+          },
+          "id": 94,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.3.0-34259522365",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{pod}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Vulnerability DB content age",
           "type": "timeseries"
         },
         {
@@ -7257,7 +7338,7 @@
           "gridPos": {
             "x": 6,
             "y": 152,
-            "w": 18,
+            "w": 9,
             "h": 6
           },
           "id": 90,
@@ -7293,6 +7374,109 @@
             }
           ],
           "title": "Java index update eligibility",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Age of the installed Java package index. If age grows during Java scanning, check update policy and download errors.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 8,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "noValue": "No observations",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "x": 15,
+            "y": 152,
+            "w": 9,
+            "h": 6
+          },
+          "id": 95,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.3.0-34259522365",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{pod}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Java index content age",
           "type": "timeseries"
         },
         {

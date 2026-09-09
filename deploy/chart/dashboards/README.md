@@ -83,6 +83,15 @@ Status timelines share a compact size and sit in the left column. Both database
 rows place availability above update policy. Green means healthy or present,
 blue means enabled, red marks failures, and gray marks neutral or unknown states.
 
+**Content age** shows the current age per replica, without a sparkline. The
+vulnerability database turns orange at 12 hours and red at 24 hours; the Java
+package index turns orange at 48 hours and red at 72 hours. Missing telemetry
+remains gray / **Unknown**. These are dashboard freshness thresholds, not Trivy
+limits or proof of a failed update. They allow time beyond the upstream build
+schedules: [every six hours for vulnerability data](https://github.com/aquasecurity/trivy-db/blob/main/.github/workflows/cron.yml)
+and [daily for the Java index](https://github.com/aquasecurity/trivy-java-db/blob/main/.github/workflows/cron.yml).
+The original content-age graphs remain available through **View history**.
+
 **Next update check** shows time until the installed metadata's update threshold,
 **Eligible now**, or **Updates disabled**. It does not schedule a download.
 **Last database download** shows the age of the local download separately from
