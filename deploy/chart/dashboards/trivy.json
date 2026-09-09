@@ -2119,7 +2119,7 @@
     {
       "id": 30,
       "type": "row",
-      "title": "Trivy vulnerability DB and Java index",
+      "title": "Vulnerability database",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -2128,13 +2128,13 @@
         "h": 1
       },
       "panels": [],
-      "description": "Downloaded vulnerability records and the Java package index, per replica. Local scan-analysis cache usage is shown under Cache and storage."
+      "description": "Downloaded vulnerability records used by Trivy scans."
     },
     {
       "id": 31,
-      "title": "Trivy database content age",
+      "title": "Content age",
       "type": "timeseries",
-      "description": "Age of the downloaded vulnerability DB and Java package index content. If age grows during active scanning, check update policy and download errors.",
+      "description": "Age of the installed vulnerability database content. If age grows during active scanning, check update policy and download errors.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2142,7 +2142,7 @@
       "gridPos": {
         "x": 0,
         "y": 54,
-        "w": 8,
+        "w": 6,
         "h": 7
       },
       "fieldConfig": {
@@ -2165,32 +2165,7 @@
             }
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 vulnerability$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 java$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Java package index \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": {
@@ -2208,8 +2183,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
-          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}",
+          "legendFormat": "{{pod}}",
           "range": true,
           "instant": false,
           "datasource": {
@@ -2223,17 +2198,17 @@
     },
     {
       "id": 32,
-      "title": "Trivy database availability",
+      "title": "Availability",
       "type": "state-timeline",
-      "description": "Local vulnerability DB and Java package index availability. Java index absence can be normal until Java analysis needs it.",
+      "description": "Local vulnerability database availability. A missing database prevents vulnerability scanning until a copy is downloaded or supplied.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 8,
+        "x": 6,
         "y": 54,
-        "w": 8,
+        "w": 6,
         "h": 7
       },
       "fieldConfig": {
@@ -2263,32 +2238,7 @@
             "spanNulls": false
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 vulnerability$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 java$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Java package index \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "mergeValues": true,
@@ -2306,8 +2256,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
-          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "expr": "harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}",
+          "legendFormat": "{{pod}}",
           "range": true,
           "instant": false,
           "datasource": {
@@ -2321,17 +2271,17 @@
     },
     {
       "id": 33,
-      "title": "Next Trivy database update",
+      "title": "Next update eligibility",
       "type": "timeseries",
-      "description": "Time until the downloaded vulnerability DB or Java index is eligible for an update. Negative means due; downloads depend on Trivy invocation and update policy.",
+      "description": "Time until the installed vulnerability database is eligible for an update. Negative means due; downloads depend on Trivy invocation and update policy.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 16,
+        "x": 12,
         "y": 54,
-        "w": 8,
+        "w": 6,
         "h": 7
       },
       "fieldConfig": {
@@ -2354,32 +2304,7 @@
             }
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 vulnerability$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 java$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Java package index \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": {
@@ -2397,8 +2322,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}-time()",
-          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "expr": "harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}-time()",
+          "legendFormat": "{{pod}}",
           "range": true,
           "instant": false,
           "datasource": {
@@ -2412,17 +2337,17 @@
     },
     {
       "id": 34,
-      "title": "Automatic database updates",
+      "title": "Automatic updates",
       "type": "state-timeline",
-      "description": "Whether Trivy may update its vulnerability DB and Java package index. Check when content stays old; offline-scan alone does not disable downloads.",
+      "description": "Whether Trivy may download vulnerability database updates. Disabled updates require a separately maintained database.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 0,
-        "y": 61,
-        "w": 8,
+        "x": 18,
+        "y": 54,
+        "w": 6,
         "h": 7
       },
       "fieldConfig": {
@@ -2452,32 +2377,7 @@
             "spanNulls": false
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 vulnerability$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 java$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Java package index \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "mergeValues": true,
@@ -2495,8 +2395,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
-          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "expr": "harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}",
+          "legendFormat": "{{pod}}",
           "range": true,
           "instant": false,
           "datasource": {
@@ -2509,6 +2409,312 @@
       ]
     },
     {
+      "id": 68,
+      "type": "row",
+      "title": "Java package index",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 61,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": "Downloaded index used to identify Java packages. It may be absent until Java analysis needs it."
+    },
+    {
+      "id": 69,
+      "title": "Content age",
+      "type": "timeseries",
+      "description": "Age of the installed Java package index. If age grows during Java scanning, check update policy and download errors.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 62,
+        "w": 6,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "title": "Availability",
+      "type": "state-timeline",
+      "description": "Local Java package index availability. Absence can be normal before Java analysis needs it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 62,
+        "w": 6,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Missing",
+                  "color": "light-gray",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Present",
+                  "color": "blue",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "alignValue": "center",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "title": "Next update eligibility",
+      "type": "timeseries",
+      "description": "Time until the installed Java package index is eligible for an update. Negative means due; downloads depend on Trivy invocation and update policy.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 62,
+        "w": 6,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}-time()",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "title": "Automatic updates",
+      "type": "state-timeline",
+      "description": "Whether Trivy may download Java package index updates. This policy is independent of vulnerability database updates.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 62,
+        "w": 6,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Disabled",
+                  "color": "light-gray",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Enabled",
+                  "color": "blue",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "alignValue": "center",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 73,
+      "type": "row",
+      "title": "Database monitoring health",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 69,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": "Shared collection health for Trivy version and both downloaded databases."
+    },
+    {
       "id": 35,
       "title": "Trivy metadata collection",
       "type": "state-timeline",
@@ -2518,9 +2724,9 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 8,
-        "y": 61,
-        "w": 8,
+        "x": 0,
+        "y": 70,
+        "w": 12,
         "h": 7
       },
       "fieldConfig": {
@@ -2591,9 +2797,9 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 16,
-        "y": 61,
-        "w": 8,
+        "x": 12,
+        "y": 70,
+        "w": 12,
         "h": 7
       },
       "fieldConfig": {
@@ -2654,7 +2860,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 68,
+        "y": 77,
         "w": 24,
         "h": 1
       },
@@ -2672,7 +2878,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 69,
+        "y": 78,
         "w": 8,
         "h": 7
       },
@@ -2775,7 +2981,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 69,
+        "y": 78,
         "w": 8,
         "h": 7
       },
@@ -2841,7 +3047,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 69,
+        "y": 78,
         "w": 8,
         "h": 7
       },
@@ -2907,7 +3113,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 76,
+        "y": 85,
         "w": 8,
         "h": 7
       },
@@ -2973,7 +3179,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 76,
+        "y": 85,
         "w": 8,
         "h": 7
       },
@@ -3039,7 +3245,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 76,
+        "y": 85,
         "w": 8,
         "h": 7
       },
@@ -3108,7 +3314,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 83,
+        "y": 92,
         "w": 24,
         "h": 1
       },
@@ -3126,7 +3332,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 84,
+        "y": 93,
         "w": 8,
         "h": 7
       },
@@ -3193,7 +3399,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 84,
+        "y": 93,
         "w": 8,
         "h": 7
       },
@@ -3260,7 +3466,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 84,
+        "y": 93,
         "w": 8,
         "h": 7
       },
@@ -3327,7 +3533,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 91,
+        "y": 100,
         "w": 8,
         "h": 7
       },
@@ -3455,7 +3661,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 91,
+        "y": 100,
         "w": 8,
         "h": 7
       },
@@ -3522,7 +3728,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 91,
+        "y": 100,
         "w": 8,
         "h": 7
       },
@@ -3588,7 +3794,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 98,
+        "y": 107,
         "w": 8,
         "h": 7
       },
@@ -3716,7 +3922,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 98,
+        "y": 107,
         "w": 8,
         "h": 7
       },
@@ -3783,7 +3989,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 98,
+        "y": 107,
         "w": 8,
         "h": 7
       },
@@ -3849,7 +4055,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 105,
+        "y": 114,
         "w": 8,
         "h": 7
       },
@@ -3917,7 +4123,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 105,
+        "y": 114,
         "w": 8,
         "h": 7
       },
@@ -3984,7 +4190,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 105,
+        "y": 114,
         "w": 8,
         "h": 7
       },
@@ -4046,7 +4252,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 112,
+        "y": 121,
         "w": 24,
         "h": 1
       },
@@ -4064,7 +4270,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 113,
+        "y": 122,
         "w": 8,
         "h": 7
       },
@@ -4213,7 +4419,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 113,
+        "y": 122,
         "w": 8,
         "h": 7
       },
@@ -4317,7 +4523,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 113,
+        "y": 122,
         "w": 8,
         "h": 7
       },
@@ -4379,7 +4585,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 120,
+        "y": 129,
         "w": 24,
         "h": 1
       },
@@ -4397,7 +4603,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 121,
+        "y": 130,
         "w": 8,
         "h": 7
       },
@@ -4463,7 +4669,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 121,
+        "y": 130,
         "w": 8,
         "h": 7
       },
@@ -4529,7 +4735,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 121,
+        "y": 130,
         "w": 8,
         "h": 7
       },
@@ -4623,7 +4829,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 128,
+        "y": 137,
         "w": 24,
         "h": 1
       },
@@ -4641,7 +4847,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 129,
+        "y": 138,
         "w": 12,
         "h": 9
       },
@@ -4679,7 +4885,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 129,
+        "y": 138,
         "w": 12,
         "h": 9
       },

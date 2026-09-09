@@ -94,14 +94,16 @@ frequency does not change how often Prometheus collects samples.
   failure categories, CLI termination reasons, and SBOM reuse/fallback.
   Redis Pub/Sub has no durable adapter queue depth. Harbor scheduling happens
   before the adapter receives a request and is a separate measurement.
-- **Trivy vulnerability DB and Java index:** downloaded database presence, age, next update,
+- **Vulnerability database / Java package index:** separate expanded rows show
+  downloaded database presence, age, next update,
   configured update policy, and metadata collection health. Missing Java DB can
   be normal before Java scanning. Update policy is not proof of a successful download.
   The Java DB identifies Java packages; the vulnerability DB supplies vulnerability
   records. Database age uses the installed metadata's content build timestamp,
   not its download timestamp. Next update is metadata used in update eligibility
   checks, not a promise that a background download will happen at that time.
-  The legends name **Vulnerability DB** and **Java package index** explicitly.
+  Each row filters queries to its own database and keeps replicas separate.
+  **Database monitoring health** shows the shared metadata collector once.
   The local **Analysis cache (BoltDB)** stores reusable scan analysis and appears
   under Cache and storage. BoltDB is a storage engine, not a description of a
   database's contents; Trivy also uses it for the vulnerability database.

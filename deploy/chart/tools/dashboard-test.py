@@ -87,6 +87,35 @@ class DashboardTest(unittest.TestCase):
                     self.assertNotIn((x, y), occupied, panel["title"])
                     occupied.add((x, y))
 
+    def test_database_rows_isolate_data_and_share_collection_health(self):
+        sections = {}
+        current = None
+        for panel in DASHBOARD["panels"]:
+            if panel["type"] == "row":
+                current = panel["title"]
+                sections[current] = []
+                if current in ("Vulnerability database", "Java package index"):
+                    self.assertFalse(panel["collapsed"])
+            elif current:
+                sections[current].append(panel)
+        names = list(sections)
+        self.assertEqual(names.index("Java package index"),
+                         names.index("Vulnerability database") + 1)
+        for section, database in (("Vulnerability database", "vulnerability"),
+                                  ("Java package index", "java")):
+            panels = sections[section]
+            self.assertEqual(len(panels), 4)
+            for panel in panels:
+                for target in panel["targets"]:
+                    self.assertIn(f'database="{database}"', target["expr"])
+                    self.assertNotIn("sum(", target["expr"])
+        for metric in ("metadata_collection_success",
+                       "metadata_last_success_timestamp_seconds"):
+            owners = [name for name, panels in sections.items()
+                      for panel in panels for target in panel.get("targets", [])
+                      if "harbor_scanner_trivy_" + metric in target["expr"]]
+            self.assertEqual(owners, ["Database monitoring health"])
+
 
 if __name__ == "__main__":
     unittest.main()
