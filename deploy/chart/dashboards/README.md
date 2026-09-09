@@ -63,8 +63,8 @@ an empty chart does not imply zero failures or zero resource use.
 
 ## What the panels mean
 
-Every panel's info tooltip explains the measurement, its operational meaning,
-and relevant reasons for missing data. **p95** estimates the value below which
+Panel tooltips summarize the measurement and what to investigate. Collection
+requirements and missing-data guidance are documented below. **p95** estimates the value below which
 95% of observations fall; it is calculated from histogram buckets, not an exact
 maximum. Rate and percentile panels use a recent sliding window, while the
 completed/failed execution totals use the selected dashboard range. Counter
