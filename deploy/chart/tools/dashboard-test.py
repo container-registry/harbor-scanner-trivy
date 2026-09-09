@@ -13,6 +13,12 @@ CHART = Path(__file__).resolve().parents[1]
 DASHBOARD = json.loads((CHART / "dashboards/trivy.json").read_text())
 
 
+def all_panels(panels=None):
+    for panel in DASHBOARD["panels"] if panels is None else panels:
+        yield panel
+        yield from all_panels(panel.get("panels", []))
+
+
 class DashboardTest(unittest.TestCase):
     def test_render_preserves_canonical_json(self):
         output = subprocess.check_output(
@@ -48,7 +54,9 @@ class DashboardTest(unittest.TestCase):
         known.update(re.findall(r'Name: Prefix \+ "([a-z_]+)"', catalog))
         redis = (CHART.parents[1] / "pkg/metrics/redis.go").read_text()
         known.update(re.findall(r'add\("([a-z_]+)"', redis))
-        for panel in DASHBOARD["panels"]:
+        for panel in all_panels():
+            if panel["type"] == "text":
+                continue
             for target in panel.get("targets", []):
                 expr = target["expr"]
                 with self.subTest(panel=panel["title"]):
@@ -77,7 +85,7 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual([p["title"] for p in rows[:2]], ["Overview", "Runtime"])
         occupied = set()
         ids = set()
-        for panel in DASHBOARD["panels"]:
+        for panel in all_panels():
             self.assertNotIn(panel["id"], ids)
             ids.add(panel["id"])
             pos = panel["gridPos"]
@@ -104,7 +112,7 @@ class DashboardTest(unittest.TestCase):
         for section, database in (("Vulnerability database", "vulnerability"),
                                   ("Java package index", "java")):
             panels = sections[section]
-            self.assertEqual(len(panels), 4)
+            self.assertEqual(len(panels), 5)
             for panel in panels:
                 for target in panel["targets"]:
                     self.assertIn(f'database="{database}"', target["expr"])
@@ -115,6 +123,35 @@ class DashboardTest(unittest.TestCase):
                       for panel in panels for target in panel.get("targets", [])
                       if "harbor_scanner_trivy_" + metric in target["expr"]]
             self.assertEqual(owners, ["Database monitoring health"])
+
+    def test_current_database_status_has_unknown_and_history(self):
+        panels = {panel["id"]: panel for panel in all_panels()}
+        for pid in (32, 34, 70, 72):
+            panel = panels[pid]
+            self.assertEqual(panel["type"], "stat")
+            self.assertEqual(panel["options"]["graphMode"], "none")
+            for target in panel["targets"]:
+                self.assertTrue(target["instant"])
+                self.assertFalse(target["range"])
+                self.assertIn(" == 1", target["expr"])
+                self.assertIn(" * 0 - 1", target["expr"])
+            states = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+            self.assertEqual(states["-1"]["text"], "Unknown")
+            history_id = int(re.search(r"viewPanel=(\d+)", panel["links"][-1]["url"]).group(1))
+            self.assertTrue(panels[history_id]["targets"][0]["range"])
+
+    def test_status_views_have_consistent_dimensions_and_order(self):
+        panels = {panel["id"]: panel for panel in all_panels()}
+        for panel in panels.values():
+            if panel["type"] == "state-timeline":
+                self.assertEqual((panel["gridPos"]["w"], panel["gridPos"]["h"]), (6, 3))
+                self.assertEqual(panel["gridPos"]["x"], 0)
+        for availability, policy in ((32, 34), (70, 72), (85, 86), (88, 89)):
+            a, b = panels[availability]["gridPos"], panels[policy]["gridPos"]
+            self.assertEqual((a["w"], a["h"]), (6, 3))
+            self.assertEqual((b["w"], b["h"]), (6, 3))
+            self.assertEqual(a["x"], b["x"])
+            self.assertEqual(a["y"] + a["h"], b["y"])
 
 
 if __name__ == "__main__":

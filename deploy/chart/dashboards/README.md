@@ -75,9 +75,24 @@ still cover the selected range. Payload traffic remains bytes per second.
 
 Outcome panels use green for success and red for errors. Blue identifies normal
 waiting or skipped work; orange highlights fallbacks and missing records for
-investigation. Database presence, update policy, collection health, and OOM
-termination state use named state timelines. Disabled updates and an absent Java
-DB are not automatically treated as failures. Gaps remain unknown observations.
+investigation. Database availability and update policy use current-status cards
+per replica. Missing vulnerability data is red; an absent Java index is neutral.
+Unavailable metrics or failed scrapes produce **Unknown**, not a healthy state.
+Collection health and OOM termination history retain named states.
+Status timelines share a compact size and sit in the left column. Both database
+rows place availability above update policy. Green means healthy or present,
+blue means enabled, red marks failures, and gray marks neutral or unknown states.
+
+**Next update check** shows time until the installed metadata's update threshold,
+**Eligible now**, or **Updates disabled**. It does not schedule a download.
+**Last database download** shows the age of the local download separately from
+the content's build age. **Storage metrics collection** lists each collector's
+latest result and time since its last success. An unknown optional cache-size
+collector may be disabled; missing telemetry alone cannot establish that.
+
+Use each current-status panel's **View history** link, or expand **Database and
+storage history** at the bottom, to investigate past transitions. These views
+retain the selected installation and time range.
 
 Prometheus query **Min step** is set to `1m` on rate-based targets. This makes
 Grafana's `$__rate_interval` at least four minutes, allowing rate calculations
