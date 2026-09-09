@@ -143,10 +143,21 @@ class DashboardTest(unittest.TestCase):
     def test_status_views_have_consistent_dimensions_and_order(self):
         panels = {panel["id"]: panel for panel in all_panels()}
         for panel in panels.values():
-            if panel["type"] == "state-timeline":
-                self.assertEqual((panel["gridPos"]["w"], panel["gridPos"]["h"]), (6, 3))
+            if panel["type"] == "state-timeline" and panel["id"] != 35:
+                self.assertEqual((panel["gridPos"]["w"], panel["gridPos"]["h"]),
+                                 (6, 7 if panel["id"] == 60 else 3))
                 self.assertEqual(panel["gridPos"]["x"], 0)
-        for availability, policy in ((32, 34), (70, 72), (85, 86), (88, 89)):
+        for pid in (35, 36):
+            self.assertEqual((panels[pid]["gridPos"]["w"], panels[pid]["gridPos"]["h"]), (12, 7))
+        for ids in ((32, 34, 31, 92, 33), (70, 72, 69, 93, 71)):
+            positions = [panels[pid]["gridPos"] for pid in ids]
+            self.assertEqual(len({p["y"] for p in positions}), 1)
+            self.assertEqual([p["h"] for p in positions], [3] * 5)
+            self.assertEqual(positions[0]["x"], 0)
+            self.assertEqual(sum(p["w"] for p in positions), 24)
+            for left, right in zip(positions, positions[1:]):
+                self.assertEqual(left["x"] + left["w"], right["x"])
+        for availability, policy in ((85, 86), (88, 89)):
             a, b = panels[availability]["gridPos"], panels[policy]["gridPos"]
             self.assertEqual((a["w"], a["h"]), (6, 3))
             self.assertEqual((b["w"], b["h"]), (6, 3))
