@@ -87,17 +87,16 @@ every pod after the first Pending forever.
 {{- end }}
 
 {{/*
-The fs scan cache is one BoltDB file with an exclusive process lock, so a second
-concurrent scan in the same pod does not wait, it fails. Redis has no expiry at
-TTL 0, which grows the instance without bound.
+Keep one CLI worker per pod regardless of scan backend: local vulnerability
+databases still need isolation. Redis TTL must be positive.
 */}}
 {{- $cacheBackend := toString .Values.trivy.cacheBackend }}
 {{- if contains "+sentinel://" $cacheBackend }}
 {{- fail "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://." }}
 {{- end }}
 
-{{- if and (eq $cacheBackend "fs") (gt (int .Values.jobQueue.workerConcurrency) 1) }}
-{{- fail "jobQueue.workerConcurrency above 1 needs trivy.cacheBackend set to a redis:// URL or memory; the fs scan cache admits one scan at a time." }}
+{{- if ne (int .Values.jobQueue.workerConcurrency) 1 }}
+{{- fail "jobQueue.workerConcurrency must be 1; scale adapter replicas with separate database volumes and a dedicated Redis/Valkey scan cache." }}
 {{- end }}
 
 {{- if and (hasPrefix "redis" $cacheBackend) (regexMatch "^(0+(\\.0+)?(ns|us|ms|s|m|h)?)+$" (toString .Values.trivy.cacheTTL)) }}

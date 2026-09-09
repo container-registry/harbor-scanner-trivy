@@ -31,6 +31,10 @@ type controller struct {
 	transformer Transformer
 }
 
+// A storage interruption must leave the stream delivery pending for recovery,
+// rather than turn a successfully scanned image into a permanent failure.
+type persistenceError struct{ error }
+
 func NewController(store persistence.Store, wrapper trivy.Wrapper, transformer Transformer, recorders ...*metrics.Recorder) Controller {
 	return &controller{
 		metrics:     metrics.Optional(recorders),
@@ -46,9 +50,19 @@ func (c *controller) Scan(ctx context.Context, scanJobKey job.ScanJobKey, reques
 	processingErr := c.scan(ctx, scanJobKey, request, &stage)
 	defer func() { finish(processingErr == nil, stage, failureCategory(processingErr, stage)) }()
 	if err := processingErr; err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		var storeErr *persistenceError
+		if errors.As(err, &storeErr) {
+			return err
+		}
 		errMsg := err.Error()
 		var scanErr *trivy.ScanError
 		if errors.As(err, &scanErr) {
+			if scanErr.Category == trivy.ErrCategoryCache {
+				return err
+			}
 			slog.Error("Scan failed",
 				slog.String("category", string(scanErr.Category)),
 				slog.String("image_ref", scanErr.ImageRef),
@@ -80,7 +94,7 @@ func (c *controller) scan(ctx context.Context, scanJobKey job.ScanJobKey, req *h
 	*stage = "status"
 	err = c.store.UpdateStatus(ctx, scanJobKey, job.Pending)
 	if err != nil {
-		return xerrors.Errorf("updating scan job status: %w", err)
+		return &persistenceError{xerrors.Errorf("updating scan job status: %w", err)}
 	}
 
 	*stage = "target"
@@ -103,7 +117,8 @@ func (c *controller) scan(ctx context.Context, scanJobKey job.ScanJobKey, req *h
 
 	*stage = "scan"
 	scanReport, err := c.wrapper.Scan(ref, trivy.ScanOption{
-		Format: determineFormat(scanJobKey.MediaType),
+		Format:  determineFormat(scanJobKey.MediaType),
+		Context: ctx,
 	})
 	if err != nil {
 		return xerrors.Errorf("running trivy wrapper: %w", err)
@@ -113,12 +128,12 @@ func (c *controller) scan(ctx context.Context, scanJobKey job.ScanJobKey, req *h
 	harborScanReport := c.transformer.Transform(scanJobKey.MediaType, lo.FromPtr(req), scanReport)
 	*stage = "report"
 	if err = c.store.UpdateReport(ctx, scanJobKey, harborScanReport); err != nil {
-		return xerrors.Errorf("saving scan report: %w", err)
+		return &persistenceError{xerrors.Errorf("saving scan report: %w", err)}
 	}
 
 	*stage = "status"
 	if err = c.store.UpdateStatus(ctx, scanJobKey, job.Finished); err != nil {
-		return xerrors.Errorf("updating scan job status: %w", err)
+		return &persistenceError{xerrors.Errorf("updating scan job status: %w", err)}
 	}
 
 	return

@@ -329,9 +329,7 @@ the user claimed through .Values.config / .Values.secret.
   value: {{ .Values.trivy.cacheBackend | quote }}
 - name: SCANNER_TRIVY_CACHE_TTL
   value: {{ .Values.trivy.cacheTTL | quote }}
-- name: SCANNER_TRIVY_CACHE_MAX_SIZE
-  value: {{ .Values.trivy.cacheMaxSize | quote }}
-{{- if hasPrefix "redis" .Values.trivy.cacheBackend }}
+{{- if or (hasPrefix "redis" .Values.trivy.cacheBackend) .Values.trivy.cacheRedisTLS .Values.trivy.cacheRedisCACert .Values.trivy.cacheRedisCert .Values.trivy.cacheRedisKey }}
 - name: SCANNER_TRIVY_CACHE_REDIS_TLS
   value: {{ .Values.trivy.cacheRedisTLS | quote }}
 {{- with .Values.trivy.cacheRedisCACert }}
@@ -524,4 +522,3 @@ Shape is already guaranteed by values.schema.json, so this only sums the parts.
 {{- end -}}
 {{- $total -}}
 {{- end -}}
-

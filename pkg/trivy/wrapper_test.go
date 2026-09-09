@@ -1,10 +1,12 @@
 package trivy
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +21,60 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCacheConfigurationReachesTrivyWithoutCredentialsInArgs(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"TRIVY_CACHE_BACKEND=fs", "TRIVY_CACHE_TTL=0", "KEEP=yes"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	w := &wrapper{config: etc.Trivy{CacheBackend: "rediss://user:private@cache:6379/0", CacheTTL: 48 * time.Hour}, ambassador: ambassador}
+	cmd, err := w.prepareScanCmd(ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	require.NoError(t, err)
+	require.Contains(t, cmd.Env, "TRIVY_CACHE_BACKEND=redis://user:private@cache:6379/0")
+	require.Contains(t, cmd.Env, "TRIVY_REDIS_TLS=true")
+	require.Contains(t, cmd.Env, "TRIVY_CACHE_TTL=48h0m0s")
+	require.NotContains(t, cmd.Env, "TRIVY_CACHE_BACKEND=fs")
+	require.Contains(t, cmd.Env, "KEEP=yes")
+	require.NotContains(t, strings.Join(cmd.Args, " "), "private")
+	require.NotContains(t, w.redactCacheCredentials("dial rediss://user:private@cache:6379/0 failed: private"), "private")
+}
+
+func TestScanCommandStopsWhenWorkerContextIsCancelled(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "trivy")
+	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\nexec sleep 30\n"), 0o700))
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return(os.Environ())
+	ambassador.On("LookPath", "trivy").Return(binary, nil)
+	w := &wrapper{ambassador: ambassador}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cmd, err := w.prepareScanCmd(ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Context: ctx})
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	cancel()
+	select {
+	case err := <-done:
+		require.Error(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Trivy did not stop on cancellation")
+	}
+}
+
+func TestNormalizedTLSCacheURLDoesNotLeakEncodedPassword(t *testing.T) {
+	w := &wrapper{config: etc.Trivy{CacheBackend: "rediss://user:a%20b@cache:6379/0"}}
+	for _, diagnostic := range []string{
+		"dial redis://user:a%20b@cache:6379/0 failed",
+		"authentication failed for user:a%20b",
+		"password a%20b failed", "password a+b failed", "password a b failed",
+	} {
+		redacted := w.redactCacheCredentials(diagnostic)
+		for _, secret := range []string{"a%20b", "a+b", "a b"} {
+			require.NotContains(t, redacted, secret)
+		}
+	}
+}
 
 var (
 	expectedReportJSON = `{

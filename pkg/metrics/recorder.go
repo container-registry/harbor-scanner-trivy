@@ -25,7 +25,7 @@ var values = map[string][]string{
 	"outcome":    {"success", "failed", "error", "not_found", "not_applied", "other"},
 	"command":    {"image", "sbom", "version", "other"},
 	"stage":      {"status", "target", "auth", "scan", "transform", "report", "internal", "other"},
-	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "internal", "unknown", "other"},
+	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "internal", "unknown", "other"},
 	"encoding":   {"raw", "compressed", "other"},
 	"record":     {"job", "report", "other"},
 	"operation":  {"create", "status", "read", "report", "other"},
@@ -53,12 +53,16 @@ var (
 )
 
 var catalog = []definition{
+	{"scan_retries_total", "Attempts after interrupted execution or cache failure.", "counter", nil, nil},
+	{"lease_losses_total", "Failed lease renewals or lost ownership.", "counter", nil, nil},
+	{"queue_unacknowledged_jobs", "Shared unacknowledged stream length; use max across pods, not sum.", "gauge", nil, nil},
+	{"queue_oldest_age_seconds", "Age of oldest unacknowledged delivery; sampled between scans.", "gauge", nil, nil},
 	{"build_info", "Adapter and Trivy binary versions.", "gauge", []string{"adapter_version", "trivy_version"}, nil},
 	{"http_requests_total", "API requests by route template.", "counter", []string{"route", "method", "code"}, nil},
 	{"http_request_duration_seconds", "API handler duration.", "histogram", []string{"route", "method"}, prometheus.DefBuckets},
-	{"jobs_enqueued_total", "Successfully published tasks (including zero-subscriber publications).", "counter", []string{"capability", "format"}, nil},
+	{"jobs_enqueued_total", "Durably enqueued tasks.", "counter", []string{"capability", "format"}, nil},
 	{"job_dispatch_total", "Worker dispatch outcomes, including skipped locks.", "counter", []string{"result"}, nil},
-	{"publish_no_subscribers_total", "Publications reaching no subscribers.", "counter", nil, nil},
+	{"publish_no_subscribers_total", "Deprecated Pub/Sub metric; Streams do not require an online subscriber.", "counter", nil, nil},
 	{"job_attempts_total", "Terminal observed executions, not unique artifacts.", "counter", []string{"capability", "format", "outcome"}, nil},
 	{"job_failures_total", "Primary failures of controller executions.", "counter", []string{"stage", "category"}, nil},
 	{"job_duration_seconds", "Controller processing and persistence duration after lock acquisition.", "histogram", []string{"capability", "outcome"}, executionBuckets},

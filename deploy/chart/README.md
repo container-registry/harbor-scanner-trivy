@@ -10,7 +10,7 @@ the scanner behind Harbor's Interrogation Services.
 ## Prerequisites
 
 - Kubernetes >= 1.28
-- A Redis reachable from the cluster. Harbor's own Redis is the usual choice;
+- Redis >= 6.2 or compatible Valkey reachable from the cluster for jobs/reports. Harbor's own instance is the usual choice;
   give the adapter its own database number (Harbor uses `0`-`4`).
 - A Harbor >= 2.2 to register the scanner with.
 - A StorageClass, unless you set `persistence.enabled: false` and accept
@@ -37,6 +37,20 @@ http://harbor-scanner-trivy.harbor.svc:8080
 The defaults assume Harbor's own Redis at `redis://harbor-harbor-redis:6379`.
 Point `redis.url` at yours, or read the whole URL out of a Secret with
 `redis.existingSecret` (see [`example/external-redis/`](example/external-redis/)).
+
+## Scaling and upgrading
+
+Keep `jobQueue.workerConcurrency: 1`; larger values fail validation. Increase
+`replicaCount` and give each pod its own local database volume. For cache reuse,
+set `trivy.cacheBackend` to a **dedicated Redis/Valkey instance**, with a positive
+`trivy.cacheTTL` and an instance-level memory/eviction budget. Another logical
+DB on Harbor's instance cannot isolate that budget. `redis.url` remains the
+separate job/report connection.
+
+This version uses Redis Streams. Upgrades from Pub/Sub versions must stop scan
+submissions, drain existing scans, and replace all adapter pods before resuming.
+See the [scaling and migration guide](../../docs/SCALING.md) for Secret/TLS
+examples, recovery semantics, sizing, metrics, and rollback.
 
 ## What this chart gives you
 
@@ -129,10 +143,10 @@ hours. Two settings follow from that:
   point `trivy.dbRepository` at a mirror (`mirror.gcr.io/aquasec/trivy-db`, or
   your own - see [`example/air-gapped/`](example/air-gapped/)).
   `trivy.gitHubToken` does not help here; Trivy uses it only for VEX repositories.
-- **Raise memory before raising `jobQueue.workerConcurrency`.** Each concurrent
-  scan runs its own Trivy process with the DB loaded, so worker count multiplies
-  the memory footprint. `replicaCount` scales throughput the same way, at one
-  cache volume per replica.
+- **Size each pod for one scan, then increase `replicaCount`.** Keep
+  `jobQueue.workerConcurrency: 1`. Every pod runs its own Trivy process and
+  local databases, so replicas multiply CPU, memory and disk demand. Share
+  image/layer analysis through a dedicated Redis/Valkey cache instance.
 
 ## TLS
 
@@ -309,7 +323,7 @@ Kubernetes: `>=1.28.0-0`
 | imageCredentials.username | string | `""` | Registry username. |
 | initContainers | list | `[]` | Init containers, passed through `tpl`. |
 | jobQueue.redisNamespace | string | `"harbor.scanner.trivy:job-queue"` | Key namespace for the scan job queue. |
-| jobQueue.workerConcurrency | int | `1` | Workers per replica. Each concurrent scan runs its own Trivy process and holds the vulnerability DB in memory, so raise `resources` alongside this. Above 1 also requires `trivy.cacheBackend` to be Redis or `memory`: those processes cannot share the single-writer `fs` scan cache. |
+| jobQueue.workerConcurrency | int | `1` | Workers per replica. Must be 1 for every cache backend. Scale replicaCount with separate local database volumes and a dedicated shared Redis/Valkey cache. |
 | lifecycle | object | `{}` | Container lifecycle hooks. |
 | logLevel | string | `"info"` | Adapter log level: `trace`, `debug`, `info`, `warn`, `warning`, `error`. Anything unrecognized falls back to `info`. `debug` also turns on Trivy debug mode unless `trivy.debugMode` is set explicitly. |
 | metrics.collection.cacheSizeEnabled | bool | `false` | Opt in to bounded local cache footprint walks. Capacity/DB metrics do not require this. |
@@ -369,7 +383,7 @@ Kubernetes: `>=1.28.0-0`
 | redis.pool.writeTimeout | string | `"1s"` | Write timeout for a single command. |
 | redis.url | string | `"redis://harbor-harbor-redis:6379"` | Redis URL. Supports a standalone server (`redis://[:password@]host:port/db`) and Sentinel (`redis+sentinel://[:password@]host1:port1,host2:port2/monitor/db`). A password inlined here lands in the pod spec in clear text - use `existingSecret` instead. |
 | replicaCount | int | `1` | Number of adapter replicas. Each replica keeps its own Trivy DB cache volume; scale for scan throughput, not for availability of the API. |
-| resources | object | `{"limits":{"memory":"1Gi"},"requests":{"cpu":"200m","memory":"512Mi"}}` | Resource requests and limits. The defaults fit a single-worker adapter scanning ordinary images; raise memory before raising `jobQueue.workerConcurrency`, because each concurrent scan runs its own Trivy process holding the vulnerability DB in memory. |
+| resources | object | `{"limits":{"memory":"1Gi"},"requests":{"cpu":"200m","memory":"512Mi"}}` | Resource requests and limits. The defaults fit a single-worker adapter scanning ordinary images; raise memory before raising replica count, because each pod runs its own Trivy process holding the vulnerability DB in memory. |
 | revisionHistoryLimit | int | `10` | StatefulSet revision history retained for rollbacks. |
 | schedulerName | string | `""` | Alternative scheduler for the adapter pods. |
 | secret | object | `{}` | Same notation as `config`, rendered into a chart-managed Secret instead, so the values never appear in the pod spec. |
@@ -393,18 +407,18 @@ Kubernetes: `>=1.28.0-0`
 | statefulSetAnnotations | object | `{}` | Annotations on the StatefulSet object itself (not its pods). For controllers that key off the workload, such as Argo CD sync waves. Pod annotations are `podAnnotations`; annotations for every object are `commonAnnotations`. |
 | statefulSetSpecOverrides | object | `{}` | Deep-merged into the StatefulSet `.spec`, for fields the chart does not template (`minReadySeconds`, `persistentVolumeClaimRetentionPolicy`, `ordinals`). Yours wins on conflict. |
 | store.redisNamespace | string | `"harbor.scanner.trivy:data-store"` | Key namespace for scan jobs and reports. |
-| store.redisScanJobTTL | string | `2 * trivy.timeout + 3s` | TTL for persisted scan jobs and reports. |
-| terminationGracePeriodSeconds | int | `60` | Grace period for a terminating pod. An in-flight Trivy scan is bounded by `trivy.timeout`; a longer grace period lets it finish instead of being killed. |
+| store.redisScanJobTTL | string | `2 * trivy.timeout + 3s` | Retention of completed jobs and reports after acknowledgement. Queued and unacknowledged work does not expire; allow time for Harbor report polling. |
+| terminationGracePeriodSeconds | int | `60` | Grace period for HTTP shutdown and cancellation of an in-flight Trivy scan. Unacknowledged jobs remain in the stream for another pod to recover. |
 | tolerations | list | `[]` | Tolerations for pod assignment. |
 | topologySpreadConstraints | list | `[]` | Topology spread constraints. |
-| trivy.cacheBackend | string | `"fs"` | Where Trivy keeps its per-layer scan cache: `fs`, `memory`, or a `redis://` / `rediss://` URL. Requires an adapter that reads `SCANNER_TRIVY_CACHE_*`; older builds ignore these and always use `fs`, so keep `jobQueue.workerConcurrency` at 1 unless the running `appVersion` supports them. `fs` is a single BoltDB file that one process may open at a time, so `jobQueue.workerConcurrency` above 1 needs `memory` or Redis. Sentinel URLs are not accepted here; Trivy dials one node. |
+| trivy.cacheBackend | string | `"fs"` | Trivy image/layer analysis cache: `fs`, `memory`, or a `redis://` / `rediss://` URL. Use a dedicated Redis/Valkey instance for cache reuse across replicas; memory limits and eviction policies cannot be isolated by logical DB number. Credentials can override SCANNER_TRIVY_CACHE_BACKEND through secret or extraEnv. Sentinel URLs are not supported by Trivy's cache client. |
 | trivy.cacheDir | string | `"/home/scanner/.cache/trivy"` | Trivy cache directory. Must sit under the mounted cache volume. |
-| trivy.cacheMaxSize | string | `"3GiB"` | Size cap for the on-disk scan cache (`fs` only). The cache has no eviction and never shrinks, so once it is over the cap the adapter drops it whole, after the running scan. `0` disables the cap. Keep it under `persistence.size` minus the Trivy DBs (~1Gi) and the reports directory. |
+| trivy.cacheMaxSize | string | `"0"` | Deprecated: ignored. The adapter never implemented this filesystem size cap. Use a dedicated Redis/Valkey cache with an instance-level memory budget. |
 | trivy.cacheRedisCACert | string | `""` | CA certificate for a Redis scan cache, as a path inside the container; mount it with `extraVolumes`/`extraVolumeMounts`. CA, cert and key are required together. |
 | trivy.cacheRedisCert | string | `""` | Client certificate for a Redis scan cache (path inside the container). |
 | trivy.cacheRedisKey | string | `""` | Client private key for a Redis scan cache (path inside the container). |
 | trivy.cacheRedisTLS | bool | `false` | Use TLS with public certificates for a Redis scan cache. |
-| trivy.cacheTTL | string | `"168h"` | Expiry for Redis scan cache keys. Required with a Redis backend, where it is the only thing bounding the cache. Ignored by the other backends. |
+| trivy.cacheTTL | string | `"168h"` | TTL for Redis/Valkey analysis entries, set on writes (reads do not renew it). Must be positive; choose it above the rescan interval with margin. Configure instance-level maxmemory and eviction separately; TTL is not a capacity cap. |
 | trivy.dbRepository | string | `"ghcr.io/aquasecurity/trivy-db"` | OCI repository serving the Trivy vulnerability DB. |
 | trivy.debugMode | string | `true` when `logLevel` is `debug`/`trace`, `false` otherwise | Trivy debug mode. |
 | trivy.existingIgnorePolicyConfigMap | string | `""` | Existing ConfigMap holding the Rego policy. Wins over `ignorePolicy`. |

@@ -28,8 +28,26 @@ import (
 // A TTL of 0 must mean "no expiry", mirroring how go-redis treats a zero
 // expiration on SET (and how pre-split versions behaved).
 var (
+	acknowledgeScript = redis.NewScript(`
+		if redis.call('GET', KEYS[4]) ~= ARGV[1] then return 0 end
+		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+		redis.call('XACK', KEYS[3], ARGV[2], ARGV[3])
+		redis.call('XDEL', KEYS[3], ARGV[3])
+		local ttl = tonumber(ARGV[4])
+		if ttl > 0 then
+			redis.call('PEXPIRE', KEYS[1], ttl)
+			redis.call('PEXPIRE', KEYS[2], ttl)
+		end
+		redis.call('DEL', KEYS[4])
+		return 1`)
+	enqueueScript = redis.NewScript(`
+		if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+		redis.call('XADD', KEYS[2], '*', 'job', ARGV[2])
+		redis.call('SET', KEYS[1], ARGV[1])
+		return 1`)
 	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] job value, ARGV[2] TTL millis
 	updateJobScript = redis.NewScript(`
+		if ARGV[3] ~= '' and redis.call('GET', ARGV[3]) ~= ARGV[4] then return -1 end
 		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
 		local ttl = tonumber(ARGV[2])
 		if ttl == 0 then
@@ -43,6 +61,7 @@ var (
 
 	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] report value, ARGV[2] TTL millis
 	updateReportScript = redis.NewScript(`
+		if ARGV[3] ~= '' and redis.call('GET', ARGV[3]) ~= ARGV[4] then return -1 end
 		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
 		local ttl = tonumber(ARGV[2])
 		if ttl == 0 then
@@ -54,6 +73,53 @@ var (
 		end
 		return 1`)
 )
+
+func (s *store) Enqueue(ctx context.Context, scanJob job.ScanJob, stream string, payload []byte) (err error) {
+	result := "success"
+	defer s.operation("create", &err, &result)()
+	scanJob.Durable = true
+	value, rawSize, err := marshalSized(scanJob)
+	if err != nil {
+		return err
+	}
+	applied, err := enqueueScript.Run(ctx, s.rdb, []string{s.keyForScanJob(scanJob.Key), stream}, value, payload).Int()
+	if err != nil {
+		return err
+	}
+	if applied == 0 {
+		result = "not_applied"
+		return nil
+	}
+	s.written("job", rawSize, len(value))
+	return nil
+}
+
+// Acknowledge starts report retention only when delivery is retired. A crash
+// after storing the result but before XACK cannot expire the completion record
+// and cause a recovered delivery to repeat an already completed scan.
+func (s *store) Acknowledge(ctx context.Context, key job.ScanJobKey, stream, group, deliveryID string) error {
+	state, err := s.getJob(ctx, key)
+	if err != nil {
+		return err
+	}
+	if state == nil || (state.Status != job.Finished && state.Status != job.Failed) {
+		return xerrors.New("cannot acknowledge a non-terminal scan job")
+	}
+	lease := persistence.JobLease(ctx)
+	if lease.Key == "" {
+		return xerrors.New("acknowledgement requires job ownership")
+	}
+	ack, err := acknowledgeScript.Run(ctx, s.rdb,
+		[]string{s.keyForScanJob(key), s.keyForScanReport(key), stream, lease.Key},
+		lease.Token, group, deliveryID, s.ttlMillis()).Int()
+	if err != nil {
+		return err
+	}
+	if ack != 1 {
+		return xerrors.New("scan job ownership lost before acknowledgement")
+	}
+	return nil
+}
 
 type store struct {
 	metrics *metrics.Recorder
@@ -116,13 +182,20 @@ func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
 		slog.Duration("expire", s.cfg.ScanJobTTL),
 	)
 
+	lease := persistence.JobLease(ctx)
+	ttl := s.ttlMillis()
+	if scanJob.Durable {
+		ttl = 0
+	}
 	applied, err := updateJobScript.Run(ctx, s.rdb,
 		[]string{key, s.keyForScanReport(scanJob.Key)},
-		value, s.ttlMillis()).Int()
+		value, ttl, lease.Key, lease.Token).Int()
 	if err != nil {
 		return xerrors.Errorf("updating scan job: %w", err)
 	} else if applied == 0 {
 		return missingJob(scanJob.Key)
+	} else if applied == -1 {
+		return xerrors.New("scan job ownership lost")
 	}
 
 	s.written("job", rawSize, len(value))
@@ -206,6 +279,10 @@ func (s *store) UpdateStatus(ctx context.Context, scanJobKey job.ScanJobKey, new
 	}
 
 	scanJob.Status = newStatus
+	if scanJob.Durable && newStatus == job.Pending {
+		scanJob.Attempts++
+	}
+	scanJob.Error = ""
 	if len(messages) > 0 {
 		scanJob.Error = messages[0]
 	}
@@ -227,13 +304,27 @@ func (s *store) UpdateReport(ctx context.Context, scanJobKey job.ScanJobKey, rep
 		return xerrors.Errorf("marshaling scan report: %w", err)
 	}
 
+	state, err := s.getJob(ctx, scanJobKey)
+	if err != nil {
+		return err
+	}
+	if state == nil {
+		return xerrors.Errorf("scan job (%s) not found", scanJobKey)
+	}
+	ttl := s.ttlMillis()
+	if state.Durable {
+		ttl = 0
+	}
+	lease := persistence.JobLease(ctx)
 	applied, err := updateReportScript.Run(ctx, s.rdb,
 		[]string{s.keyForScanJob(scanJobKey), s.keyForScanReport(scanJobKey)},
-		value, s.ttlMillis()).Int()
+		value, ttl, lease.Key, lease.Token).Int()
 	if err != nil {
 		return xerrors.Errorf("updating scan report: %w", err)
 	} else if applied == 0 {
 		return missingJob(scanJobKey)
+	} else if applied == -1 {
+		return xerrors.New("scan job ownership lost")
 	}
 
 	s.written("report", rawSize, len(value))

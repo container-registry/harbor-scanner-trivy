@@ -143,8 +143,7 @@ tests:
       jobQueue.workerConcurrency: 4
     asserts:
       - failedTemplate:
-          errorMessage: "jobQueue.workerConcurrency above 1 needs trivy.cacheBackend set to a redis:// URL or memory; the fs scan cache admits one scan at a time."
-
+          errorMessage: "jobQueue.workerConcurrency must be 1; scale adapter replicas with separate database volumes and a dedicated Redis/Valkey scan cache."
   - it: refuses a Redis cache whose keys never expire
     set:
       trivy.cacheBackend: redis://scan-cache:6379/0
@@ -263,3 +262,11 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "flatten to the same environment variable name"
+
+  - it: rejects several workers even with a shared Redis cache
+    set:
+      trivy.cacheBackend: redis://scan-cache:6379/0
+      jobQueue.workerConcurrency: 4
+    asserts:
+      - failedTemplate:
+          errorMessage: "jobQueue.workerConcurrency must be 1; scale adapter replicas with separate database volumes and a dedicated Redis/Valkey scan cache."

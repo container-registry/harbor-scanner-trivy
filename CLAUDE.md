@@ -45,8 +45,8 @@ go test -v -tags=integration -run TestName ./test/integration/...
 ## Architecture
 
 **Request flow:**
-1. `POST /api/v1/scan` -> API handler validates request -> Enqueuer creates job in Redis (status: Queued) -> returns 202 with job ID
-2. Worker (subscribes to Redis Pub/Sub channel) picks up job -> Controller executes Trivy CLI as subprocess -> transforms JSON output to Harbor report format -> stores result in Redis
+1. `POST /api/v1/scan` -> API handler validates request -> Enqueuer atomically creates queued state and a Redis Stream delivery -> returns 202 with job ID
+2. One worker per pod claims a stream delivery with a renewable lease -> Controller executes Trivy CLI as a cancellable subprocess -> transforms JSON output to Harbor report format -> stores result in Redis -> acknowledges delivery and starts report retention
 3. `GET /api/v1/scan/{id}/report` -> returns 302 (still processing) or the finished report
 
 **Key packages:**
@@ -54,8 +54,8 @@ go test -v -tags=integration -run TestName ./test/integration/...
 - `pkg/http/api/v1/` -- HTTP handler implementing Harbor scanner adapter API (scan, report, metadata, probes)
 - `pkg/scan/` -- controller (orchestrates scan execution) and transformer (Trivy output -> Harbor report)
 - `pkg/trivy/` -- wrapper around Trivy CLI (`trivy image` subprocess), model types for Trivy JSON output
-- `pkg/queue/` -- Redis Pub/Sub job queue: enqueuer submits jobs, worker processes them with distributed locking
-- `pkg/persistence/redis/` -- stores scan jobs and reports in Redis with configurable TTL
+- `pkg/queue/` -- Redis Streams consumer group, renewable fenced ownership and recovery; requires Redis 6.2+ or compatible Valkey
+- `pkg/persistence/redis/` -- atomic enqueue/acknowledgement and fenced job/report writes; queued work persists, completed reports have a configurable TTL
 - `pkg/etc/` -- configuration via environment variables (all prefixed `SCANNER_`), parsed with `caarlos0/env/v6`
 - `pkg/harbor/` -- Harbor domain models (ScanRequest, ScanReport, Severity, etc.)
 - `pkg/mock/` -- testify mocks for interfaces
@@ -75,7 +75,8 @@ go test -v -tags=integration -run TestName ./test/integration/...
 
 - The binary shells out to the `trivy` CLI rather than using Trivy as a library. The Trivy binary must be available in PATH (the Docker image inherits from `aquasec/trivy`).
 - All configuration is via environment variables prefixed with `SCANNER_`. No config files.
-- Redis is the sole persistence and job queue backend (Pub/Sub for queue, key-value for job state).
+- Redis is the sole persistence and job queue backend (Streams for queue, key-value for job state). Delivery is at least once; never trim unacknowledged jobs or evict operational keys. Drain before upgrading from Pub/Sub releases (see docs/SCALING.md).
+- Scale with one worker per pod, separate writable local DB volumes, and a dedicated shared Redis/Valkey analysis-cache instance. The adapter forwards `SCANNER_TRIVY_CACHE_*` to Trivy; Redis cache credentials go through the child environment, never command arguments. This cache connection is separate from the job/report connection.
 - `go.mod` has a `replace` directive: `google/go-containerregistry` is replaced with a fork (`knqyf263/go-containerregistry`) for custom registry auth handling.
 - Version info (`version`, `commit`, `date`) is injected via ldflags at build time by `task build`.
 - The chart generates nothing at render time (no `randAlphaNum`), so GitOps

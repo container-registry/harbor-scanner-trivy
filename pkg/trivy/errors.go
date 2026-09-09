@@ -16,6 +16,7 @@ const (
 	ErrCategoryNetwork     ScanErrorCategory = "network"
 	ErrCategoryTimeout     ScanErrorCategory = "timeout"
 	ErrCategoryReportParse ScanErrorCategory = "report_parse"
+	ErrCategoryCache       ScanErrorCategory = "cache"
 )
 
 // ScanError provides structured context about scan failures.

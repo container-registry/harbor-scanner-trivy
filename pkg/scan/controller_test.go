@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
@@ -14,6 +16,42 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/mock"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 )
+
+func TestStorageInterruptionLeavesScanRecoverable(t *testing.T) {
+	for _, stage := range []string{"pending", "report", "finished"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx := context.Background()
+			key := job.ScanJobKey{ID: "retry", MIMEType: api.MimeTypeSecurityVulnerabilityReport}
+			s := mock.NewStore()
+			w := trivy.NewMockWrapper()
+			transformer := mock.NewTransformer()
+			outage := fmt.Errorf("temporary store outage")
+			var pendingErr, reportErr, finishedErr error
+			switch stage {
+			case "pending":
+				pendingErr = outage
+			case "report":
+				reportErr = outage
+			case "finished":
+				finishedErr = outage
+			}
+			s.On("UpdateStatus", ctx, key, job.Pending, []string(nil)).Return(pendingErr).Once()
+			if stage != "pending" {
+				w.On("Scan", testifymock.Anything, testifymock.Anything).Return(trivy.Report{}, nil).Once()
+				transformer.On("Transform", testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(harbor.ScanReport{}).Once()
+				s.On("UpdateReport", ctx, key, harbor.ScanReport{}).Return(reportErr).Once()
+				if stage == "finished" {
+					s.On("UpdateStatus", ctx, key, job.Finished, []string(nil)).Return(finishedErr).Once()
+				}
+			}
+			req := &harbor.ScanRequest{Registry: harbor.Registry{URL: "https://registry.example.com"}, Artifact: harbor.Artifact{Repository: "alpine", Digest: "sha256:123"}}
+			err := NewController(s, w, transformer).Scan(ctx, key, req)
+			require.ErrorContains(t, err, outage.Error())
+			s.AssertExpectations(t)
+			w.AssertExpectations(t)
+		})
+	}
+}
 
 var capabilities = []harbor.Capability{
 	{
@@ -101,7 +139,7 @@ func TestController_Scan(t *testing.T) {
 						},
 						NonSSL: false,
 					},
-					trivy.ScanOption{Format: "json"},
+					trivy.ScanOption{Format: "json", Context: ctx},
 				},
 				ReturnArgs: []interface{}{
 					trivyReport,
@@ -175,7 +213,7 @@ func TestController_Scan(t *testing.T) {
 						},
 						NonSSL: false,
 					},
-					trivy.ScanOption{Format: "json"},
+					trivy.ScanOption{Format: "json", Context: ctx},
 				},
 				ReturnArgs: []interface{}{
 					trivy.Report{},

@@ -1,6 +1,7 @@
 package trivy
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"log/slog"
@@ -59,7 +60,7 @@ type ScanTarget struct {
 	fromAccessory bool   // SBOM discovered via referrers, not sent by Harbor
 }
 
-func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, useSBOMAccessory bool, recorders ...*metrics.Recorder) (ScanTarget, error) {
+func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, useSBOMAccessory bool, recorders ...*metrics.Recorder) (ScanTarget, error) {
 	recorder := metrics.Optional(recorders)
 	var nameOpts []name.Option
 	slog.Debug("newTarget",
@@ -98,8 +99,12 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: config.Insecure}
 	trOpt := remote.WithTransport(tr)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctxOpt := remote.WithContext(ctx)
 
-	img, err := ambassador.RemoteImage(ref, authOpt, trOpt)
+	img, err := ambassador.RemoteImage(ref, authOpt, trOpt, ctxOpt)
 	if err != nil {
 		return ScanTarget{}, &ScanError{
 			Category: classifyRemoteError(err),
@@ -150,7 +155,7 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 		}
 	default:
 		if useSBOMAccessory {
-			if sbomImg, ok := findSBOMAccessoryObserved(ref, img, ambassador, recorder, authOpt, trOpt); ok {
+			if sbomImg, ok := findSBOMAccessoryObserved(ref, img, ambassador, recorder, authOpt, trOpt, ctxOpt); ok {
 				filePath, err := downloadSBOM(sbomImg, config.CacheDir, ambassador)
 				if err == nil {
 					target.kind = TargetSBOM

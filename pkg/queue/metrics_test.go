@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ type countingController struct{ count int }
 
 func (c *countingController) Scan(context.Context, job.ScanJobKey, *harbor.ScanRequest) error {
 	c.count++
-	return nil
+	return errors.New("interrupted scan")
 }
 
 func metricCount(t *testing.T, r *metrics.Recorder, suffix, label, value string) float64 {
@@ -60,15 +61,20 @@ func TestDispatchCountsOnlyAcquiredLocksAndKnownWaits(t *testing.T) {
 	defer rdb.Close()
 	r := metrics.New(true)
 	controller := &countingController{}
-	w := NewWorker(etc.JobQueue{Namespace: "test", WorkerConcurrency: 1}, rdb, controller, r).(*worker)
+	store := storepkg.NewStore(etc.RedisStore{Namespace: "test", ScanJobTTL: time.Minute}, rdb, r)
+	w := NewWorker(etc.JobQueue{Namespace: "test", WorkerConcurrency: 1}, rdb, controller, store, r).(*streamWorker)
 	j := Job{Key: job.ScanJobKey{ID: "id", MIMEType: api.MimeTypeSecurityVulnerabilityReport}, Args: Args{ScanRequest: &harbor.ScanRequest{}}, EnqueuedAt: time.Now().Add(-time.Second)}
 	run := func(j Job) {
+		require.NoError(t, store.Create(context.Background(), job.ScanJob{Key: j.Key}))
 		b, err := json.Marshal(j)
 		require.NoError(t, err)
-		require.NoError(t, w.scanArtifact(context.Background(), &redis.Message{Payload: string(b)}))
+		require.ErrorContains(t, w.process(context.Background(), redis.XMessage{ID: j.Key.ID, Values: map[string]interface{}{"job": string(b)}}), "interrupted scan")
 	}
 	run(j)
-	run(j)
+	b, err := json.Marshal(j)
+	require.NoError(t, err)
+	require.NoError(t, rdb.Set(context.Background(), w.stream+":lease:id", "another-worker", time.Minute).Err())
+	require.NoError(t, w.process(context.Background(), redis.XMessage{ID: "id", Values: map[string]interface{}{"job": string(b)}}))
 	require.Equal(t, 1, controller.count)
 	require.Equal(t, float64(1), metricCount(t, r, "job_dispatch_total", "result", "lock_busy"))
 	require.Equal(t, float64(1), metricCount(t, r, "queue_wait_duration_seconds", "", ""))
@@ -79,15 +85,15 @@ func TestDispatchCountsOnlyAcquiredLocksAndKnownWaits(t *testing.T) {
 	j.EnqueuedAt = time.Now().Add(time.Hour)
 	run(j)
 	require.Equal(t, float64(1), metricCount(t, r, "queue_wait_duration_seconds", "", ""))
-	require.Error(t, w.scanArtifact(context.Background(), &redis.Message{Payload: "{}"}))
-	require.Error(t, w.scanArtifact(context.Background(), &redis.Message{Payload: "invalid JSON"}))
+	require.Error(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "{}"}}))
+	require.Error(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "invalid JSON"}}))
 	require.Equal(t, float64(2), metricCount(t, r, "job_dispatch_total", "result", "decode_error"))
 	s.Close()
-	require.Error(t, w.scanArtifact(context.Background(), &redis.Message{Payload: `{"Args":{"ScanRequest":{}}}`}))
+	require.Error(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": `{"Args":{"ScanRequest":{}}}`}}))
 	require.Equal(t, float64(1), metricCount(t, r, "job_dispatch_total", "result", "lock_error"))
 }
 
-func TestEnqueueFanoutAndNoSubscribers(t *testing.T) {
+func TestEnqueueFanoutWithoutOnlineWorkers(t *testing.T) {
 	s := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
 	defer rdb.Close()
@@ -100,6 +106,7 @@ func TestEnqueueFanoutAndNoSubscribers(t *testing.T) {
 	}})
 	require.NoError(t, err)
 	require.Equal(t, float64(3), metricCount(t, r, "jobs_enqueued_total", "", ""))
-	require.Equal(t, float64(3), metricCount(t, r, "publish_no_subscribers_total", "", ""))
+	require.EqualValues(t, 3, rdb.XLen(context.Background(), redisJobStream("test")).Val())
+	require.Zero(t, metricCount(t, r, "publish_no_subscribers_total", "", ""))
 	require.Zero(t, metricCount(t, r, "job_attempts_total", "", ""))
 }

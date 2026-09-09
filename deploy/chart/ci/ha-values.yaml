@@ -4,11 +4,11 @@ replicaCount: 3
 podManagementPolicy: Parallel
 
 jobQueue:
-  workerConcurrency: 4
+  workerConcurrency: 1
 
-# Several replicas, each running several scans, cannot share one BoltDB file.
-# The Redis scan cache is what makes workerConcurrency above 1 possible, and the
-# TTL is what keeps it from growing without bound.
+# One worker per pod with its own local databases; share layer analysis through
+# a dedicated Redis/Valkey instance. Configure that instance's memory budget and
+# eviction policy independently of Harbor's operational Redis/Valkey.
 trivy:
   cacheBackend: redis://harbor-scan-cache:6379/0
   cacheTTL: 168h

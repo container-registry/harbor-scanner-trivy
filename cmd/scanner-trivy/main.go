@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
@@ -63,6 +64,13 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	if err != nil {
 		return fmt.Errorf("constructing connection pool: %w", err)
 	}
+	defer rdb.Close()
+	checkCtx, cancelCheck := context.WithTimeout(ctx, 5*time.Second)
+	err = queue.CheckBackend(checkCtx, rdb)
+	cancelCheck()
+	if err != nil {
+		return err
+	}
 
 	recorder := metrics.New(config.API.MetricsEnabled)
 	recorder.RegisterRedis(rdb)
@@ -73,7 +81,7 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	store := redis.NewStore(config.RedisStore, rdb, recorder)
 	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}), recorder)
 	enqueuer := queue.NewEnqueuer(config.JobQueue, rdb, store, recorder)
-	worker := queue.NewWorker(config.JobQueue, rdb, controller, recorder)
+	worker := queue.NewWorker(config.JobQueue, rdb, controller, store, recorder)
 
 	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, recorder)
 	apiServer, err := api.NewServer(config.API, apiHandler)

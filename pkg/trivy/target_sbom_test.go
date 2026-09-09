@@ -1,6 +1,7 @@
 package trivy
 
 import (
+	"context"
 	"errors"
 	"net/http/httptest"
 	"os"
@@ -176,7 +177,7 @@ func TestNewTarget_SBOMAccessory(t *testing.T) {
 	}
 
 	t.Run("uses SBOM accessory when enabled", func(t *testing.T) {
-		target, err := newTarget(imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, true)
+		target, err := newTarget(context.Background(), imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, true)
 		require.NoError(t, err)
 		require.Equal(t, TargetSBOM, target.kind)
 		require.True(t, target.fromAccessory)
@@ -188,7 +189,7 @@ func TestNewTarget_SBOMAccessory(t *testing.T) {
 	})
 
 	t.Run("scans image when disabled", func(t *testing.T) {
-		target, err := newTarget(imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, false)
+		target, err := newTarget(context.Background(), imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, false)
 		require.NoError(t, err)
 		require.Equal(t, TargetImage, target.kind)
 		require.False(t, target.fromAccessory)
@@ -201,7 +202,7 @@ func TestNewTarget_SBOMAccessory(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, remote.Write(repo.Digest(plainDigest.String()), plain))
 
-		target, err := newTarget(ImageRef{
+		target, err := newTarget(context.Background(), ImageRef{
 			Name:   repo.String() + "@" + plainDigest.String(),
 			Auth:   NoAuth{},
 			NonSSL: true,

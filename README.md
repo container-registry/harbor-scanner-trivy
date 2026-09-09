@@ -186,6 +186,12 @@ Everything is configured through environment variables at startup. No config fil
 | Name | Default | Description |
 |------|---------|-------------|
 | `SCANNER_TRIVY_CACHE_DIR` | `/home/scanner/.cache/trivy` | Trivy cache directory |
+| `SCANNER_TRIVY_CACHE_BACKEND` | `fs` | Analysis cache: `fs`, `memory`, `redis://` or `rediss://` URL. For multiple pods, use a dedicated Redis/Valkey instance; supply credentials through a Secret |
+| `SCANNER_TRIVY_CACHE_TTL` | `168h` | Positive Redis/Valkey cache retention, set on writes; reads do not renew it |
+| `SCANNER_TRIVY_CACHE_REDIS_TLS` | `false` | Enable Redis TLS with system trust roots; `rediss://` also enables TLS |
+| `SCANNER_TRIVY_CACHE_REDIS_CA` | N/A | Mounted cache CA certificate; CA, client certificate and key must be supplied together |
+| `SCANNER_TRIVY_CACHE_REDIS_CERT` | N/A | Mounted cache client certificate |
+| `SCANNER_TRIVY_CACHE_REDIS_KEY` | N/A | Mounted cache client private key |
 | `SCANNER_TRIVY_REPORTS_DIR` | `/home/scanner/.cache/reports` | Trivy reports directory |
 | `SCANNER_TRIVY_DEBUG_MODE` | `false` | Enable Trivy debug mode |
 | `SCANNER_TRIVY_VULN_TYPE` | `os,library` | Comma-separated vulnerability types: `os`, `library` |
@@ -210,9 +216,47 @@ Everything is configured through environment variables at startup. No config fil
 | Name | Default | Description |
 |------|---------|-------------|
 | `SCANNER_STORE_REDIS_NAMESPACE` | `harbor.scanner.trivy:data-store` | Key namespace for the Redis store |
-| `SCANNER_STORE_REDIS_SCAN_JOB_TTL` | 2x `SCANNER_TRIVY_TIMEOUT` + 3s | TTL for scan jobs and their reports. Derived from the Trivy timeout when unset; must outlive the longest scan or the report expires before Harbor fetches it |
+| `SCANNER_STORE_REDIS_SCAN_JOB_TTL` | 2x `SCANNER_TRIVY_TIMEOUT` + 3s | Retention of completed jobs and reports after acknowledgement. Queued and unacknowledged work does not expire. Allow enough time for Harbor to fetch reports |
 | `SCANNER_JOB_QUEUE_REDIS_NAMESPACE` | `harbor.scanner.trivy:job-queue` | Key namespace for the Redis-backed job queue |
-| `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY` | `1` | Number of workers processing the scan job queue |
+| `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY` | `1` | Workers per adapter pod. Keep this at `1`; do not increase it to scale throughput. See [Scaling scan throughput](#scaling-scan-throughput) |
+
+### Scaling scan throughput
+
+**Keep `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY=1`. Do not set it above `1`.** Each worker starts a separate Trivy
+process, and processes in the same pod share a cache directory. The default `fanal.db` scan cache uses BoltDB
+file locking, so concurrent scans can fail while opening the cache. Moving the scan cache to Redis does not move
+the local vulnerability databases or coordinate their updates. See [Trivy's database and cache lock guidance].
+
+Scale throughput by adding adapter **pods**, with one worker and a separate local database volume per pod. For
+cache reuse across pods, connect them to a **dedicated Redis/Valkey instance** for Trivy's image and layer analysis
+cache. Keep the adapter's job state, locks, and reports on their existing connection (`SCANNER_REDIS_URL`).
+
+Use a separate instance, not another logical database number in Harbor's Redis/Valkey. `maxmemory` and the eviction
+policy apply to the whole instance, so a logical database cannot provide an independent cache memory budget or
+protect Harbor's operational data from eviction. Configure the dedicated instance's memory budget and eviction
+policy, and set a positive Trivy cache TTL based on the rescan interval. See [Valkey key eviction].
+
+The adapter validates these settings and forwards them to Trivy. Unsupported worker counts fail at startup
+and during Helm rendering. Use the `SCANNER_TRIVY_CACHE_*` settings; they take precedence over inherited native
+`TRIVY_*` cache settings. Startup logs show the effective backend type and TTL without the cache URL.
+
+```yaml
+replicaCount: 2
+jobQueue:
+  workerConcurrency: 1
+trivy:
+  cacheBackend: redis://dedicated-scan-cache:6379/0
+  cacheTTL: 168h
+```
+
+The job backend now uses Redis Streams with acknowledgement and recovery, requiring Redis **6.2+** or compatible
+Valkey. **Upgrades from Pub/Sub releases require draining scans before replacing all adapter pods.** Read the
+[scaling deployment and migration guide](docs/SCALING.md) for Secret/TLS configuration, memory sizing, recovery,
+metrics, test results, and rollback steps. The chart's deprecated `trivy.cacheMaxSize` is ignored; it never
+enforced a filesystem size limit.
+
+[Trivy's database and cache lock guidance]: https://trivy.dev/docs/latest/references/troubleshooting/#database-and-cache-lock-errors
+[Valkey key eviction]: https://valkey.io/topics/lru-cache/
 
 ### Redis connection
 

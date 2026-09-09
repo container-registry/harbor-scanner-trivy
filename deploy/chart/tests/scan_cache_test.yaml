@@ -8,18 +8,37 @@ release:
 templates:
   - statefulset.yaml
 tests:
-  - it: defaults to a size-capped fs cache
+  - it: retains TLS options when the backend URL is overridden by a Secret
+    set:
+      trivy.cacheRedisTLS: true
+      extraEnv:
+        - name: SCANNER_TRIVY_CACHE_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: analysis-cache
+              key: url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_REDIS_TLS
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            valueFrom:
+              secretKeyRef:
+                name: analysis-cache
+                key: url
+
+  - it: defaults to a filesystem cache without claiming a size cap
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: SCANNER_TRIVY_CACHE_BACKEND
             value: "fs"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SCANNER_TRIVY_CACHE_MAX_SIZE
-            value: "3GiB"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -34,11 +53,11 @@ tests:
             name: SCANNER_TRIVY_CACHE_REDIS_TLS
             value: "false"
 
-  - it: allows the cap to be disabled
+  - it: does not emit the deprecated unsupported filesystem cap
     set:
       trivy.cacheMaxSize: "0"
     asserts:
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: SCANNER_TRIVY_CACHE_MAX_SIZE
@@ -94,13 +113,16 @@ tests:
             name: SCANNER_TRIVY_CACHE_REDIS_KEY
             value: /certs/tls.key
 
-  - it: lets several workers share a Redis cache
+  - it: lets separate pods share an analysis cache
     set:
+      replicaCount: 3
       trivy.cacheBackend: redis://scan-cache:6379/0
-      jobQueue.workerConcurrency: 4
     asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: SCANNER_JOB_QUEUE_WORKER_CONCURRENCY
-            value: "4"
+            value: "1"

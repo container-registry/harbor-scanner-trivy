@@ -114,11 +114,11 @@ def check(values):
         replicas = int(get(values, "autoscaling.minReplicas", 1))
     else:
         replicas = int(get(values, "replicaCount", 1))
-    if backend in ("", "fs") and workers > 1:
+    if workers != 1:
         error(
             "jobQueue.workerConcurrency",
-            f"{workers} workers share one fs scan cache, which only one process "
-            "may open. Use trivy.cacheBackend memory or a redis:// URL.",
+            f"{workers} workers are unsupported. Keep 1 worker per pod and scale "
+            "replicas with a dedicated Redis/Valkey scan cache.",
         )
 
     # Without a volume the DB is re-downloaded on every restart.
