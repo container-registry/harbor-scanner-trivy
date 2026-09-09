@@ -2119,7 +2119,7 @@
     {
       "id": 30,
       "type": "row",
-      "title": "Database",
+      "title": "Trivy vulnerability DB and Java index",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -2128,13 +2128,13 @@
         "h": 1
       },
       "panels": [],
-      "description": "Local database freshness and update policy per replica. The vulnerability DB supplies vulnerability records; the Java DB identifies Java packages."
+      "description": "Downloaded vulnerability records and the Java package index, per replica. Local scan-analysis cache usage is shown under Cache and storage."
     },
     {
       "id": 31,
-      "title": "Database age",
+      "title": "Trivy database content age",
       "type": "timeseries",
-      "description": "Time since the installed database content was built. If age keeps increasing during active scanning, check update policy and database download errors on the affected replica.",
+      "description": "Age of the downloaded vulnerability DB and Java package index content. If age grows during active scanning, check update policy and download errors.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2165,7 +2165,32 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 vulnerability$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 java$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Java package index \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -2198,9 +2223,9 @@
     },
     {
       "id": 32,
-      "title": "Database presence",
+      "title": "Trivy database availability",
       "type": "state-timeline",
-      "description": "Availability of each replica\u2019s local database. A missing vulnerability DB prevents vulnerability scanning; Java DB may be absent until Java analysis needs it.",
+      "description": "Local vulnerability DB and Java package index availability. Java index absence can be normal until Java analysis needs it.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2238,7 +2263,32 @@
             "spanNulls": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 vulnerability$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 java$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Java package index \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "mergeValues": true,
@@ -2271,9 +2321,9 @@
     },
     {
       "id": 33,
-      "title": "Next database update",
+      "title": "Next Trivy database update",
       "type": "timeseries",
-      "description": "Time until the installed database becomes eligible for an update; negative means its metadata timestamp has passed. Trivy checks updates when invoked, subject to policy and download throttling.",
+      "description": "Time until the downloaded vulnerability DB or Java index is eligible for an update. Negative means due; downloads depend on Trivy invocation and update policy.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2304,7 +2354,32 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 vulnerability$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 java$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Java package index \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -2337,9 +2412,9 @@
     },
     {
       "id": 34,
-      "title": "Automatic updates enabled",
+      "title": "Automatic database updates",
       "type": "state-timeline",
-      "description": "Whether automatic database downloads are enabled. Check this when database content stays old. Offline-scan alone does not disable database downloads.",
+      "description": "Whether Trivy may update its vulnerability DB and Java package index. Check when content stays old; offline-scan alone does not disable downloads.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2377,7 +2452,32 @@
             "spanNulls": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 vulnerability$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 java$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Java package index \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "mergeValues": true,
@@ -2410,9 +2510,9 @@
     },
     {
       "id": 35,
-      "title": "Metadata collection status",
+      "title": "Trivy metadata collection",
       "type": "state-timeline",
-      "description": "Latest metadata collection result. On failure, check version discovery and database metadata access. Database presence is reported separately.",
+      "description": "Collection health for Trivy version and downloaded database metadata. On failure, check version discovery and metadata-file access.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2483,9 +2583,9 @@
     },
     {
       "id": 36,
-      "title": "Metadata snapshot age",
+      "title": "Trivy metadata snapshot age",
       "type": "timeseries",
-      "description": "Time since the last successful metadata collection. Growth beyond the collection interval indicates stale monitoring data; check collection status and adapter logs.",
+      "description": "Time since Trivy version and database metadata were successfully collected. Growth beyond the collection interval indicates stale monitoring data.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2563,9 +2663,9 @@
     },
     {
       "id": 38,
-      "title": "Local cache footprint",
+      "title": "Local analysis cache and database sizes",
       "type": "timeseries",
-      "description": "Local analysis-cache and database file sizes per replica. Requires metrics.collection.cacheSizeEnabled; disabled by default. Missing directories or incomplete collection omit values. Redis cache memory is excluded.",
+      "description": "Local BoltDB analysis cache, vulnerability DB, and Java index sizes. Requires metrics.collection.cacheSizeEnabled. Missing paths or failed collection omit values; Redis cache memory is excluded.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2596,7 +2696,44 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 vulnerability_db$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 java_db$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Java package index \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* \u00b7 analysis$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Analysis cache (BoltDB) \u00b7 ${__field.labels.pod}"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
