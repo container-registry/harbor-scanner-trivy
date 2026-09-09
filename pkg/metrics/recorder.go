@@ -160,7 +160,10 @@ func New(enabled bool) *Recorder {
 			r.Add("store_bytes_written_total", 0, record, encoding)
 		}
 	}
-	for _, op := range []string{"create", "read", "report", "status"} {
+	for _, op := range values["operation"] {
+		if op == "other" {
+			continue
+		}
 		for _, outcome := range []string{"success", "error", "not_found", "not_applied"} {
 			r.Add("store_operations_total", 0, op, outcome)
 		}

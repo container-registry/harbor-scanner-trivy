@@ -42,8 +42,12 @@ var (
 		return 1`)
 	enqueueScript = redis.NewScript(`
 		if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
-		redis.call('XADD', KEYS[2], '*', 'job', ARGV[2])
-		redis.call('SET', KEYS[1], ARGV[1])
+		local delivery = redis.call('XADD', KEYS[2], '*', 'job', ARGV[2])
+		local stored = redis.pcall('SET', KEYS[1], ARGV[1])
+		if type(stored) == 'table' and stored.err then
+			redis.call('XDEL', KEYS[2], delivery)
+			return redis.error_reply(stored.err)
+		end
 		return 1`)
 	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] job value, ARGV[2] TTL millis
 	updateJobScript = redis.NewScript(`

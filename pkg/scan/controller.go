@@ -35,6 +35,8 @@ type controller struct {
 // rather than turn a successfully scanned image into a permanent failure.
 type persistenceError struct{ error }
 
+func (e *persistenceError) Unwrap() error { return e.error }
+
 func NewController(store persistence.Store, wrapper trivy.Wrapper, transformer Transformer, recorders ...*metrics.Recorder) Controller {
 	return &controller{
 		metrics:     metrics.Optional(recorders),

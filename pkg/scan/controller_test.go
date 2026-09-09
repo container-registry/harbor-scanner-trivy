@@ -47,8 +47,10 @@ func TestStorageInterruptionLeavesScanRecoverable(t *testing.T) {
 			req := &harbor.ScanRequest{Registry: harbor.Registry{URL: "https://registry.example.com"}, Artifact: harbor.Artifact{Repository: "alpine", Digest: "sha256:123"}}
 			err := NewController(s, w, transformer).Scan(ctx, key, req)
 			require.ErrorContains(t, err, outage.Error())
+			require.ErrorIs(t, err, outage)
 			s.AssertExpectations(t)
 			w.AssertExpectations(t)
+			transformer.AssertExpectations(t)
 		})
 	}
 }

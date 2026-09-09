@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +24,44 @@ import (
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+func TestEnqueueDoesNotLeaveDeliveryWhenMetadataWriteIsRejected(t *testing.T) {
+	ctx := context.Background()
+	server, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
+		ContainerRequest: tc.ContainerRequest{
+			Image: "valkey/valkey:8.1", ExposedPorts: []string{"6379/tcp"},
+			WaitingFor: wait.ForLog("Ready to accept connections"),
+		},
+		Started: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = server.Terminate(ctx) })
+	address := getRedisURL(t, ctx, server)
+	admin, err := redisx.NewClient(etc.RedisPool{URL: address})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	require.NoError(t, admin.Do(ctx, "ACL", "SETUSER", "enqueue-writer", "on", ">fixture-password", "~*", "+@all", "-set").Err())
+	client, err := redisx.NewClient(etc.RedisPool{URL: strings.Replace(address, "redis://", "redis://enqueue-writer:fixture-password@", 1)})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	require.Equal(t, "enqueue-writer", client.Do(ctx, "ACL", "WHOAMI").Val())
+	store := redis.NewStore(etc.RedisStore{Namespace: "enqueue-rejection"}, client)
+	key := job.ScanJobKey{ID: "accepted-only-together", MIMEType: api.MimeTypeSecurityVulnerabilityReport}
+	queued := job.ScanJob{Key: key, Status: job.Queued}
+	const stream = "enqueue-rejection:stream"
+	require.Error(t, store.Enqueue(ctx, queued, stream, []byte("delivery")))
+	require.Zero(t, admin.XLen(ctx, stream).Val())
+	state, err := store.Get(ctx, key)
+	require.NoError(t, err)
+	require.Nil(t, state)
+	require.NoError(t, admin.Do(ctx, "ACL", "SETUSER", "enqueue-writer", "+set").Err())
+	require.NoError(t, store.Enqueue(ctx, queued, stream, []byte("delivery")))
+	require.EqualValues(t, 1, admin.XLen(ctx, stream).Val())
+	state, err = store.Get(ctx, key)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	require.True(t, state.Durable)
+}
 
 // TestStore is an integration test for the Redis persistence store.
 func TestStore(t *testing.T) {
