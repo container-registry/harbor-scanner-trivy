@@ -5,7 +5,7 @@ description: A production-ready Helm chart for the Harbor Scanner Adapter for
   Trivy - the vulnerability and SBOM scanner behind Harbor's Interrogation
   Services.
 type: application
-version: 1.0.1
+version: 1.0.2
 # appVersion tracks the adapter release; the app release-please line rewrites
 # this line, the chart release-please line rewrites `version` above.
 appVersion: "v0.40.1" # x-release-please-version
