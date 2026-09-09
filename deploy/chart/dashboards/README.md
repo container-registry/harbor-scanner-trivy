@@ -79,9 +79,9 @@ investigation. Database availability and update policy use current-status cards
 per replica. Missing vulnerability data is red; an absent Java index is neutral.
 Unavailable metrics or failed scrapes produce **Unknown**, not a healthy state.
 Collection health and OOM termination history retain named states.
-Status timelines sit in the left column; metadata collection matches the size of
-the neighboring metadata snapshot-age panel. Each database
-row places all five cards side by side: availability, update policy, content age,
+Status timelines sit in the left column; metadata collection uses a quarter of
+the row width and matches the neighboring snapshot-age panel's height. Each database
+row places all five cards side by side at the standard panel height: availability, update policy, content age,
 last database download, and next update check. Green means healthy or present,
 blue means enabled, red marks failures, and gray marks neutral or unknown states.
 

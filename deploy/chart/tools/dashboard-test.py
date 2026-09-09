@@ -147,12 +147,12 @@ class DashboardTest(unittest.TestCase):
                 self.assertEqual((panel["gridPos"]["w"], panel["gridPos"]["h"]),
                                  (6, 7 if panel["id"] == 60 else 3))
                 self.assertEqual(panel["gridPos"]["x"], 0)
-        for pid in (35, 36):
-            self.assertEqual((panels[pid]["gridPos"]["w"], panels[pid]["gridPos"]["h"]), (12, 7))
+        for pid, width in ((35, 6), (36, 18)):
+            self.assertEqual((panels[pid]["gridPos"]["w"], panels[pid]["gridPos"]["h"]), (width, 7))
         for ids in ((32, 34, 31, 92, 33), (70, 72, 69, 93, 71)):
             positions = [panels[pid]["gridPos"] for pid in ids]
             self.assertEqual(len({p["y"] for p in positions}), 1)
-            self.assertEqual([p["h"] for p in positions], [3] * 5)
+            self.assertEqual([p["h"] for p in positions], [7] * 5)
             self.assertEqual(positions[0]["x"], 0)
             self.assertEqual(sum(p["w"] for p in positions), 24)
             for left, right in zip(positions, positions[1:]):
