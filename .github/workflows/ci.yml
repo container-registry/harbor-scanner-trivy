@@ -142,11 +142,14 @@ jobs:
         run: task vuln-report
 
       # Fork pull requests get a read-only token, so commenting would only
-      # produce a confusing failure.
+      # produce a confusing failure. A broken scan reports zero fixable
+      # findings, which would delete a comment that is still accurate.
+      # Not a separate job: the sticky comment needs this job's report files.
       - name: Update pull request comment
         if: >-
           github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          steps.report.outputs.scanner-error != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
