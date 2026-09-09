@@ -6,7 +6,7 @@
     {
       "customType": "regex",
       "description": "Pins in versions.env annotated with a `# renovate:` comment",
-      "fileMatch": ["^versions\\.env$"],
+      "managerFilePatterns": ["/(^|/)versions\\.env$/"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+?)(?: versioning=(?<versioning>\\S+?))?(?: extractVersion=(?<extractVersion>\\S+?))?\\n[A-Z0-9_]+=(?<currentValue>\\S+)"
       ]
