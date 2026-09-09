@@ -3,7 +3,7 @@ module github.com/container-registry/harbor-scanner-trivy
 go 1.26.6
 
 require (
-	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/aquasecurity/bolt-fixtures v0.0.0-20200903104109-d34e7f983986
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/google/go-containerregistry v0.14.0
