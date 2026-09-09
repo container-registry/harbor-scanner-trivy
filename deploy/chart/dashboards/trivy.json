@@ -324,7 +324,7 @@
     },
     {
       "id": 5,
-      "title": "Completed executions",
+      "title": "Completed executions in selected range",
       "type": "stat",
       "description": "Successful adapter task executions in the selected range. Reports containing vulnerabilities count as successful; rescans, retries, and separate tasks count individually.",
       "datasource": {
@@ -379,7 +379,7 @@
     },
     {
       "id": 6,
-      "title": "Failed executions",
+      "title": "Failed executions in selected range",
       "type": "stat",
       "description": "Failed adapter task executions in the selected range. Investigate Failure categories and Scanner errors; vulnerability findings do not count as failures.",
       "datasource": {
