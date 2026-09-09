@@ -334,7 +334,7 @@ Kubernetes: `>=1.28.0-0`
 | initContainers | list | `[]` | Init containers, passed through `tpl`. |
 | jobQueue.redisNamespace | string | `"harbor.scanner.trivy:job-queue"` | Key namespace for the scan job queue. |
 | jobQueue.workerConcurrency | int | `1` | Workers per replica. Must be 1 for every cache backend. Scale replicaCount with separate local database volumes and a dedicated shared Redis/Valkey cache. |
-| lifecycle | object | `{}` | Container lifecycle hooks. |
+| lifecycle | object | `{}` | Container lifecycle hooks. Unless a custom `preStop` is supplied, the chart keeps HTTP serving for 10 seconds before SIGTERM while Kubernetes removes the terminating endpoint. Custom `preStop` hooks replace this default; use `preStop: null` to disable it. Leave enough termination grace for both the hook and scan cancellation. |
 | logLevel | string | `"info"` | Adapter log level: `trace`, `debug`, `info`, `warn`, `warning`, `error`. Anything unrecognized falls back to `info`. `debug` also turns on Trivy debug mode unless `trivy.debugMode` is set explicitly. |
 | metrics.collection.cacheSizeEnabled | bool | `false` | Opt in to bounded local cache footprint walks. Capacity/DB metrics do not require this. |
 | metrics.collection.intervalSeconds | int | `60` | Background sampling interval in seconds; scraping never initiates collection. |

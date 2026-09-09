@@ -167,6 +167,12 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                     name: harbor-scanner-trivy-env
               image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy@sha256:0000000000000000000000000000000000000000000000000000000000000000
               imagePullPolicy: IfNotPresent
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                      - /bin/sleep
+                      - "10"
               livenessProbe:
                 failureThreshold: 10
                 httpGet:
@@ -402,6 +408,12 @@ matches the default render:
                   value: 1s
               image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v9.9.9-test
               imagePullPolicy: IfNotPresent
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                      - /bin/sleep
+                      - "10"
               livenessProbe:
                 failureThreshold: 10
                 httpGet:
@@ -619,6 +631,12 @@ matches the multi-replica render:
                   value: 1s
               image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v9.9.9-test
               imagePullPolicy: IfNotPresent
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                      - /bin/sleep
+                      - "10"
               livenessProbe:
                 failureThreshold: 10
                 httpGet:

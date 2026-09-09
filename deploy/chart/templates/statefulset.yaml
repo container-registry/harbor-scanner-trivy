@@ -119,7 +119,15 @@ spec:
           readinessProbe:
             {{- include "harbor-scanner-trivy.probe" (dict "root" $ "probe" .) | nindent 12 }}
           {{- end }}
-          {{- with .Values.lifecycle }}
+          {{- $lifecycle := deepCopy .Values.lifecycle }}
+          {{- /* EndpointSlice/kube-proxy updates lag termination. Keep HTTP alive
+                before SIGTERM so Harbor report polls avoid a refused connection. */}}
+          {{- if not (hasKey $lifecycle "preStop") }}
+          {{- $_ := set $lifecycle "preStop" (dict "exec" (dict "command" (list "/bin/sleep" "10"))) }}
+          {{- else if not (get $lifecycle "preStop") }}
+          {{- $_ := unset $lifecycle "preStop" }}
+          {{- end }}
+          {{- with $lifecycle }}
           lifecycle:
             {{- toYaml . | nindent 12 }}
           {{- end }}

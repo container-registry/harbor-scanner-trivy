@@ -580,7 +580,11 @@ extraVolumeMounts: []
 initContainers: []
 # -- Sidecar containers, passed through `tpl`.
 sidecars: []
-# -- Container lifecycle hooks.
+# -- Container lifecycle hooks. Unless a custom `preStop` is supplied, the chart
+# keeps HTTP serving for 10 seconds before SIGTERM while Kubernetes removes the
+# terminating endpoint. Custom `preStop` hooks replace this default; use
+# `preStop: null` to disable it. Leave enough termination grace for both the hook
+# and scan cancellation.
 lifecycle: {}
 
 # -- Deep-merged into the StatefulSet `.spec`, for fields the chart does not
