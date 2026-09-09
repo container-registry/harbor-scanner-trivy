@@ -225,10 +225,32 @@ metrics:
   # -- Serve Prometheus metrics on `/metrics` of the API port
   # (`SCANNER_API_SERVER_METRICS_ENABLED`).
   enabled: true
+  collection:
+    # -- Background sampling interval in seconds; scraping never initiates collection.
+    intervalSeconds: 60
+    # -- Version-command deadline/cache-walk budget in seconds; at most the interval.
+    timeoutSeconds: 5
+    # -- Opt in to bounded local cache footprint walks. Capacity/DB metrics do not require this.
+    cacheSizeEnabled: false
+    # -- Maximum entries visited per cache sample, shared across cache directories.
+    maxCacheFiles: 10000
+  grafanaDashboard:
+    # -- Provision the canonical operational dashboard as a ConfigMap. Enable on only one release per Grafana organization.
+    enabled: false
+    # -- Dashboard ConfigMap namespace. Defaults to the release namespace; Grafana's sidecar must watch it.
+    namespace: ""
+    # -- Labels selected by Grafana's dashboard sidecar.
+    labels:
+      grafana_dashboard: "1"
+    # -- Sidecar annotations; configure Grafana's folderAnnotation to use grafana_folder if desired.
+    annotations:
+      grafana_folder: Harbor
   serviceMonitor:
     # -- Create a Prometheus Operator ServiceMonitor. Requires the
     # `monitoring.coreos.com/v1` CRD.
     enabled: false
+    # -- Optional cluster label attached at scrape time. Set a unique cluster name unless your query datasource already supplies this label.
+    cluster: ""
     # -- Namespace for the ServiceMonitor. Defaults to the release namespace.
     namespace: ""
     # -- Extra labels, e.g. the `release` label your Prometheus selects on.

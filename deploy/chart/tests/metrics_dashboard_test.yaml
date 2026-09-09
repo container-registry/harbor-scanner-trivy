@@ -1,0 +1,119 @@
+---
+suite: metrics and dashboard
+release:
+  name: t
+  namespace: harbor
+tests:
+  - it: does not provision a dashboard by default
+    templates: [grafana-dashboard.yaml]
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: provisions the canonical dashboard in the configured namespace
+    templates: [grafana-dashboard.yaml]
+    set:
+      metrics.grafanaDashboard.enabled: true
+      metrics.grafanaDashboard.namespace: monitoring
+      metrics.grafanaDashboard.labels.team: operations
+      metrics.grafanaDashboard.annotations.grafana_folder: Scanners
+      commonAnnotations.owner: platform
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+      - equal:
+          path: metadata.labels.grafana_dashboard
+          value: "1"
+      - equal:
+          path: metadata.labels.team
+          value: operations
+      - equal:
+          path: metadata.annotations.grafana_folder
+          value: Scanners
+      - equal:
+          path: metadata.annotations.owner
+          value: platform
+      - matchRegex:
+          path: data["harbor-trivy-scanner.json"]
+          pattern: '"uid": "harbor-trivy-scanner"'
+      - matchRegex:
+          path: data["harbor-trivy-scanner.json"]
+          pattern: '\{\{pod\}\}'
+
+  - it: sets safe collection defaults
+    templates: [statefulset.yaml]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_COLLECTION_INTERVAL, value: "60s"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_COLLECTION_TIMEOUT, value: "5s"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_CACHE_SIZE_ENABLED, value: "false"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_CACHE_MAX_FILES, value: "10000"}
+
+  - it: accepts bounded collection overrides
+    templates: [statefulset.yaml]
+    set:
+      metrics.collection:
+        intervalSeconds: 120
+        timeoutSeconds: 10
+        cacheSizeEnabled: true
+        maxCacheFiles: 20000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_COLLECTION_INTERVAL, value: "120s"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_COLLECTION_TIMEOUT, value: "10s"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_CACHE_SIZE_ENABLED, value: "true"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SCANNER_METRICS_CACHE_MAX_FILES, value: "20000"}
+
+  - it: rejects a timeout exceeding the interval
+    templates: [validate-values.yaml]
+    set:
+      metrics.collection.intervalSeconds: 5
+      metrics.collection.timeoutSeconds: 10
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.collection.timeoutSeconds must not exceed intervalSeconds.
+
+  - it: adds scanner identity before user relabelings without inventing a cluster
+    templates: [servicemonitor.yaml]
+    set:
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.relabelings:
+        - targetLabel: team
+          replacement: platform
+    asserts:
+      - equal:
+          path: spec.endpoints[0].relabelings
+          value:
+            - sourceLabels: [__meta_kubernetes_service_name]
+              targetLabel: scanner
+            - targetLabel: team
+              replacement: platform
+
+  - it: adds an explicit cluster identity
+    templates: [servicemonitor.yaml]
+    set:
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.cluster: production-eu
+    asserts:
+      - equal:
+          path: spec.endpoints[0].relabelings[1]
+          value:
+            targetLabel: cluster
+            replacement: production-eu

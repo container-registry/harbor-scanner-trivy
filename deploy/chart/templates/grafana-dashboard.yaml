@@ -1,0 +1,19 @@
+{{- if .Values.metrics.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "harbor-scanner-trivy.fullname" . }}-dashboard
+  namespace: {{ .Values.metrics.grafanaDashboard.namespace | default (include "harbor-scanner-trivy.namespace" .) }}
+  labels:
+    {{- include "harbor-scanner-trivy.labels" . | nindent 4 }}
+    {{- with .Values.metrics.grafanaDashboard.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with (include "harbor-scanner-trivy.annotations" (dict "root" . "local" .Values.metrics.grafanaDashboard.annotations)) }}
+  annotations:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+data:
+  harbor-trivy-scanner.json: |
+    {{- .Files.Get "dashboards/trivy.json" | nindent 4 }}
+{{- end }}

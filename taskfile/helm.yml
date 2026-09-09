@@ -208,6 +208,7 @@ tasks:
         ignore_error: true
       - diff -u tests/tools/drift-report.txt tests/tools/.drift.gen.txt
       - cmd: python3 tools/schema-drift.py tests/tools/drift-values.yaml tests/tools/drift-schema.json >/dev/null 2>&1 && exit 1 || true
+      - python3 tools/dashboard-test.py
       - echo "chart tooling golden tests PASS"
 
   tools:update:

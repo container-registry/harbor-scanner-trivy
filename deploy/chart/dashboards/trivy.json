@@ -1,0 +1,3966 @@
+{
+  "uid": "harbor-trivy-scanner",
+  "title": "Harbor Trivy Scanner",
+  "description": "Operational health, performance and capacity of one Harbor Trivy scanner installation. Security findings remain in Harbor.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": [
+    "harbor",
+    "trivy",
+    "operations"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "cluster",
+        "label": "Cluster",
+        "description": "One cluster. Supply a unique cluster scrape label; external labels are only usable if present in this query datasource.",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(up{scanner!=\"\"}, cluster)",
+          "refId": "cluster"
+        },
+        "definition": "label_values(up{scanner!=\"\"}, cluster)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "description": "One namespace in the selected cluster.",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(up{cluster=~\"${cluster:regex}\",scanner!=\"\"}, namespace)",
+          "refId": "namespace"
+        },
+        "definition": "label_values(up{cluster=~\"${cluster:regex}\",scanner!=\"\"}, namespace)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "scanner",
+        "label": "Scanner",
+        "description": "One stable scanner service/deployment; its replicas are aggregated.",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner!=\"\"}, scanner)",
+          "refId": "scanner"
+        },
+        "definition": "label_values(up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner!=\"\"}, scanner)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "redis_service",
+        "label": "Redis service (optional)",
+        "description": "Exporter service label for the Redis instance used by this scanner. Blank disables its memory panel; shared Redis includes other workloads.",
+        "type": "textbox",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "query": "",
+        "options": []
+      },
+      {
+        "name": "loki",
+        "label": "Logs source (optional)",
+        "type": "datasource",
+        "query": "loki",
+        "refresh": 1,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "scanner_pods",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}, pod)",
+          "refId": "scanner_pods"
+        },
+        "definition": "label_values(up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}, pod)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "options": [],
+        "description": "Internal expansion of only the selected scanner pods; no wildcard allValue."
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Overview",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 2,
+      "title": "Reachable replicas",
+      "type": "stat",
+      "description": "Prometheus scrape availability. A healthy endpoint does not prove scans complete.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})",
+          "legendFormat": "Reachable replicas",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Instrumented replicas",
+      "type": "stat",
+      "description": "Zero with reachable targets means this adapter version lacks operational metrics. If selectors are empty, configure cluster/namespace/scanner scrape labels.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(harbor_scanner_trivy_worker_concurrency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) or vector(0)",
+          "legendFormat": "Instrumented replicas",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Active workers",
+      "type": "stat",
+      "description": "Executions after lock acquisition, summed across selected scanner replicas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(harbor_scanner_trivy_jobs_in_progress{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})",
+          "legendFormat": "Active workers",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Completed executions",
+      "type": "stat",
+      "description": "Successful controller executions during the selected time range; retries/rescans count again.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(harbor_scanner_trivy_job_attempts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",outcome=\"success\"}[$__range]))",
+          "legendFormat": "Success",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Failed executions",
+      "type": "stat",
+      "description": "Original execution failures, not the count of report polls returning an error.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(harbor_scanner_trivy_job_attempts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",outcome=\"failed\"}[$__range]))",
+          "legendFormat": "Failed",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Since last success",
+      "type": "stat",
+      "description": "No observations until this process has completed a successful scan. Idle scanners need not have a recent success.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time()-max(harbor_scanner_trivy_last_scan_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})",
+          "legendFormat": "Since last success",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Adapter and engine versions",
+      "type": "table",
+      "description": "Actual binary versions; a missing engine version is unknown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_build_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "cluster": true,
+              "namespace": true,
+              "scanner": true,
+              "job": true,
+              "instance": true,
+              "endpoint": true,
+              "service": true,
+              "container": true
+            },
+            "renameByName": {
+              "adapter_version": "Adapter",
+              "trivy_version": "Trivy",
+              "pod": "Replica"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "About this dashboard",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Scanner operations for one selected installation. **Runtime includes the Trivy child workload.** Vulnerability findings remain in Harbor.\n\nEmpty selectors require `cluster`, `namespace`, and `scanner` labels. A reachable target with zero instrumented replicas needs an adapter with operational metrics. Optional infrastructure, cache size, Redis-server and Loki panels show no observations when their sources are unavailable. [Setup and metric semantics](https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/dashboards/README.md)."
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Runtime",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 11,
+      "title": "Pod CPU",
+      "type": "timeseries",
+      "description": "Requires cAdvisor and matching cluster/namespace/pod labels. Includes child processes and any sidecars. No data is not zero usage.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pod) ((max by (cluster,namespace,pod,container) (rate(container_cpu_usage_seconds_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container!=\"\",container!=\"POD\",image!=\"\"}[$__rate_interval]))) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Pod memory and limits",
+      "type": "timeseries",
+      "description": "Working set includes Trivy children; limits include all pod containers. Missing limits are not unlimited capacity measurements.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 10,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pod) ((max by (cluster,namespace,pod,container) (container_memory_working_set_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container!=\"\",container!=\"POD\",image!=\"\"})) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))",
+          "legendFormat": "{{pod}} usage",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (pod) ((max by (cluster,namespace,pod,container) (kube_pod_container_resource_limits{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",resource=\"memory\",unit=\"byte\"})) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))",
+          "legendFormat": "{{pod}} limit",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "CPU throttling",
+      "type": "timeseries",
+      "description": "Throttled scheduling periods / total periods. Requires cAdvisor.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 10,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pod) ((max by (cluster,namespace,pod,container) (rate(container_cpu_cfs_throttled_periods_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container!=\"\",container!=\"POD\"}[$__rate_interval]))) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"})) / sum by (pod) ((max by (cluster,namespace,pod,container) (rate(container_cpu_cfs_periods_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",container!=\"\",container!=\"POD\"}[$__rate_interval]))) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Container restarts",
+      "type": "timeseries",
+      "description": "Restarts during the selected range, across selected scanner pod containers.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pod) ((max by (cluster,namespace,pod,container) (increase(kube_pod_container_status_restarts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\"}[$__range]))) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Child peak RSS (p95)",
+      "type": "timeseries",
+      "description": "Completed child peak RSS. Not live memory, total concurrent-child memory or container peak. No sample if the adapter cannot observe termination.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 17,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,command) (rate(harbor_scanner_trivy_subprocess_max_rss_bytes_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{command}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "title": "Last container termination was OOM",
+      "type": "timeseries",
+      "description": "Optional kube-state-metrics evidence of the last termination reason, not an OOM event counter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 17,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (pod,container) ((kube_pod_container_status_last_terminated_reason{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",reason=\"OOMKilled\"}) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))",
+          "legendFormat": "{{pod}} \u00b7 {{container}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "Scanning and workers",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 18,
+      "title": "Execution throughput",
+      "type": "timeseries",
+      "description": "Terminal executions per second; multiple tasks and retries are separate observations.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(harbor_scanner_trivy_job_attempts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Execution latency (p95)",
+      "type": "timeseries",
+      "description": "Controller processing after lock acquisition, including persistence and recovered fallback. Successful and failed populations stay separate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 25,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,outcome) (rate(harbor_scanner_trivy_job_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{outcome}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Adapter queue wait (p95)",
+      "type": "timeseries",
+      "description": "Adapter enqueue to acquired lock; excludes Harbor scheduling. Old messages without timestamps are omitted.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 25,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,capability) (rate(harbor_scanner_trivy_queue_wait_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{capability}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Worker utilization",
+      "type": "timeseries",
+      "description": "Per-replica active workers divided by configured capacity.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_jobs_in_progress{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / harbor_scanner_trivy_worker_concurrency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Oldest running execution",
+      "type": "timeseries",
+      "description": "Zero while idle. Compare against the CLI timeout; the entire job can include preparation/fallback/persistence.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 32,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_oldest_running_job_age_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "title": "Failure categories",
+      "type": "timeseries",
+      "description": "Primary execution failures. Child-output classification is heuristic; inspect logs for details.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 32,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage,category) (rate(harbor_scanner_trivy_job_failures_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{stage}} \u00b7 {{category}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "title": "Dispatch outcomes",
+      "type": "timeseries",
+      "description": "Lock contention is a skipped duplicate delivery, not a failed scan. Decode/lock errors prevent execution.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(harbor_scanner_trivy_job_dispatch_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{result}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "title": "Trivy child duration (p95)",
+      "type": "timeseries",
+      "description": "Each image, SBOM or metadata/version child attempt. These are not Trivy-internal phase timings.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 39,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,command,outcome) (rate(harbor_scanner_trivy_subprocess_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{command}} \u00b7 {{outcome}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "title": "SBOM reuse and fallback",
+      "type": "timeseries",
+      "description": "Lookup, reuse and fallback events can overlap within one job. Does not measure time saved.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 39,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (event) (rate(harbor_scanner_trivy_sbom_accessory_events_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{event}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "title": "Publications with no subscribers",
+      "type": "timeseries",
+      "description": "Redis accepted these messages with no subscriber. Pub/Sub is not a durable queue.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(harbor_scanner_trivy_publish_no_subscribers_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "Publications with no subscribers",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "title": "Child termination reasons",
+      "type": "timeseries",
+      "description": "A signal is not proof of OOM; use container termination evidence.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 46,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (command,reason) (rate(harbor_scanner_trivy_subprocess_exits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{command}} \u00b7 {{reason}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "title": "Configured CLI timeout",
+      "type": "timeseries",
+      "description": "Configured CLI timeout; worker lock lifetime and total job duration are different concepts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 46,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(harbor_scanner_trivy_scan_timeout_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})",
+          "legendFormat": "Timeout",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Database",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 53,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 31,
+      "title": "Database age",
+      "type": "timeseries",
+      "description": "Content build age per database and replica. A newer replica must not hide an older one.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "title": "Database presence",
+      "type": "timeseries",
+      "description": "1 means file plus parseable metadata present, not DB integrity. Java DB may legitimately be absent until needed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 54,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "title": "Next database update",
+      "type": "timeseries",
+      "description": "Seconds until the advertised update time; negative means past that timestamp. Interpret with update policy.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 54,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}-time()",
+          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "title": "Automatic updates enabled",
+      "type": "timeseries",
+      "description": "1 enables updates; 0 reflects the effective skip-update flag. Offline-scan alone does not disable DB downloads.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 61,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{database}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "title": "Metadata collection status",
+      "type": "timeseries",
+      "description": "1 means the latest version/metadata refresh succeeded. Missing DB is reported separately.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 61,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_metadata_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "title": "Metadata snapshot age",
+      "type": "timeseries",
+      "description": "Age since last successful refresh, not since database publication.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 61,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time()-harbor_scanner_trivy_metadata_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "type": "row",
+      "title": "Cache and storage",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 38,
+      "title": "Local cache footprint",
+      "type": "timeseries",
+      "description": "Opt in with metrics.collection.cacheSizeEnabled. Logical file sizes for known local layout; unsupported, absent or over-budget collection is not zero.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 69,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_cache_size_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{kind}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "title": "Filesystem utilization",
+      "type": "timeseries",
+      "description": "Cache and report paths can share a filesystem. Do not sum areas or replicas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 69,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1-(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / harbor_scanner_trivy_storage_capacity_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})",
+          "legendFormat": "{{pod}} \u00b7 {{area}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "title": "Available filesystem space",
+      "type": "timeseries",
+      "description": "Space available to the scanner; cache growth can prevent report creation even with healthy probes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 69,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{area}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "title": "Available inodes",
+      "type": "timeseries",
+      "description": "Only where inode accounting is meaningful. A filesystem can run out of inodes before bytes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 76,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_storage_inodes_available{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{area}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "title": "Estimated time to full",
+      "type": "timeseries",
+      "description": "Estimate from declining available space over six hours, with at least 60 samples. Resizes/cleanup/nonlinear growth affect it; no result without a decreasing trend.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 76,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / -deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h])) and (deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) < 0) and (count_over_time(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) >= 60)",
+          "legendFormat": "{{pod}} \u00b7 {{area}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "title": "Storage collection status",
+      "type": "timeseries",
+      "description": "1 means latest collection succeeded. Cache walks are optional; missing collector series can be disabled.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 76,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{collector}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "type": "row",
+      "title": "Reports and persistence",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 83,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 45,
+      "title": "Report size (p95)",
+      "type": "timeseries",
+      "description": "Matched raw/compressed report write observations. Compare sums, not percentiles, for compression ratio.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 84,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,format,encoding) (rate(harbor_scanner_trivy_report_size_bytes_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{encoding}} \u00b7 {{format}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "title": "Compression ratio",
+      "type": "timeseries",
+      "description": "Raw bytes divided by compressed bytes for matched applied report writes. Higher means greater compression.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 84,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(harbor_scanner_trivy_report_size_bytes_sum{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",encoding=\"raw\"}[$__rate_interval])) / sum(rate(harbor_scanner_trivy_report_size_bytes_sum{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",encoding=\"compressed\"}[$__rate_interval]))",
+          "legendFormat": "Raw / compressed",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "title": "Applied payload write rate",
+      "type": "timeseries",
+      "description": "Confirmed job/report writes. Uncompressed equivalent and compressed payload are separate. This is not resident Redis memory.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 84,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (record,encoding) (rate(harbor_scanner_trivy_store_bytes_written_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{record}} \u00b7 {{encoding}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "title": "Report fetch outcomes",
+      "type": "timeseries",
+      "description": "Polls are independent of scan executions. Not found can mean expiry or unknown ID.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 91,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(harbor_scanner_trivy_report_fetch_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{result}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "title": "Successful report fetch age (p95)",
+      "type": "timeseries",
+      "description": "Time since persisted completion for available reports. Not remaining TTL; missing reports have no age sample.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 91,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,format) (rate(harbor_scanner_trivy_report_fetch_age_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{format}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "title": "Effective report retention TTL",
+      "type": "timeseries",
+      "description": "Refreshed by writes. Do not infer Redis memory from write rate \u00d7 TTL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 91,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_scan_job_ttl_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "title": "Store operation outcomes",
+      "type": "timeseries",
+      "description": "Includes failed, missing and unapplied operations; only applied writes count payload bytes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 98,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation,outcome) (rate(harbor_scanner_trivy_store_operations_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}} \u00b7 {{operation}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "title": "Store latency (p95)",
+      "type": "timeseries",
+      "description": "Logical store operation duration, including failures. Not Trivy analysis-cache access.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 98,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,operation) (rate(harbor_scanner_trivy_store_operation_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{operation}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "title": "Redis pool connections",
+      "type": "timeseries",
+      "description": "Total includes idle. Pool connection reuse is not an analysis-cache hit.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 98,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_scanner_trivy_redis_pool_connections{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}} \u00b7 {{state}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "title": "Redis pool timeouts",
+      "type": "timeseries",
+      "description": "Pool wait timeouts; sustained timeouts can prevent progress.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 105,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(harbor_scanner_trivy_redis_pool_timeouts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "Redis pool timeouts",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "title": "Average pool wait",
+      "type": "timeseries",
+      "description": "Accumulated waiting duration divided by number of waits; no observations when no waits occurred.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 105,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(harbor_scanner_trivy_redis_pool_wait_duration_seconds_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])) / sum(rate(harbor_scanner_trivy_redis_pool_waits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "Average pool wait",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "title": "Redis server memory (optional)",
+      "type": "timeseries",
+      "description": "Set Redis service to the actual exporter target service. Includes other users when Redis is shared; not attributable solely to scanner reports.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 105,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "type": "row",
+      "title": "API",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 112,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 58,
+      "title": "API request rate",
+      "type": "timeseries",
+      "description": "Route templates only; probes and metrics scrapes are excluded.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 113,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route,code) (rate(harbor_scanner_trivy_http_requests_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} \u00b7 {{code}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "title": "API latency (p95)",
+      "type": "timeseries",
+      "description": "HTTP request time, not scan duration.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 113,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(.95, sum by (le,route) (rate(harbor_scanner_trivy_http_request_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{route}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Adapter Go heap",
+      "type": "timeseries",
+      "description": "Adapter heap only; does not include the Trivy subprocess.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 113,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "go_memstats_heap_alloc_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "type": "row",
+      "title": "Harbor scheduling context (optional)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 120,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 62,
+      "title": "Harbor scan queue size",
+      "type": "timeseries",
+      "description": "Harbor jobservice queue across the selected namespace. Not scoped to one scanner registration; shown as upstream context.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 121,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_task_queue_size{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "title": "Harbor scan queue latency",
+      "type": "timeseries",
+      "description": "Age of the next Harbor job. This is not adapter queue wait or CLI time.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 121,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "harbor_task_queue_latency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "title": "Harbor scan job outcomes",
+      "type": "timeseries",
+      "description": "Harbor-side outcomes for the installation. Includes orchestration/polling; may include other registered scanners.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 121,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(harbor_jobservice_task_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "type": "row",
+      "title": "Logs (optional)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 128,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": ""
+    },
+    {
+      "id": 66,
+      "type": "logs",
+      "title": "Scanner logs",
+      "description": "Requires Loki labels cluster, namespace and pod matching Prometheus discovery. Hidden scanner_pods expands only pods of the selected scanner. Redis/registry IDs are retained in log messages, not metric labels.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 129,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod!=\"\",pod=~\"${scanner_pods:regex}\"}",
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 67,
+      "type": "logs",
+      "title": "Scanner errors",
+      "description": "Requires Loki labels cluster, namespace and pod matching Prometheus discovery. Hidden scanner_pods expands only pods of the selected scanner. Redis/registry IDs are retained in log messages, not metric labels.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 129,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",pod!=\"\",pod=~\"${scanner_pods:regex}\"} |~ \"(?i)error|fatal|panic\"",
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "Dashboard setup",
+      "type": "link",
+      "url": "https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/dashboards/README.md",
+      "targetBlank": true
+    }
+  ]
+}
