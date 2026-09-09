@@ -13,6 +13,7 @@ import (
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 )
 
 type Format string
@@ -55,12 +56,14 @@ type Wrapper interface {
 }
 
 type wrapper struct {
+	metrics    *metrics.Recorder
 	config     etc.Trivy
 	ambassador ext.Ambassador
 }
 
-func NewWrapper(config etc.Trivy, ambassador ext.Ambassador) Wrapper {
+func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metrics.Recorder) Wrapper {
 	return &wrapper{
+		metrics:    metrics.Optional(recorders),
 		config:     config,
 		ambassador: ambassador,
 	}
@@ -68,7 +71,11 @@ func NewWrapper(config etc.Trivy, ambassador ext.Ambassador) Wrapper {
 
 func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
 	report, usedAccessory, err := w.scan(imageRef, opt, w.useSBOMAccessory(opt))
+	if err == nil && usedAccessory {
+		w.metrics.Inc("sbom_accessory_events_total", "reuse_success")
+	}
 	if err != nil && usedAccessory {
+		w.metrics.Inc("sbom_accessory_events_total", "fallback")
 		slog.Warn("SBOM accessory scan failed, retrying as image scan",
 			slog.String("image_ref", imageRef.Name),
 			slog.String("err", err.Error()))
@@ -96,7 +103,7 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 	logger := slog.With(slog.String("image_ref", imageRef.Name))
 	logger.Debug("Started scanning")
 
-	target, err := newTarget(imageRef, w.config, w.ambassador, useSBOMAccessory)
+	target, err := newTarget(imageRef, w.config, w.ambassador, useSBOMAccessory, w.metrics)
 	if err != nil {
 		return Report{}, false, xerrors.Errorf("creating scan target: %w", err)
 	}
@@ -129,13 +136,13 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 	logger.Debug("Exec command with args", slog.String("path", cmd.Path),
 		slog.String("args", strings.Join(cmd.Args, " ")))
 
-	stdout, err := w.ambassador.RunCmd(cmd)
+	stdout, err := w.metrics.Run(string(target.kind), cmd, w.ambassador.RunCmd)
 	if err != nil {
 		output := string(stdout)
 		category := classifyTrivyError(output)
 		targetName, _ := target.Name()
 		logger.Error("Running trivy failed",
-			slog.String("exit_code", fmt.Sprintf("%d", cmd.ProcessState.ExitCode())),
+			slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
 			slog.String("std_out", output),
 			slog.String("category", string(category)),
 		)
@@ -148,7 +155,7 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 	}
 
 	logger.Debug("Running trivy finished",
-		slog.String("exit_code", fmt.Sprintf("%d", cmd.ProcessState.ExitCode())),
+		slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
 		slog.String("std_out", string(stdout)),
 	)
 
@@ -319,7 +326,7 @@ func (w *wrapper) GetVersion() (VersionInfo, error) {
 		return VersionInfo{}, fmt.Errorf("failed preparing trivy version command: %w", err)
 	}
 
-	versionOutput, err := w.ambassador.RunCmd(cmd)
+	versionOutput, err := w.metrics.Run("version", cmd, w.ambassador.RunCmd)
 	if err != nil {
 		return VersionInfo{}, fmt.Errorf("failed running trivy version command: %w: %v", err, string(versionOutput))
 	}
@@ -349,4 +356,11 @@ func (w *wrapper) prepareVersionCmd() (*exec.Cmd, error) {
 
 	cmd := exec.Command(name, args...)
 	return cmd, nil
+}
+
+func exitCode(cmd *exec.Cmd) int {
+	if cmd.ProcessState == nil {
+		return -1
+	}
+	return cmd.ProcessState.ExitCode()
 }

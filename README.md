@@ -151,6 +151,12 @@ A new Trivy release is picked up by Renovate and, once merged, cuts a matching a
 respective inputs, linked from a comment on the PR. How releases are cut, and what maintainers do, is in
 [docs/RELEASES.md](docs/RELEASES.md).
 
+## Operational metrics
+
+See [Operational metrics](docs/metrics.md) for scanner execution, workers, database freshness,
+cache/storage capacity, report persistence and Redis pool instrumentation, including
+collection settings and interpretation limits.
+
 ## Configuration
 
 Everything is configured through environment variables at startup. No config files.

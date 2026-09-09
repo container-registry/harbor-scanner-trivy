@@ -12,6 +12,7 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 	v1 "github.com/container-registry/harbor-scanner-trivy/pkg/http/api/v1"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence/redis"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/queue"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/redisx"
@@ -63,13 +64,18 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 		return fmt.Errorf("constructing connection pool: %w", err)
 	}
 
-	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador)
-	store := redis.NewStore(config.RedisStore, rdb)
-	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}))
-	enqueuer := queue.NewEnqueuer(config.JobQueue, rdb, store)
-	worker := queue.NewWorker(config.JobQueue, rdb, controller)
+	recorder := metrics.New(config.API.MetricsEnabled)
+	recorder.RegisterRedis(rdb)
+	stopMetrics := recorder.Start(ctx, config, info.Version)
+	defer stopMetrics()
 
-	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper)
+	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, recorder)
+	store := redis.NewStore(config.RedisStore, rdb, recorder)
+	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}), recorder)
+	enqueuer := queue.NewEnqueuer(config.JobQueue, rdb, store, recorder)
+	worker := queue.NewWorker(config.JobQueue, rdb, controller, recorder)
+
+	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, recorder)
 	apiServer, err := api.NewServer(config.API, apiHandler)
 	if err != nil {
 		return fmt.Errorf("new api server: %w", err)
