@@ -25,12 +25,13 @@
         "query": "prometheus",
         "refresh": 1,
         "current": {},
-        "options": []
+        "options": [],
+        "description": "Prometheus source containing the scanner operational metrics. Pod, Harbor, and Redis panels also need their respective metrics in this source with matching labels."
       },
       {
         "name": "cluster",
         "label": "Cluster",
-        "description": "One cluster. Supply a unique cluster scrape label; external labels are only usable if present in this query datasource.",
+        "description": "Choose one Kubernetes cluster. The cluster label must be present on queried samples and distinguish installations. The first alphabetical result is selected initially.",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -51,7 +52,7 @@
       {
         "name": "namespace",
         "label": "Namespace",
-        "description": "One namespace in the selected cluster.",
+        "description": "Choose one namespace within the selected cluster. This prevents identically named namespaces in different clusters from being combined.",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -72,7 +73,7 @@
       {
         "name": "scanner",
         "label": "Scanner",
-        "description": "One stable scanner service/deployment; its replicas are aggregated.",
+        "description": "Choose one scanner Kubernetes Service. All replicas discovered through that Service are included. This identifies a deployment, not a Trivy version or Harbor scanner registration name.",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -93,7 +94,7 @@
       {
         "name": "redis_service",
         "label": "Redis service (optional)",
-        "description": "Exporter service label for the Redis instance used by this scanner. Blank disables its memory panel; shared Redis includes other workloads.",
+        "description": "Optional Redis exporter service label for the server this scanner uses. Leave blank to disable Redis server memory. A shared server includes memory from other workloads.",
         "type": "textbox",
         "current": {
           "text": "",
@@ -109,7 +110,8 @@
         "query": "loki",
         "refresh": 1,
         "current": {},
-        "options": []
+        "options": [],
+        "description": "Loki source containing scanner pod logs. Streams must have cluster, namespace, and pod labels matching the selected scanner. This selection only affects the Logs section."
       },
       {
         "name": "scanner_pods",
@@ -133,7 +135,7 @@
         },
         "hide": 2,
         "options": [],
-        "description": "Internal expansion of only the selected scanner pods; no wildcard allValue."
+        "description": "Internal list of pods discovered for the selected scanner Service. All expands that explicit list for logs; it does not select other clusters, namespaces, or scanners."
       }
     ]
   },
@@ -153,13 +155,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Health and recent scan activity for the selected scanner Service, including all its replicas. A reachable metrics endpoint confirms scraping works; successful executions confirm the scanner can finish work."
     },
     {
       "id": 2,
       "title": "Reachable replicas",
       "type": "stat",
-      "description": "Prometheus scrape availability. A healthy endpoint does not prove scans complete.",
+      "description": "Number of scanner replicas whose latest Prometheus scrape succeeded. Compare with Instrumented replicas and the expected replica count. A value of zero means every discovered endpoint failed its scrape; no data means no matching scrape targets. This does not check whether scans are completing.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -214,7 +216,7 @@
       "id": 3,
       "title": "Instrumented replicas",
       "type": "stat",
-      "description": "Zero with reachable targets means this adapter version lacks operational metrics. If selectors are empty, configure cluster/namespace/scanner scrape labels.",
+      "description": "Number of replicas exposing the adapter operational metrics used by this dashboard. Compare with Reachable replicas. Zero can mean an older adapter image, missing scrape labels, or unavailable targets. This counts metric series, not Kubernetes desired replicas.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -269,7 +271,7 @@
       "id": 4,
       "title": "Active workers",
       "type": "stat",
-      "description": "Executions after lock acquisition, summed across selected scanner replicas.",
+      "description": "Number of adapter workers currently processing a task, summed across replicas. Processing starts after the worker acquires the job lock and includes preparation, Trivy execution, and saving the result. Zero is normal while idle. Compare with Worker utilization to see how much configured capacity is busy.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -324,7 +326,7 @@
       "id": 5,
       "title": "Completed executions",
       "type": "stat",
-      "description": "Successful controller executions during the selected time range; retries/rescans count again.",
+      "description": "Successful adapter executions during the selected dashboard time range. Success means the report and finished status were saved; a report containing vulnerabilities still counts as successful. Retries, rescans, and separate tasks from one Harbor request count separately. Prometheus estimates counter increases between scrapes, so totals can be fractional.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -379,7 +381,7 @@
       "id": 6,
       "title": "Failed executions",
       "type": "stat",
-      "description": "Original execution failures, not the count of report polls returning an error.",
+      "description": "Adapter executions that failed during the selected dashboard time range. These are execution failures, not vulnerabilities found or repeated HTTP polls reporting the same failure. Use Failure categories and Scanner errors to investigate. Zero is expected when all executions succeed; Prometheus estimates the count between scrapes.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -434,7 +436,7 @@
       "id": 7,
       "title": "Since last success",
       "type": "stat",
-      "description": "No observations until this process has completed a successful scan. Idle scanners need not have a recent success.",
+      "description": "Elapsed time since the most recent successful execution on any selected replica. The value grows while the scanner is idle, which is normal. A growing value while work is waiting can indicate a stalled scanner. No data means none of the currently observed processes has recorded a successful execution yet, or the metric is unavailable.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -489,7 +491,7 @@
       "id": 8,
       "title": "Adapter and engine versions",
       "type": "table",
-      "description": "Actual binary versions; a missing engine version is unknown.",
+      "description": "Adapter and Trivy CLI versions reported by each replica. Use this to check the binaries actually running, especially during upgrades. The Trivy version is discovered by running the installed binary; this is not the container image tag or database version. No row means version discovery has not succeeded or its metric is unavailable.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -582,8 +584,9 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Scanner operations for one selected installation. **Runtime includes the Trivy child workload.** Vulnerability findings remain in Harbor.\n\nEmpty selectors require `cluster`, `namespace`, and `scanner` labels. A reachable target with zero instrumented replicas needs an adapter with operational metrics. Optional infrastructure, cache size, Redis-server and Loki panels show no observations when their sources are unavailable. [Setup and metric semantics](https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/dashboards/README.md)."
-      }
+        "content": "Operations for one selected scanner, including all replicas. **Runtime includes Trivy child processes.** Use Harbor for vulnerability findings.\n\n**Reading charts:** p95 estimates the value below which 95% of recent observations fall. Rates and p95 use a sliding window of at least four minutes; execution totals use the selected range. **Empty does not mean zero:** some panels need activity, optional collectors, or external metrics. Hover over each panel\u2019s info icon for its meaning and prerequisites. [Setup and metric guide](https://github.com/container-registry/harbor-scanner-trivy/blob/codex/trivy-metrics-dashboard/deploy/chart/dashboards/README.md)."
+      },
+      "description": "How to read this operational dashboard, including its scope, percentile calculations, and expected reasons for empty panels."
     },
     {
       "id": 10,
@@ -597,13 +600,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Resources used by scanner pods, including their Trivy child processes and sidecars. Pod metrics require cAdvisor and kube-state-metrics with matching cluster, namespace, and pod labels. The adapter also records memory peaks for completed CLI processes."
     },
     {
       "id": 11,
       "title": "Pod CPU",
       "type": "timeseries",
-      "description": "Requires cAdvisor and matching cluster/namespace/pod labels. Includes child processes and any sidecars. No data is not zero usage.",
+      "description": "CPU consumed by each scanner pod, in CPU cores, averaged over the recent rate window. A value of 0.5 means half of one core; 2 means two cores. Includes the adapter, Trivy child processes, and sidecars. No data requires checking cAdvisor scraping, pod labels, and the query scrape interval; it does not mean zero CPU use.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -661,7 +664,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -669,7 +673,7 @@
       "id": 12,
       "title": "Pod memory and limits",
       "type": "timeseries",
-      "description": "Working set includes Trivy children; limits include all pod containers. Missing limits are not unlimited capacity measurements.",
+      "description": "Current memory working set for each scanner pod, alongside the sum of its container memory limits. Working set includes Trivy children and some filesystem cache. Rising usage near a container limit can lead to OOM termination. Limits are enforced per container, so a summed pod limit can hide pressure in one container. Missing limit data can mean no configured limit or missing kube-state-metrics.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -748,7 +752,7 @@
       "id": 13,
       "title": "CPU throttling",
       "type": "timeseries",
-      "description": "Throttled scheduling periods / total periods. Requires cAdvisor.",
+      "description": "Fraction of CPU scheduling periods in which a scanner pod container was throttled by its CPU quota, combined across containers. For example, 20% means throttling occurred in one fifth of measured periods; it does not mean 20% of CPU time was lost. Sustained throttling with slow scans can indicate CPU limits are constraining work. Requires cAdvisor CFS metrics.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -806,7 +810,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -814,7 +819,7 @@
       "id": 14,
       "title": "Container restarts",
       "type": "timeseries",
-      "description": "Restarts during the selected range, across selected scanner pod containers.",
+      "description": "Estimated container restarts per scanner pod over the selected dashboard range. At each plotted time, the query looks back by that range length. A rising value warrants checking termination reasons and logs. Zero means the observed counters did not increase; no data means the required kube-state-metrics or pod discovery is missing.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -880,7 +885,7 @@
       "id": 15,
       "title": "Child peak RSS (p95)",
       "type": "timeseries",
-      "description": "Completed child peak RSS. Not live memory, total concurrent-child memory or container peak. No sample if the adapter cannot observe termination.",
+      "description": "Estimated 95th percentile of the peak resident memory recorded for completed Trivy CLI processes, grouped by command. Each observation is one child process maximum, recorded when it exits. This helps size memory for individual scans; simultaneous children can consume more in total. It is not live pod memory. No value is expected when no observable child exits occur in the recent rate window.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -938,7 +943,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -946,7 +952,7 @@
       "id": 60,
       "title": "Last container termination was OOM",
       "type": "timeseries",
-      "description": "Optional kube-state-metrics evidence of the last termination reason, not an OOM event counter.",
+      "description": "Last known container termination reason from kube-state-metrics: 1 means the most recently recorded termination was OOMKilled. This state can remain set long after that termination; it is not an event count or proof of an OOM in the selected time range. A container that has never terminated may have no series. Missing kube-state-metrics can also leave this panel empty.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1020,13 +1026,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Work handled by the adapter after Harbor submits a scan. A request can create multiple tasks, and retries count again. Adapter waiting, worker execution, and individual Trivy CLI invocations are measured separately; Harbor scheduling is shown in its own section."
     },
     {
       "id": 18,
       "title": "Execution throughput",
       "type": "timeseries",
-      "description": "Terminal executions per second; multiple tasks and retries are separate observations.",
+      "description": "Completed adapter executions per second, split into success and failure, averaged over the recent rate window. Success includes scans that found vulnerabilities. This measures finished work, so it can stay at zero while a long scan is still running. Retries and separate tasks are additional executions.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1084,7 +1090,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1092,7 +1099,7 @@
       "id": 19,
       "title": "Execution latency (p95)",
       "type": "timeseries",
-      "description": "Controller processing after lock acquisition, including persistence and recovered fallback. Successful and failed populations stay separate.",
+      "description": "Estimated time within which 95% of recently finished adapter executions completed, shown separately for success and failure. Starts when the worker acquires its lock and includes preparation, CLI calls, recovered fallbacks, and result persistence. Waiting before lock acquisition and Harbor scheduling are excluded. A missing outcome line means no executions of that outcome were observed in the recent rate window.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1150,7 +1157,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1158,7 +1166,7 @@
       "id": 20,
       "title": "Adapter queue wait (p95)",
       "type": "timeseries",
-      "description": "Adapter enqueue to acquired lock; excludes Harbor scheduling. Old messages without timestamps are omitted.",
+      "description": "Estimated 95th percentile of time from adapter enqueue to a worker acquiring the job lock, grouped by requested capability. Sustained growth can indicate workers are busy or slow to receive work. Harbor scheduling before the adapter request is excluded. Jobs without an enqueue timestamp and periods without newly started work provide no observations. Redis Pub/Sub does not provide a durable queue depth.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1216,7 +1224,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1224,7 +1233,7 @@
       "id": 21,
       "title": "Worker utilization",
       "type": "timeseries",
-      "description": "Per-replica active workers divided by configured capacity.",
+      "description": "Busy workers divided by configured worker concurrency, shown separately for each replica. 100% means all configured workers on that replica are processing tasks; 0% means idle. Persistent full utilization together with increasing queue wait indicates demand exceeds available processing capacity. This measures worker occupancy, not CPU utilization.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1290,7 +1299,7 @@
       "id": 22,
       "title": "Oldest running execution",
       "type": "timeseries",
-      "description": "Zero while idle. Compare against the CLI timeout; the entire job can include preparation/fallback/persistence.",
+      "description": "Elapsed time of the oldest execution currently running on each replica, measured after job lock acquisition. Zero means that replica has no active execution. Compare a growing value with execution latency, logs, and the configured CLI timeout. Preparation, fallback attempts, and saving results can make the whole execution longer than a single CLI timeout.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1356,7 +1365,7 @@
       "id": 23,
       "title": "Failure categories",
       "type": "timeseries",
-      "description": "Primary execution failures. Child-output classification is heuristic; inspect logs for details.",
+      "description": "Execution failures per second, grouped by the stage that failed and the assigned error category. Use the labels to narrow an investigation, then inspect logs for the actual cause; categories inferred from CLI output are heuristic. This series is created when a failure occurs, so an empty panel is expected before the first recorded failure. Confirm Failed executions is zero before treating emptiness as healthy.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1414,7 +1423,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1422,7 +1432,7 @@
       "id": 24,
       "title": "Dispatch outcomes",
       "type": "timeseries",
-      "description": "Lock contention is a skipped duplicate delivery, not a failed scan. Decode/lock errors prevent execution.",
+      "description": "Worker delivery decisions per second. lock_acquired starts an execution; lock_busy skips a delivery whose job lock is already held, which can be normal with Redis Pub/Sub broadcasts to multiple workers. decode_error means the message could not be decoded, and lock_error means lock acquisition failed. Neither of those starts an execution. Skipped duplicate deliveries are not failed scans.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1480,7 +1490,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1488,7 +1499,7 @@
       "id": 25,
       "title": "Trivy child duration (p95)",
       "type": "timeseries",
-      "description": "Each image, SBOM or metadata/version child attempt. These are not Trivy-internal phase timings.",
+      "description": "Estimated 95th percentile of completed Trivy CLI invocation duration, grouped by image, sbom, or version command and outcome. An invocation includes whatever that command does, potentially database updates, image access, and analysis. It does not separate those phases. One adapter execution can invoke the CLI more than once after a fallback. No recent invocation means no percentile for that group.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1546,7 +1557,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1554,7 +1566,7 @@
       "id": 26,
       "title": "SBOM reuse and fallback",
       "type": "timeseries",
-      "description": "Lookup, reuse and fallback events can overlap within one job. Does not measure time saved.",
+      "description": "SBOM accessory events per second. lookup_hit finds an existing SBOM; lookup_miss finds none; lookup_error records a failed lookup. reuse_success means scanning the existing SBOM succeeded; fallback means the adapter returned to image scanning. Reuse still performs vulnerability matching. Several events can belong to one execution, and fallback can recover successfully. Zero activity is normal when reuse is disabled.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1612,7 +1624,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1620,7 +1633,7 @@
       "id": 27,
       "title": "Publications with no subscribers",
       "type": "timeseries",
-      "description": "Redis accepted these messages with no subscriber. Pub/Sub is not a durable queue.",
+      "description": "Job publications per second for which Redis reported no subscribers. Redis accepted the publish, but no worker subscription received that message; Pub/Sub does not retain it for later delivery. A nonzero value warrants checking worker subscriptions and Redis connectivity. Zero is normal. This measures publication delivery, not scan execution failures.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1678,7 +1691,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1686,7 +1700,7 @@
       "id": 28,
       "title": "Child termination reasons",
       "type": "timeseries",
-      "description": "A signal is not proof of OOM; use container termination evidence.",
+      "description": "Trivy CLI process completions per second, grouped by command and recorded termination reason: success, nonzero_exit, signal, or start_error. Use failed attempts to investigate CLI execution problems. A signal only means the process was terminated by a signal; it does not establish an out-of-memory kill. Compare with container termination state and logs. No recent child completions can leave a command absent.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1744,7 +1758,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -1752,7 +1767,7 @@
       "id": 29,
       "title": "Configured CLI timeout",
       "type": "timeseries",
-      "description": "Configured CLI timeout; worker lock lifetime and total job duration are different concepts.",
+      "description": "Configured timeout passed to Trivy for a scan invocation. This is a configuration value, not a measured duration or a deadline for the entire Harbor workflow. Preparation, waiting, multiple CLI attempts, and persistence can extend total execution time. The panel shows the largest configured value if selected replicas differ during a rollout.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1826,13 +1841,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Local database state on each scanner replica. The vulnerability database supplies vulnerability records; the Java database identifies Java packages from artifact information and hashes. Metadata is sampled periodically by the adapter. These panels describe the installed copies, not a check of the latest version available upstream."
     },
     {
       "id": 31,
       "title": "Database age",
       "type": "timeseries",
-      "description": "Content build age per database and replica. A newer replica must not hide an older one.",
+      "description": "Age of the installed database content, measured from its metadata UpdatedAt timestamp to now. For example, 8 hours means that database content was built 8 hours ago, even if this replica downloaded it just now. Each line identifies a database and replica so you can spot an older local copy. Age can grow while idle or with updates disabled. Missing databases or unreadable metadata have no age. See [Trivy databases](https://trivy.dev/docs/latest/configuration/db/).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1898,7 +1913,7 @@
       "id": 32,
       "title": "Database presence",
       "type": "timeseries",
-      "description": "1 means file plus parseable metadata present, not DB integrity. Java DB may legitimately be absent until needed.",
+      "description": "Whether each replica has a local database file with readable, valid metadata: 1 means present; 0 means the expected file/metadata pair was not found. This does not verify database integrity. The vulnerability DB supplies vulnerability records; the Java DB identifies Java packages and may be absent until Java archive analysis needs it. Collection errors can omit the value; check Metadata collection status.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1964,7 +1979,7 @@
       "id": 33,
       "title": "Next database update",
       "type": "timeseries",
-      "description": "Seconds until the advertised update time; negative means past that timestamp. Interpret with update policy.",
+      "description": "Time remaining until the installed database metadata NextUpdate timestamp. A negative value means that timestamp has passed. This is an update eligibility hint, not a scheduled download or an alert deadline: Trivy checks updates when invoked, subject to update flags and download throttling. An idle replica may keep an older copy. No value means the timestamp is unavailable; compare with Database presence and Automatic updates enabled.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2030,7 +2045,7 @@
       "id": 34,
       "title": "Automatic updates enabled",
       "type": "timeseries",
-      "description": "1 enables updates; 0 reflects the effective skip-update flag. Offline-scan alone does not disable DB downloads.",
+      "description": "Effective database update policy on each replica: 1 means Trivy may download updates; 0 means the corresponding skip-update setting disables them. Vulnerability and Java DB policies are independent. Enabled does not prove downloads succeed or happen on a timer. Disabled can be intentional when databases are supplied manually. The offline-scan option alone does not disable database downloads.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2096,7 +2111,7 @@
       "id": 35,
       "title": "Metadata collection status",
       "type": "timeseries",
-      "description": "1 means the latest version/metadata refresh succeeded. Missing DB is reported separately.",
+      "description": "Result of the latest background version/database metadata collection on each replica: 1 means collection succeeded; 0 means version discovery or reading metadata failed. A missing database can be reported successfully, so 1 does not mean both databases are installed. Check Database presence separately. No data means the background collector metric is unavailable.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2162,7 +2177,7 @@
       "id": 36,
       "title": "Metadata snapshot age",
       "type": "timeseries",
-      "description": "Age since last successful refresh, not since database publication.",
+      "description": "Time since the adapter last successfully collected version/database metadata. It normally stays near the configured collection interval plus scheduling delay. A continually increasing value suggests failed or stalled collection; check Metadata collection status and logs. This measures freshness of the monitoring snapshot, independently of database content age. No value means no successful collection has been recorded.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2236,13 +2251,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Local storage available to the scanner and optional measurements of its cache directories. Filesystem measurements include everything on the underlying mount, while cache sizes cover only known local Trivy directories. Neither measures Redis server memory."
     },
     {
       "id": 38,
       "title": "Local cache footprint",
       "type": "timeseries",
-      "description": "Opt in with metrics.collection.cacheSizeEnabled. Logical file sizes for known local layout; unsupported, absent or over-budget collection is not zero.",
+      "description": "Logical file bytes in the local analysis cache, vulnerability DB, and Java DB directories, shown per replica. The analysis cache stores reusable package analysis, such as package lists. Enable metrics.collection.cacheSizeEnabled to collect sizes; it is off by default. Missing directories, read failures, or a walk exceeding its time/file budget can omit a size. Redis-backed analysis cache is not included. See [Trivy cache](https://trivy.dev/docs/latest/configuration/cache/).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2308,7 +2323,7 @@
       "id": 39,
       "title": "Filesystem utilization",
       "type": "timeseries",
-      "description": "Cache and report paths can share a filesystem. Do not sum areas or replicas.",
+      "description": "Fraction of filesystem capacity unavailable to the scanner at its cache and report paths, calculated as 1 minus available bytes divided by capacity. Includes other files on the mount and any filesystem-reserved space. High utilization can prevent database updates or report creation. Paths and replicas may share a filesystem, so their values must not be added together.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2374,7 +2389,7 @@
       "id": 40,
       "title": "Available filesystem space",
       "type": "timeseries",
-      "description": "Space available to the scanner; cache growth can prevent report creation even with healthy probes.",
+      "description": "Filesystem bytes still available to the scanner at its cache and report paths, sampled in the background. Low space can cause database downloads, analysis, or report writes to fail. This is remaining space on the whole filesystem, not an individual directory quota. Cache and reports may show the same value when they share a mount.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2440,7 +2455,7 @@
       "id": 41,
       "title": "Available inodes",
       "type": "timeseries",
-      "description": "Only where inode accounting is meaningful. A filesystem can run out of inodes before bytes.",
+      "description": "Free filesystem inodes at the cache and report paths. Inodes are needed to create files and directories, so a filesystem can reject new files even when bytes remain available. Falling values near zero indicate file-count pressure. The metric is omitted on filesystems where inode accounting is unavailable or not meaningful. Shared mounts can appear more than once.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2506,7 +2521,7 @@
       "id": 42,
       "title": "Estimated time to full",
       "type": "timeseries",
-      "description": "Estimate from declining available space over six hours, with at least 60 samples. Resizes/cleanup/nonlinear growth affect it; no result without a decreasing trend.",
+      "description": "Estimated time until available filesystem space reaches zero if its recent decline continues. Uses a six-hour trend, even when the dashboard shows a shorter range, and requires at least 60 samples. No result is expected without enough history or when free space is flat or increasing. Cleanup, resizes, and changing workloads can invalidate the estimate; this is not an enforced deadline.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2572,7 +2587,7 @@
       "id": 43,
       "title": "Storage collection status",
       "type": "timeseries",
-      "description": "1 means latest collection succeeded. Cache walks are optional; missing collector series can be disabled.",
+      "description": "Result of the latest storage collection, grouped by replica and collector: 1 means success; 0 means failure. Filesystem collectors read space/inodes; optional cache walks measure directory sizes. A missing cache-walk series can mean cache-size collection is disabled. For failures, check filesystem permissions, missing directories, and collection time/file limits before relying on absent size values.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2646,13 +2661,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Reports and job records stored by the adapter in Redis, plus Harbor report polling and adapter Redis client health. Payload measurements cover confirmed writes; Redis memory includes additional overhead and may be shared. These metrics are separate from Trivy analysis-cache access."
     },
     {
       "id": 45,
       "title": "Report size (p95)",
       "type": "timeseries",
-      "description": "Matched raw/compressed report write observations. Compare sums, not percentiles, for compression ratio.",
+      "description": "Estimated 95th percentile of report payload size for recent confirmed report writes, grouped by report format and encoding. raw is the uncompressed report; compressed is its stored payload. Each successful write records both sizes. Large reports can increase persistence and transfer work. No report writes in the recent rate window means no percentile. These are bytes per report, not vulnerability counts or Redis resident memory.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2710,7 +2725,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -2718,7 +2734,7 @@
       "id": 46,
       "title": "Compression ratio",
       "type": "timeseries",
-      "description": "Raw bytes divided by compressed bytes for matched applied report writes. Higher means greater compression.",
+      "description": "Total raw report bytes divided by total compressed report bytes for the same recent confirmed writes. A value of 4 means compressed payloads use one quarter of the original bytes, a 75% reduction. Higher values mean greater compression. The ratio uses byte totals, not percentiles. No recent report writes leaves the ratio undefined.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2776,7 +2792,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -2784,7 +2801,7 @@
       "id": 47,
       "title": "Applied payload write rate",
       "type": "timeseries",
-      "description": "Confirmed job/report writes. Uncompressed equivalent and compressed payload are separate. This is not resident Redis memory.",
+      "description": "Payload bytes per second from confirmed job and report writes, split by record type and encoding. raw is the uncompressed equivalent; compressed is the payload sent for storage. These describe the same writes and must not be added together. This helps estimate persistence workload, but excludes Redis protocol/allocator overhead and does not measure live Redis memory.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2842,7 +2859,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -2850,7 +2868,7 @@
       "id": 48,
       "title": "Report fetch outcomes",
       "type": "timeseries",
-      "description": "Polls are independent of scan executions. Not found can mean expiry or unknown ID.",
+      "description": "Harbor report fetches per second, grouped by result: ok, pending, failed, not_found, error, or invalid_request. Harbor can poll many times for one execution, so this is request activity rather than a scan count. pending is normal while work runs. not_found can mean an unknown ID or expired record; it does not establish expiry by itself. Inspect repeated errors alongside execution and store metrics.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2908,7 +2926,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -2916,7 +2935,7 @@
       "id": 49,
       "title": "Successful report fetch age (p95)",
       "type": "timeseries",
-      "description": "Time since persisted completion for available reports. Not remaining TTL; missing reports have no age sample.",
+      "description": "Estimated 95th percentile of elapsed time between saved execution completion and a successful report fetch, grouped by format. For example, 10 seconds means Harbor fetched the report 10 seconds after it finished. This helps identify delayed retrieval. It is neither scan duration nor remaining retention time. Repeated fetches add observations; missing reports and records without a completion timestamp do not. No recent successful fetches means no percentile.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -2974,7 +2993,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -2982,7 +3002,7 @@
       "id": 50,
       "title": "Effective report retention TTL",
       "type": "timeseries",
-      "description": "Refreshed by writes. Do not infer Redis memory from write rate \u00d7 TTL.",
+      "description": "Configured Redis expiry duration for adapter scan-job records and reports on each replica. Record writes apply or refresh expiry; this is not a countdown for a specific report. Retrieval after expiry can return not_found. Retention affects how long Harbor has to fetch results, but does not directly predict memory usage from payload write rate.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3048,7 +3068,7 @@
       "id": 51,
       "title": "Store operation outcomes",
       "type": "timeseries",
-      "description": "Includes failed, missing and unapplied operations; only applied writes count payload bytes.",
+      "description": "Logical adapter store operations per second, grouped by operation and outcome. create, status, read, and report distinguish the work being done. error means an operation failed; not_found means no record; not_applied means a conditional write did not apply. Storing a failed scan status can itself be a successful store operation. Only confirmed writes contribute payload bytes.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3106,7 +3126,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -3114,7 +3135,7 @@
       "id": 52,
       "title": "Store latency (p95)",
       "type": "timeseries",
-      "description": "Logical store operation duration, including failures. Not Trivy analysis-cache access.",
+      "description": "Estimated 95th percentile of adapter store operation duration, grouped by create, status, read, and report. Includes successful and failed calls and any adapter work inside the logical store operation. Rising latency can delay execution completion or report retrieval. This does not measure Trivy analysis-cache requests. No recent operations of a type means no percentile for that type.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3172,7 +3193,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -3180,7 +3202,7 @@
       "id": 53,
       "title": "Redis pool connections",
       "type": "timeseries",
-      "description": "Total includes idle. Pool connection reuse is not an analysis-cache hit.",
+      "description": "Connections in each adapter Redis client pool, split into total and idle. Idle connections are already part of total, so the two lines must not be added. Compare connection use with Average pool wait and Redis pool timeouts to assess contention. Connection reuse is independent of whether Trivy finds reusable analysis results in its cache.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3246,7 +3268,7 @@
       "id": 54,
       "title": "Redis pool timeouts",
       "type": "timeseries",
-      "description": "Pool wait timeouts; sustained timeouts can prevent progress.",
+      "description": "Redis client pool wait timeouts per second across scanner replicas. These occur when the client cannot obtain a connection before its pool timeout, which can interrupt job coordination or persistence. A sustained nonzero value warrants checking pool pressure and Redis responsiveness. These are not Trivy scan timeouts. Zero is normal when no pool timeouts occur.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3304,7 +3326,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -3312,7 +3335,7 @@
       "id": 55,
       "title": "Average pool wait",
       "type": "timeseries",
-      "description": "Accumulated waiting duration divided by number of waits; no observations when no waits occurred.",
+      "description": "Average time spent waiting for a Redis pool connection among requests that actually waited, calculated from recent cumulative wait time and wait count. Requests that obtained a connection immediately are excluded. No recorded waits makes the average undefined and leaves this panel empty; that is normal when the pool is not contended. Check Redis pool timeouts for waits that failed.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3370,7 +3393,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -3378,7 +3402,7 @@
       "id": 56,
       "title": "Redis server memory (optional)",
       "type": "timeseries",
-      "description": "Set Redis service to the actual exporter target service. Includes other users when Redis is shared; not attributable solely to scanner reports.",
+      "description": "Memory used by the Redis server identified by the Redis service selector. Requires a Redis exporter with matching cluster, namespace, and service labels. A blank selector intentionally leaves this panel empty. The value includes other databases, clients, and server overhead when Redis is shared; it cannot attribute memory specifically to scanner reports or Trivy analysis cache.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3452,13 +3476,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Adapter HTTP traffic and Go heap. Harbor submits work and polls results through this API while Trivy scans asynchronously in child processes. API latency therefore describes request handling, separately from worker execution time."
     },
     {
       "id": 58,
       "title": "API request rate",
       "type": "timeseries",
-      "description": "Route templates only; probes and metrics scrapes are excluded.",
+      "description": "Handled adapter HTTP requests per second, grouped by route template and response status code. Scan submission and repeated report polling contribute separately. Health probes and metrics scrapes are excluded. Use response codes to investigate API failures; a successful scan submission only means the request was accepted, not that the asynchronous scan completed.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3516,7 +3540,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -3524,7 +3549,7 @@
       "id": 59,
       "title": "API latency (p95)",
       "type": "timeseries",
-      "description": "HTTP request time, not scan duration.",
+      "description": "Estimated 95th percentile of HTTP request handling time, grouped by adapter route. Includes the work needed to accept a scan request or serve a report response; the asynchronous Trivy execution is measured in Execution latency. Slow report responses can indicate persistence or payload handling problems. No recent requests for a route means no percentile for it.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3582,7 +3607,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -3590,7 +3616,7 @@
       "id": 16,
       "title": "Adapter Go heap",
       "type": "timeseries",
-      "description": "Adapter heap only; does not include the Trivy subprocess.",
+      "description": "Bytes currently allocated to Go heap objects in each adapter process. This covers the HTTP server, worker coordination, and report handling; Trivy runs in separate child processes. Compare with Pod memory to investigate memory outside the adapter heap. A rising heap can reflect allocation pressure, but this panel alone does not establish a memory leak.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3664,13 +3690,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Optional Harbor jobservice context before and around adapter work. Covers IMAGE_SCAN tasks for the selected cluster and namespace, potentially including other scanner registrations. Requires Harbor exporter and jobservice metrics; adapter metrics alone cannot populate these panels."
     },
     {
       "id": 62,
       "title": "Harbor scan queue size",
       "type": "timeseries",
-      "description": "Harbor jobservice queue across the selected namespace. Not scoped to one scanner registration; shown as upstream context.",
+      "description": "Number of IMAGE_SCAN tasks waiting in Harbor jobservice for this installation. This is Harbor scheduling before work reaches the adapter and can include tasks using other scanner registrations. A growing queue with busy workers can indicate insufficient scan capacity. Zero means no queued tasks are reported; no data means the Harbor exporter metric is unavailable.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3736,7 +3762,7 @@
       "id": 63,
       "title": "Harbor scan queue latency",
       "type": "timeseries",
-      "description": "Age of the next Harbor job. This is not adapter queue wait or CLI time.",
+      "description": "Time since the next IMAGE_SCAN task waiting in Harbor jobservice was enqueued. A growing value means work at the head of the Harbor queue is waiting longer to start. It does not measure adapter enqueue-to-lock wait or CLI duration. Interpret together with Harbor scan queue size, since an empty queue has no waiting task. Requires the Harbor exporter.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3802,7 +3828,7 @@
       "id": 64,
       "title": "Harbor scan job outcomes",
       "type": "timeseries",
-      "description": "Harbor-side outcomes for the installation. Includes orchestration/polling; may include other registered scanners.",
+      "description": "Processed Harbor IMAGE_SCAN tasks per second, grouped by Harbor jobservice status. This covers Harbor orchestration and result polling and can include other registered scanners in the selected installation. Its outcomes and timing need not match individual adapter executions, especially with retries. No data can mean the jobservice metrics are unavailable or no matching task status has been recorded.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -3860,7 +3886,8 @@
             "uid": "${datasource}"
           },
           "format": "time_series",
-          "editorMode": "code"
+          "editorMode": "code",
+          "interval": "1m"
         }
       ]
     },
@@ -3876,13 +3903,13 @@
         "h": 1
       },
       "panels": [],
-      "description": ""
+      "description": "Optional logs from the selected scanner pods in Loki. Requires matching cluster, namespace, and pod labels. Logs of deleted pods are excluded once those pods disappear from Prometheus discovery."
     },
     {
       "id": 66,
       "type": "logs",
       "title": "Scanner logs",
-      "description": "Requires Loki labels cluster, namespace and pod matching Prometheus discovery. Hidden scanner_pods expands only pods of the selected scanner. Redis/registry IDs are retained in log messages, not metric labels.",
+      "description": "Log lines from all discovered replicas of the selected scanner, within the dashboard time range. Use these to investigate database downloads, scan progress, and failures. Requires a Loki source with matching cluster, namespace, and pod labels. No lines can mean no recent output or missing log collection. Logs from pods no longer in Prometheus discovery are excluded.",
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -3920,7 +3947,7 @@
       "id": 67,
       "type": "logs",
       "title": "Scanner errors",
-      "description": "Requires Loki labels cluster, namespace and pod matching Prometheus discovery. Hidden scanner_pods expands only pods of the selected scanner. Redis/registry IDs are retained in log messages, not metric labels.",
+      "description": "Scanner log lines containing error, fatal, or panic, matched case-insensitively anywhere in the message. This is a keyword filter, not a structured log-level check, so some matches may be harmless text. Read the full message and correlate with Failed executions. No matching lines is normal when errors are absent, provided Scanner logs confirms collection is working.",
       "datasource": {
         "type": "loki",
         "uid": "${loki}"

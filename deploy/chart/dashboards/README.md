@@ -63,6 +63,19 @@ an empty chart does not imply zero failures or zero resource use.
 
 ## What the panels mean
 
+Every panel's info tooltip explains the measurement, its operational meaning,
+and relevant reasons for missing data. **p95** estimates the value below which
+95% of observations fall; it is calculated from histogram buckets, not an exact
+maximum. Rate and percentile panels use a recent sliding window, while the
+completed/failed execution totals use the selected dashboard range. Counter
+increases are estimates between scrapes and can produce fractional totals.
+
+Prometheus query **Min step** is set to `1m` on rate-based targets. This makes
+Grafana's `$__rate_interval` at least four minutes, allowing rate calculations
+with one-minute scrapes even when viewing the last 15 minutes. If your scrape
+interval is longer, increase those targets' Min step to match. Dashboard refresh
+frequency does not change how often Prometheus collects samples.
+
 - **Overview and Runtime:** replica health, actual completed/failed executions,
   CPU, memory, throttling, restarts, OOM termination state, and child peak RSS.
   Pod resource charts include sidecars and require kubelet/cAdvisor and
@@ -75,6 +88,10 @@ an empty chart does not imply zero failures or zero resource use.
 - **Database:** vulnerability and Java database presence, age, next update,
   configured update policy, and metadata collection health. Missing Java DB can
   be normal before Java scanning. Update policy is not proof of a successful download.
+  The Java DB identifies Java packages; the vulnerability DB supplies vulnerability
+  records. Database age uses the installed metadata's content build timestamp,
+  not its download timestamp. Next update is metadata used in update eligibility
+  checks, not a promise that a background download will happen at that time.
 - **Cache and storage:** filesystem space/inodes and optional local cache sizes.
   Enable `cacheSizeEnabled` for bounded directory walks. Failed or incomplete
   collections omit sizes instead of publishing partial totals. Filesystem capacity
@@ -98,3 +115,40 @@ Trivy engine phase timings, cache hit rates, registry transfer/retry metrics, an
 DB download/lock timings require additional Trivy hooks and are not inferred from
 CLI duration. See [issue #97](https://github.com/container-registry/harbor-scanner-trivy/issues/97)
 for the separately scoped engine work.
+
+## When panels are empty
+
+First check **Reachable replicas** and **Instrumented replicas**. If gauges work
+but most rate/percentile charts are empty, check query Min step against the actual
+scrape interval. A one-minute rate window cannot reliably calculate rates from
+one-minute samples. Do not replace unknown measurements with zero.
+
+| Panel or group | Expected reason for no value | What to check |
+| --- | --- | --- |
+| Execution, CLI, report, store, or API p95 | No matching operations in the recent rate window | Activity counters; widen the range to find earlier activity |
+| Failure categories | No failure has created a category series yet | Failed executions should confirm zero failures |
+| Last container termination was OOM | No recorded termination, or missing kube-state-metrics | Container restarts and Kubernetes termination state |
+| Local cache footprint | Collection is disabled by default; missing directories or incomplete walks also omit sizes | `metrics.collection.cacheSizeEnabled` and Storage collection status |
+| Estimated time to full | Fewer than 60 samples, or free space is not declining | Available filesystem space; the trend always looks back six hours |
+| Average pool wait | No requests waited for a pool connection, so the average is undefined | Redis pool timeouts and connection counts |
+| Redis server memory | Redis service selector is blank or its exporter is unavailable | Select the actual exporter Service; memory may include other workloads |
+| Database age / next update | Database or required metadata timestamp is missing | Database presence and Metadata collection status |
+| Pod, Harbor, or log panels | Their separate metric/log source is unavailable or labels do not match | cAdvisor, kube-state-metrics, Harbor scraping, or Loki labels |
+
+## Sources for the descriptions
+
+The operational metrics are implemented by this adapter around the Trivy CLI;
+they are not Trivy Operator vulnerability-inventory metrics. Tooltips follow the
+[adapter metrics catalog](../../../docs/metrics.md) and its
+[collection implementation](../../../pkg/metrics/background.go), together with
+these upstream references:
+
+| Subject | Reference |
+| --- | --- |
+| Vulnerability DB, Java package index, update flags | [Trivy databases](https://trivy.dev/docs/latest/configuration/db/) |
+| Analysis cache contents and local/Redis backends | [Trivy cache](https://trivy.dev/docs/latest/configuration/cache/) |
+| Offline scanning and external database access | [Trivy connectivity](https://trivy.dev/docs/latest/advanced/air-gap/) |
+| Database metadata timestamps | [Trivy DB metadata](https://github.com/aquasecurity/trivy-db/blob/main/pkg/metadata/metadata.go) |
+| Percentile estimates | [Prometheus histograms](https://prometheus.io/docs/practices/histograms/) |
+| Rate windows and scrape interval | [Grafana Prometheus variables](https://grafana.com/docs/grafana/latest/datasources/prometheus/template-variables/) |
+| Empty rate queries | [Grafana Prometheus troubleshooting](https://grafana.com/docs/grafana/latest/datasources/prometheus/troubleshooting/) |
