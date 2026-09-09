@@ -55,28 +55,30 @@ Every push to `main` additionally publishes `8gears.container-registry.com/8gcr/
 
 ## Pull Request Previews
 
-Two workflows publish review artifacts into the dev project (`8gcr-dev`, see
-`PR_REGISTRY_PROJECT`) and leave one sticky comment each on the PR with the
-reference, the digest and the cosign verification command. Each runs only when
-the PR diff touches an input that reaches its artifact:
+`pr-image.yml` and `pr-chart.yml` publish review artifacts to the dev project
+(`8gcr-dev`, `PR_REGISTRY_PROJECT`) and keep one sticky comment each on the
+PR with the reference, the digest and the cosign command.
 
-| Workflow | Triggers on | Publishes | Signing identity |
-|----------|-------------|-----------|------------------|
-| `PR Preview Image` (`pr-image.yml`) | `cmd/`, `pkg/`, `go.mod`, `go.sum`, `Dockerfile`, `versions.env`, `Taskfile.yml`, the image workflows, `.github/actions/setup/` | `8gears.container-registry.com/8gcr-dev/harbor-scanner-trivy:pr-N` | `publish-image.yml` |
-| `PR Preview Chart` (`pr-chart.yml`) | `deploy/chart/`, `pr-chart.yml`, `chart-annotate-images.sh` | `oci://8gears.container-registry.com/8gcr-dev/charts/harbor-scanner-trivy:X.Y.Z-pr.N` | `pr-chart.yml` |
+| Workflow | Inputs | Publishes |
+|----------|--------|-----------|
+| `pr-image.yml` | `cmd/`, `pkg/`, `go.mod`, `go.sum`, `Dockerfile`, `versions.env`, `Taskfile.yml`, `trivy-cve-overrides.txt`, the image workflows, `.github/actions/setup/` | `8gears.container-registry.com/8gcr-dev/harbor-scanner-trivy:pr-N` |
+| `pr-chart.yml` | `deploy/chart/`, `pr-chart.yml`, `chart-annotate-images.sh` | `oci://8gears.container-registry.com/8gcr-dev/charts/harbor-scanner-trivy:X.Y.Z-pr.N` |
 
-Both run on every push while the cumulative PR diff matches, and both overwrite
-the same tag, so `pr-N` and `X.Y.Z-pr.N` always point at the latest successful
-build; pin the digest from the comment when that matters. `X.Y.Z` is the chart
-version committed in `Chart.yaml`, and the preview keeps the committed
-`appVersion`, so it installs a released adapter by default. `--set
-image.repository=8gcr-dev/harbor-scanner-trivy --set image.tag=pr-N` pairs it with
-the PR's preview image when one exists; the preview image lives in the dev
-project, so the tag alone is not enough.
-
-No preview is published for forked PRs and dependabot PRs (no OIDC token), nor
-for release-please PRs: a release PR changes no code, and the chart release PR
-only restamps version, changelog and README.
+- A workflow publishes when the PR's diff against `main` touches one of its
+  inputs. The check is a job, not a `paths` trigger filter, so every PR gets a
+  status.
+- Stacked PRs (`gh stack`): only the top PR publishes, when the stack is
+  linked and on every push to the top; its diff against `main` is the whole
+  stack. A change to a lower PR reaches the preview after
+  `gh stack rebase && gh stack push`. PRs chained by hand are not a stack: the
+  bottom one is an ordinary PR, the ones above it match no trigger.
+- `pr-N` and `X.Y.Z-pr.N` are overwritten on every push. Pin the digest from
+  the comment.
+- The preview chart keeps the committed `appVersion`.
+  `--set image.repository=8gcr-dev/harbor-scanner-trivy --set image.tag=pr-N`
+  pairs it with the PR's preview image.
+- No preview for forked PRs, dependabot PRs (no OIDC token) or release-please
+  PRs.
 
 ## Version Rules
 

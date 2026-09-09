@@ -74,7 +74,7 @@ jobs:
         run: |
           version="${INPUT_VERSION}"
           if [ -z "${version}" ]; then
-            version="$(git describe --tags --always)"
+            version="$(git describe --tags --always --match 'v*')"
           fi
           echo "VERSION=${version}" >> "$GITHUB_ENV"
 

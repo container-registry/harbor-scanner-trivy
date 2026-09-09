@@ -3,22 +3,13 @@ name: PR Preview Image
 
 on:
   pull_request:
+    # `stacked`: GitHub opens the PRs of a stack before it links them, so
+    # `opened` never carries `pull_request.stack`; the link fires `stacked`.
+    types: [opened, synchronize, reopened, stacked]
     branches: [main]
-    # Allowlist: only build a preview when an input that actually reaches the
-    # image changes. The image is the adapter binary (cmd/pkg/go.mod) plus
-    # Trivy built from source at the versions.env pin, assembled by the
-    # Dockerfile via the Taskfile build/build:trivy/image tasks.
-    paths:
-      - "cmd/**"
-      - "pkg/**"
-      - "go.mod"
-      - "go.sum"
-      - "Dockerfile"
-      - "versions.env"
-      - "Taskfile.yml"
-      - ".github/workflows/pr-image.yml"
-      - ".github/workflows/publish-image.yml"
-      - ".github/actions/setup/**"
+    # No `paths` filter: GitHub evaluates it against the PR's own diff, which
+    # for a stacked PR is only the top slice. The image-input allowlist lives
+    # in the `changes` job below, which diffs against the stack base instead.
 
 permissions:
   contents: read
@@ -28,11 +19,69 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  preview-image:
-    name: Publish Preview Image
+  changes:
+    name: Check Image Inputs
     # Forked PRs cannot mint the GitHub OIDC token that Harbor's federated
     # robot login exchanges, and dependabot runs get no id-token either.
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    # In a native GitHub stack only the top PR builds: its head already
+    # contains every lower PR, so each lower image would be a prefix of it.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      (github.event.pull_request.stack == null ||
+       github.event.pull_request.stack.position == github.event.pull_request.stack.size)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.diff.outputs.build }}
+      stack_number: ${{ github.event.pull_request.stack.number || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # Full history: the diff below spans the whole stack
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Diff against the stack base
+        id: diff
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          STACK_BASE_SHA: ${{ github.event.pull_request.stack.base.sha || '' }}
+          STACK_NUMBER: ${{ github.event.pull_request.stack.number || '' }}
+          EVENT_ACTION: ${{ github.event.action }}
+          # Allowlist: only build a preview when an input that actually reaches
+          # the image changes. The image is the adapter binary (cmd/pkg/go.mod)
+          # plus Trivy built from source at the versions.env pin, assembled by
+          # the Dockerfile via the Taskfile build/build:trivy/image tasks.
+          IMAGE_INPUTS: |
+            ^cmd/
+            ^pkg/
+            ^go\.(mod|sum)$
+            ^Dockerfile$
+            ^versions\.env$
+            ^Taskfile\.yml$
+            ^trivy-cve-overrides\.txt$
+            ^\.github/workflows/pr-image\.yml$
+            ^\.github/workflows/publish-image\.yml$
+            ^\.github/actions/setup/
+        run: |
+          echo "event=${EVENT_ACTION} stack=${STACK_NUMBER:-none}"
+          base="${STACK_BASE_SHA:-${PR_BASE_SHA}}"
+          # --no-renames: a rename out of the allowlist would otherwise show
+          # only its new path and hide that an image input went away
+          changed="$(git diff --name-only --no-renames "${base}...${HEAD_SHA}")"
+          if grep -Ef <(printf '%s' "${IMAGE_INPUTS}") <<<"${changed}"; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No image input changed between ${base} and ${HEAD_SHA}; skipping the preview image"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  preview-image:
+    name: Publish Preview Image
+    needs: [changes]
+    if: needs.changes.outputs.build == 'true'
     permissions:
       contents: read
       id-token: write
@@ -46,7 +95,7 @@ jobs:
 
   pr-comment:
     name: Comment Preview Image Ref
-    needs: [preview-image]
+    needs: [changes, preview-image]
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -54,6 +103,7 @@ jobs:
       REGISTRY_ADDRESS: ${{ vars.REGISTRY_ADDRESS || '8gears.container-registry.com' }}
       REGISTRY_PROJECT: ${{ vars.PR_REGISTRY_PROJECT || '8gcr-dev' }}
       PREVIEW_TAG: pr-${{ github.event.pull_request.number }}
+      STACK_NUMBER: ${{ needs.changes.outputs.stack_number }}
       DIGEST: ${{ needs.preview-image.outputs.digest }}
     steps:
       - name: Create or update PR comment
@@ -65,10 +115,34 @@ jobs:
             const marker = process.env.MARKER;
             const image = `${process.env.REGISTRY_ADDRESS}/${process.env.REGISTRY_PROJECT}/harbor-scanner-trivy`;
             const previewTag = process.env.PREVIEW_TAG;
+            const stackNumber = process.env.STACK_NUMBER;
             const digest = process.env.DIGEST;
             const repository = process.env.GITHUB_REPOSITORY;
             const issueNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
+
+            let stackSection = '';
+            if (stackNumber) {
+              let members = '';
+              try {
+                const { data: stack } = await github.request('GET /repos/{owner}/{repo}/stacks/{stack_number}', {
+                  owner, repo, stack_number: Number(stackNumber),
+                });
+                members = stack.pull_requests
+                  .map((pr, i) => `${i + 1}. #${pr.number} ${pr.title}`)
+                  .join('\n');
+              } catch (error) {
+                core.warning(`Could not list stack #${stackNumber}: ${error.message}`);
+                members = `(see the stack view on this PR)`;
+              }
+              stackSection = `
+            This PR is the top of stack #${stackNumber}. The image is built from its head, so it contains every PR in the stack:
+
+            ${members}
+
+            Lower PRs do not get an image of their own; push a fix there and \`gh stack rebase && gh stack push\` to rebuild this one.
+            `;
+            }
 
             const body = `${marker}
             A preview image for this PR is available:
@@ -78,7 +152,7 @@ jobs:
             \`\`\`
 
             Digest: \`${digest}\`
-
+            ${stackSection}
             Verify the preview image:
 
             \`\`\`

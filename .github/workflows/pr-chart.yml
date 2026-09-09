@@ -3,14 +3,13 @@ name: PR Preview Chart
 
 on:
   pull_request:
+    # `stacked`: GitHub opens the PRs of a stack before it links them, so
+    # `opened` never carries `pull_request.stack`; the link fires `stacked`.
+    types: [opened, synchronize, reopened, stacked]
     branches: [main]
-    # Allowlist: only build a preview when an input that actually reaches the
-    # packaged chart changes. versions.env, Taskfile.yml and taskfile/helm.yml
-    # gate chart-ci.yml, but the chart contents do not depend on them.
-    paths:
-      - "deploy/chart/**"
-      - ".github/workflows/pr-chart.yml"
-      - ".github/scripts/chart-annotate-images.sh"
+    # No `paths` filter: GitHub evaluates it against the PR's own diff, which
+    # for a stacked PR is only the top slice. The chart-input allowlist lives
+    # in the `changes` job below, which diffs against the stack base instead.
 
 permissions:
   contents: read
@@ -20,16 +19,63 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  preview-chart:
-    name: Publish Preview Chart
+  changes:
+    name: Check Chart Inputs
     # Forked PRs cannot mint the GitHub OIDC token that Harbor's federated
     # robot login exchanges, and dependabot runs get no id-token either. A
     # chart release PR only restamps version, changelog and README, so its
-    # preview would be main's chart under a different version.
+    # preview would be main's chart under a different version. In a native
+    # GitHub stack only the top PR publishes: its head contains every lower PR.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.actor != 'dependabot[bot]' &&
-      !startsWith(github.head_ref, 'release-please--')
+      !startsWith(github.head_ref, 'release-please--') &&
+      (github.event.pull_request.stack == null ||
+       github.event.pull_request.stack.position == github.event.pull_request.stack.size)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.diff.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # Full history: the diff below spans the whole stack
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Diff against the stack base
+        id: diff
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          STACK_BASE_SHA: ${{ github.event.pull_request.stack.base.sha || '' }}
+          STACK_NUMBER: ${{ github.event.pull_request.stack.number || '' }}
+          EVENT_ACTION: ${{ github.event.action }}
+          # Allowlist: only build a preview when an input that actually reaches
+          # the packaged chart changes. versions.env, Taskfile.yml and
+          # taskfile/helm.yml gate chart-ci.yml, but the chart contents do not
+          # depend on them.
+          CHART_INPUTS: |
+            ^deploy/chart/
+            ^\.github/workflows/pr-chart\.yml$
+            ^\.github/scripts/chart-annotate-images\.sh$
+        run: |
+          echo "event=${EVENT_ACTION} stack=${STACK_NUMBER:-none}"
+          base="${STACK_BASE_SHA:-${PR_BASE_SHA}}"
+          # --no-renames: a rename out of the allowlist would otherwise show
+          # only its new path and hide that a chart input went away
+          changed="$(git diff --name-only --no-renames "${base}...${HEAD_SHA}")"
+          if grep -Ef <(printf '%s' "${CHART_INPUTS}") <<<"${changed}"; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No chart input changed between ${base} and ${HEAD_SHA}; skipping the preview chart"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  preview-chart:
+    name: Publish Preview Chart
+    needs: [changes]
+    if: needs.changes.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -200,7 +246,7 @@ jobs:
 
   pr-comment:
     name: Comment Preview Chart Ref
-    needs: [preview-chart]
+    needs: [changes, preview-chart]
     runs-on: ubuntu-latest
     permissions:
       # Create or update the sticky preview comment
@@ -211,6 +257,7 @@ jobs:
       PREVIEW_VERSION: ${{ needs.preview-chart.outputs.version }}
       APP_VERSION: ${{ needs.preview-chart.outputs.app_version }}
       DIGEST: ${{ needs.preview-chart.outputs.digest }}
+      STACK_NUMBER: ${{ github.event.pull_request.stack.number || '' }}
     steps:
       - name: Create or update PR comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
@@ -225,9 +272,14 @@ jobs:
             const previewVersion = process.env.PREVIEW_VERSION;
             const appVersion = process.env.APP_VERSION;
             const digest = process.env.DIGEST;
+            const stackNumber = process.env.STACK_NUMBER;
+            const stacked = stackNumber !== '';
             const repository = process.env.GITHUB_REPOSITORY;
             const issueNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
+            const imageHint = stacked
+              ? `this PR's preview image (published only on the top PR of a stack, when the stack changes image inputs)`
+              : `this PR's preview image (published only when the PR also changes image inputs)`;
 
             const body = `${marker}
             A preview chart for this PR is available:
@@ -239,8 +291,8 @@ jobs:
             \`\`\`
 
             Digest: \`${digest}\`
-
-            The chart defaults to adapter \`${appVersion}\`. To run it against this PR's preview image instead (published only when the PR also changes image inputs):
+            ${stacked ? `\nThis PR is the top of stack #${stackNumber}; the chart is packaged from its head and contains every PR in the stack.\n` : ''}
+            The chart defaults to adapter \`${appVersion}\`. To run it against ${imageHint} instead:
 
             \`\`\`
             helm install harbor-scanner-trivy \\

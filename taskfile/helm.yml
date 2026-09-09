@@ -21,8 +21,8 @@ tasks:
   # ============================================================================
 
   lint:helm:
-    desc: "helm lint"
-    cmd: helm lint {{.CHART_DIR}} {{.HELM_SET}}
+    desc: "helm lint --strict"
+    cmd: helm lint --strict {{.CHART_DIR}} {{.HELM_SET}}
 
   template:
     desc: "Render the default values and fail on any template error"
@@ -96,6 +96,39 @@ tasks:
         {{.CHART_DIR}}/values.yaml {{.CHART_DIR}}/values.schema.json
         {{.CHART_DIR}}/.schema-drift-allow
 
+  lint:ct-drift:
+    desc: "Fail when taskfile/ct-lintconf.yaml drifts from chart-testing's own etc/lintconf.yaml"
+    # CT_UPSTREAM_LINT_CONF lets chart-ci.yml pass the release it already
+    # extracted; the amd64 tarball is safe to read on any host, nothing runs it.
+    cmd: |
+      set -eu
+      work="$(mktemp -d "${TMPDIR:-/tmp}/ct-lintconf.XXXXXX")"
+      trap 'rm -rf "${work}"' EXIT
+
+      upstream="${CT_UPSTREAM_LINT_CONF:-}"
+      if [ -z "${upstream}" ]; then
+        archive="chart-testing_{{.CT_VERSION}}_linux_amd64.tar.gz"
+        curl -fsSL "https://github.com/helm/chart-testing/releases/download/v{{.CT_VERSION}}/${archive}" \
+          -o "${work}/${archive}"
+        if command -v sha256sum >/dev/null 2>&1; then
+          (cd "${work}" && echo "${CT_SHA256_LINUX_AMD64}  ${archive}" | sha256sum -c -)
+        else
+          (cd "${work}" && echo "${CT_SHA256_LINUX_AMD64}  ${archive}" | shasum -a 256 -c -)
+        fi
+        tar -xzf "${work}/${archive}" -C "${work}" etc/lintconf.yaml
+        upstream="${work}/etc/lintconf.yaml"
+      fi
+
+      # Comparison starts at the document marker: our header comment sits above it.
+      sed 's/^\( *min-spaces-from-content:\) 2$/\1 1/' "${upstream}" > "${work}/expected.yaml"
+      sed -n '/^---$/,$p' taskfile/ct-lintconf.yaml > "${work}/actual.yaml"
+      if ! diff -u "${work}/expected.yaml" "${work}/actual.yaml"; then
+        echo "taskfile/ct-lintconf.yaml is no longer chart-testing {{.CT_VERSION}}'s etc/lintconf.yaml with only comments.min-spaces-from-content changed." >&2
+        echo "Re-fork it from the pinned release and re-apply that one line." >&2
+        exit 1
+      fi
+      echo "ct-lintconf matches chart-testing {{.CT_VERSION}} (min-spaces-from-content only)"
+
   unittest:
     desc: "helm unittest"
     cmd: helm unittest {{.CHART_DIR}}
@@ -129,19 +162,22 @@ tasks:
 
   trivy:
     desc: "Scan the rendered manifests for misconfigurations"
-    cmds:
-      - helm template test {{.CHART_DIR}} {{.HELM_SET}} > {{.CHART_DIR}}/.trivy-manifests.yaml
-      - defer: rm -f {{.CHART_DIR}}/.trivy-manifests.yaml
-      - |
-        if command -v trivy >/dev/null 2>&1; then
-          trivy config {{.CHART_DIR}}/.trivy-manifests.yaml \
-            --ignorefile {{.CHART_DIR}}/.trivyignore --severity HIGH,CRITICAL --exit-code 1
-        else
-          docker run --rm -v "$(pwd)/{{.CHART_DIR}}":/chart \
-            aquasec/trivy:{{.TRIVY_BASE_IMAGE_VERSION}} \
-            config /chart/.trivy-manifests.yaml \
-            --ignorefile /chart/.trivyignore --severity HIGH,CRITICAL --exit-code 1
-        fi
+    # One shell with an EXIT trap, not `defer:`: an interrupted run must not
+    # leave a manifest dump inside the chart for `helm package` to ship.
+    cmd: |
+      set -eu
+      scan="$(mktemp -d "${TMPDIR:-/tmp}/chart-trivy.XXXXXX")"
+      trap 'rm -rf "${scan}"' EXIT
+      helm template test {{.CHART_DIR}} {{.HELM_SET}} > "${scan}/manifests.yaml"
+      if command -v trivy >/dev/null 2>&1; then
+        trivy config "${scan}/manifests.yaml" \
+          --ignorefile {{.CHART_DIR}}/.trivyignore --severity HIGH,CRITICAL --exit-code 1
+      else
+        docker run --rm -v "${scan}":/scan -v "$(pwd)/{{.CHART_DIR}}":/chart \
+          aquasec/trivy:{{.TRIVY_BASE_IMAGE_VERSION}} \
+          config /scan/manifests.yaml \
+          --ignorefile /chart/.trivyignore --severity HIGH,CRITICAL --exit-code 1
+      fi
 
   values-doctor:
     desc: "Advisory checks over every ci/ and example/ values file"
@@ -186,21 +222,22 @@ tasks:
 
   trivy:report:
     desc: "Trivy misconfiguration scan with a SARIF report for code scanning"
-    cmds:
-      - helm template test {{.CHART_DIR}} {{.HELM_SET}} > {{.CHART_DIR}}/.trivy-manifests.yaml
-      - defer: rm -f {{.CHART_DIR}}/.trivy-manifests.yaml
-      - |
-        if command -v trivy >/dev/null 2>&1; then
-          trivy config {{.CHART_DIR}}/.trivy-manifests.yaml \
-            --ignorefile {{.CHART_DIR}}/.trivyignore \
-            --severity HIGH,CRITICAL --format sarif --output trivy-chart.sarif
-        else
-          docker run --rm -v "$(pwd)/{{.CHART_DIR}}":/chart -v "$(pwd)":/out \
-            aquasec/trivy:{{.TRIVY_BASE_IMAGE_VERSION}} \
-            config /chart/.trivy-manifests.yaml \
-            --ignorefile /chart/.trivyignore \
-            --severity HIGH,CRITICAL --format sarif --output /out/trivy-chart.sarif
-        fi
+    cmd: |
+      set -eu
+      scan="$(mktemp -d "${TMPDIR:-/tmp}/chart-trivy.XXXXXX")"
+      trap 'rm -rf "${scan}"' EXIT
+      helm template test {{.CHART_DIR}} {{.HELM_SET}} > "${scan}/manifests.yaml"
+      if command -v trivy >/dev/null 2>&1; then
+        trivy config "${scan}/manifests.yaml" \
+          --ignorefile {{.CHART_DIR}}/.trivyignore \
+          --severity HIGH,CRITICAL --format sarif --output trivy-chart.sarif
+      else
+        docker run --rm -v "${scan}":/scan -v "$(pwd)/{{.CHART_DIR}}":/chart -v "$(pwd)":/out \
+          aquasec/trivy:{{.TRIVY_BASE_IMAGE_VERSION}} \
+          config /scan/manifests.yaml \
+          --ignorefile /chart/.trivyignore \
+          --severity HIGH,CRITICAL --format sarif --output /out/trivy-chart.sarif
+      fi
 
   kubescape:
     desc: "Scan the rendered manifests against the NSA and MITRE frameworks"
@@ -324,6 +361,7 @@ tasks:
     desc: "Full chart quality gate (what chart-ci.yml runs)"
     cmds:
       - task: lint
+      - task: lint:ct-drift
       - task: template
       - task: unittest
       - task: tools:test
