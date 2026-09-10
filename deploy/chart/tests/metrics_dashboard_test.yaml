@@ -42,6 +42,9 @@ tests:
       - matchRegex:
           path: data["harbor-trivy-scanner.json"]
           pattern: '\{\{pod\}\}'
+      - matchRegex:
+          path: data["harbor-valkey.json"]
+          pattern: '"uid": "harbor-valkey"'
 
   - it: sets safe collection defaults
     templates: [statefulset.yaml]

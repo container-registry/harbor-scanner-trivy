@@ -63,7 +63,7 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
 ## Monitoring
 
 Enable `metrics.serviceMonitor.enabled` for Prometheus Operator scraping and
-`metrics.grafanaDashboard.enabled` to provision the operational Trivy dashboard.
+`metrics.grafanaDashboard.enabled` to provision the Trivy and Valkey/Redis dashboards.
 See [dashboard setup and metric requirements](dashboards/README.md), including
 the required adapter image and cluster labels. Cache footprint collection is
 optional and bounded through `metrics.collection`.
@@ -318,7 +318,7 @@ Kubernetes: `>=1.28.0-0`
 | metrics.collection.timeoutSeconds | int | `5` | Version-command deadline/cache-walk budget in seconds; at most the interval. |
 | metrics.enabled | bool | `true` | Serve Prometheus metrics on `/metrics` of the API port (`SCANNER_API_SERVER_METRICS_ENABLED`). |
 | metrics.grafanaDashboard.annotations | object | `{"grafana_folder":"Harbor"}` | Sidecar annotations; configure Grafana's folderAnnotation to use grafana_folder if desired. |
-| metrics.grafanaDashboard.enabled | bool | `false` | Provision the canonical operational dashboard as a ConfigMap. Enable on only one release per Grafana organization. |
+| metrics.grafanaDashboard.enabled | bool | `false` | Provision the scanner and Valkey/Redis dashboards as one ConfigMap. Enable on only one release per Grafana organization. |
 | metrics.grafanaDashboard.labels | object | `{"grafana_dashboard":"1"}` | Labels selected by Grafana's dashboard sidecar. |
 | metrics.grafanaDashboard.namespace | string | `""` | Dashboard ConfigMap namespace. Defaults to the release namespace; Grafana's sidecar must watch it. |
 | metrics.serviceMonitor.annotations | object | `{}` | Extra annotations. |

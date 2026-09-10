@@ -235,7 +235,7 @@ metrics:
     # -- Maximum entries visited per cache sample, shared across cache directories.
     maxCacheFiles: 10000
   grafanaDashboard:
-    # -- Provision the canonical operational dashboard as a ConfigMap. Enable on only one release per Grafana organization.
+    # -- Provision the scanner and Valkey/Redis dashboards as one ConfigMap. Enable on only one release per Grafana organization.
     enabled: false
     # -- Dashboard ConfigMap namespace. Defaults to the release namespace; Grafana's sidecar must watch it.
     namespace: ""

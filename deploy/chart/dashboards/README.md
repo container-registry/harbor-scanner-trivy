@@ -1,9 +1,10 @@
-# Harbor Trivy Scanner dashboard
+# Harbor Trivy Scanner and Valkey dashboards
 
-[trivy.json](trivy.json) is the canonical Grafana dashboard. Import this file
-manually, or let a Grafana dashboard sidecar load the chart's optional ConfigMap.
-The chart embeds the same JSON without evaluating Grafana's template expressions.
-Provision it once per Grafana organization: all scanner releases use the same UID.
+[trivy.json](trivy.json) and [valkey.json](valkey.json) are the canonical Grafana
+dashboards. Import them manually, or let a Grafana dashboard sidecar load both
+from the chart's optional ConfigMap. The chart embeds the same JSON without
+evaluating Grafana's template expressions. Provision them once per Grafana
+organization: all scanner releases use the same dashboard UIDs.
 
 ## Setup
 
@@ -37,6 +38,44 @@ to label `grafana_dashboard: "1"` and annotation `grafana_folder: Harbor`.
 Configure the sidecar to watch that label and namespace; enable its folder
 annotation support if you want that folder. Labels and annotations are configurable.
 The ConfigMap does not install Grafana or its data sources.
+
+## Valkey / Redis dashboard
+
+The linked **Valkey / Redis** dashboard uses `redis_exporter` metrics from one
+cluster, namespace, and exporter Service. It covers memory/maxmemory, key lookups,
+evictions and expiry, keys, connections, command activity/errors, network traffic,
+uptime, and exporter health. Rates use at least a four-minute window and display
+events per minute; network traffic remains bytes per second. Values remain per
+server, including when a Service exposes several nodes.
+
+Enable the exporter's metrics and ServiceMonitor (or PodMonitor) in the chart
+that owns Redis/Valkey. The official Valkey chart exposes these as `metrics.enabled`
+and `metrics.serviceMonitor.enabled`; when used as a `valkey` subchart, prefix
+them with `valkey.`. Match Prometheus's monitor labels and preserve the `cluster`,
+`namespace`, `service`, and `instance` labels. The exporter is required separately
+from the adapter's `/metrics` endpoint. The Valkey dashboard can also be used with
+an external Redis server, independently of the adapter image version.
+
+In the Trivy dashboard, **Analysis cache (optional)** selects the exporter for the
+shared analysis cache. Three summary cards show memory/maxmemory, key hit rate,
+and evictions, with links preserving the selected installation and time range.
+The dedicated Valkey cache stores reusable image/layer analysis; **job/report
+Redis is separate**. The adapter's Redis client-pool metrics describe job/report
+connections, not Trivy CLI cache connections. PostgreSQL belongs to Harbor; the
+adapter does not access it directly.
+
+Memory usage turns orange at 80% and red at 95% of `maxmemory`; this is not the
+container memory limit. A zero configured limit displays **No maxmemory**. Cache
+hit rate displays **No lookups** when idle and **Unknown** for missing telemetry.
+Evictions are counted over the selected range and highlighted for investigation;
+some eviction is normal for a bounded cache. Key lookup hit rate is different
+from client connection-pool hits. Command execution time excludes network and
+pool waits. Shared servers include traffic and memory from every workload.
+
+Metric coverage is informed by the exporter's
+[reference dashboard](https://github.com/oliver006/redis_exporter/blob/master/contrib/grafana_prometheus_redis_dashboard.json);
+our layout and queries add installation isolation, per-server values, and explicit
+idle/unknown/unlimited states.
 
 ## Select one installation
 
@@ -147,8 +186,8 @@ frequency does not change how often Prometheus collects samples.
   Histograms have no observations until the corresponding operation occurs.
 - **Optional context:** Harbor's IMAGE_SCAN jobservice panels cover the selected
   cluster/namespace and may include other scanner registrations. Redis server memory
-  requires a Redis/Valkey exporter. **Redis service** lists exporters in the selected
-  namespace; select the one serving the scanner. Server memory is shared
+  requires a Redis/Valkey exporter. **Analysis cache (optional)** lists exporters
+  in the selected namespace; select the analysis-cache server. Server memory is shared
   server memory, not this scanner's attributed memory.
 - **Optional logs:** select a Loki data source with matching `cluster`, `namespace`,
   and `pod` labels. A hidden pod variable expands the selected scanner's discovered
@@ -176,7 +215,7 @@ one-minute samples. Do not replace unknown measurements with zero.
 | Local cache footprint | Collection is disabled by default; missing directories or incomplete walks also omit sizes | `metrics.collection.cacheSizeEnabled` and Storage collection status |
 | Estimated time to full | Fewer than 60 samples, or free space is not declining | Available filesystem space; the trend always looks back six hours |
 | Average pool wait | No requests waited for a pool connection, so the average is undefined | Redis pool timeouts and connection counts |
-| Redis server memory | No exporter was discovered, or the selected exporter is unavailable | Select the scanner backend's exporter Service; memory may include other workloads |
+| Analysis cache summary | No exporter was discovered, or the selected exporter is unavailable | Select the analysis-cache exporter; job/report Redis is separate |
 | Database age / next update | Database or required metadata timestamp is missing | Database presence and Metadata collection status |
 | Pod, Harbor, or log panels | Their separate metric/log source is unavailable or labels do not match | cAdvisor, kube-state-metrics, Harbor scraping, or Loki labels |
 

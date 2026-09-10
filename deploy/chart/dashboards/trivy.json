@@ -32,6 +32,12 @@
       "tooltip": "",
       "type": "link",
       "url": "https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/dashboards/README.md"
+    },
+    {
+      "title": "Valkey / Redis details",
+      "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
+      "type": "link",
+      "targetBlank": false
     }
   ],
   "liveNow": false,
@@ -4596,12 +4602,276 @@
       "type": "timeseries"
     },
     {
+      "id": 56,
+      "type": "stat",
+      "title": "Analysis cache memory / limit",
+      "description": "Memory used by the selected analysis-cache Redis/Valkey, relative to maxmemory. Job/report Redis and its client pool are separate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 92,
+        "w": 8,
+        "h": 7
+      },
+      "options": {
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3"
+                },
+                "-2": {
+                  "text": "No maxmemory",
+                  "color": "#9FA7B3"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace(((((100 * redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} / (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} > 0)) or (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} * 0 - 2 and redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "links": [
+        {
+          "title": "Valkey / Redis details",
+          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 96,
+      "type": "stat",
+      "title": "Analysis cache hit rate",
+      "description": "Key lookup hit rate for the selected analysis-cache server. No lookups means no cache traffic in the recent window.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 92,
+        "w": 8,
+        "h": 7
+      },
+      "options": {
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3"
+                },
+                "-2": {
+                  "text": "No lookups",
+                  "color": "#9FA7B3"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace(((((100 * rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) / ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) > 0)) or ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) * 0 - 2 and (rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "links": [
+        {
+          "title": "Valkey / Redis details",
+          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 97,
+      "type": "stat",
+      "title": "Analysis cache evictions",
+      "description": "Keys evicted for memory pressure during the selected range. Some eviction is normal for a bounded analysis cache.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 92,
+        "w": 8,
+        "h": 7
+      },
+      "options": {
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((((increase(redis_evicted_keys_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__range])) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "links": [
+        {
+          "title": "Valkey / Redis details",
+          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 92
+        "y": 99
       },
       "id": 80,
       "title": "Reports and persistence",
@@ -4673,7 +4943,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 93
+        "y": 100
       },
       "id": 45,
       "options": {
@@ -4777,7 +5047,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 93
+        "y": 100
       },
       "id": 46,
       "options": {
@@ -4881,7 +5151,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 93
+        "y": 100
       },
       "id": 47,
       "options": {
@@ -5047,7 +5317,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 100
+        "y": 107
       },
       "id": 48,
       "options": {
@@ -5151,7 +5421,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 100
+        "y": 107
       },
       "id": 49,
       "options": {
@@ -5255,7 +5525,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 100
+        "y": 107
       },
       "id": 50,
       "options": {
@@ -5420,7 +5690,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 107
+        "y": 114
       },
       "id": 51,
       "options": {
@@ -5524,7 +5794,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 107
+        "y": 114
       },
       "id": 52,
       "options": {
@@ -5628,7 +5898,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 107
+        "y": 114
       },
       "id": 53,
       "options": {
@@ -5662,7 +5932,7 @@
           "refId": "A"
         }
       ],
-      "title": "Redis pool connections",
+      "title": "Job/report Redis pool connections",
       "type": "timeseries"
     },
     {
@@ -5730,9 +6000,9 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 8,
+        "w": 12,
         "x": 0,
-        "y": 114
+        "y": 121
       },
       "id": 54,
       "options": {
@@ -5767,7 +6037,7 @@
           "refId": "A"
         }
       ],
-      "title": "Redis pool timeouts",
+      "title": "Job/report Redis pool timeouts",
       "type": "timeseries"
     },
     {
@@ -5834,9 +6104,9 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 114
+        "w": 12,
+        "x": 12,
+        "y": 121
       },
       "id": 55,
       "options": {
@@ -5871,110 +6141,7 @@
           "refId": "A"
         }
       ],
-      "title": "Average pool wait",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Redis/Valkey server memory from the selected exporter. Includes other workloads on shared servers. Redis client pool metrics are collected separately by the adapter.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "bytes"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 114
-      },
-      "id": 56,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Redis server memory (optional)",
+      "title": "Job/report Redis pool wait",
       "type": "timeseries"
     },
     {
@@ -5983,7 +6150,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 121
+        "y": 128
       },
       "id": 81,
       "title": "API",
@@ -6138,7 +6305,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 122
+        "y": 129
       },
       "id": 58,
       "options": {
@@ -6280,7 +6447,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 122
+        "y": 129
       },
       "id": 59,
       "options": {
@@ -6384,7 +6551,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 122
+        "y": 129
       },
       "id": 16,
       "options": {
@@ -6427,7 +6594,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 129
+        "y": 136
       },
       "id": 82,
       "title": "Harbor scheduling context (optional)",
@@ -6499,7 +6666,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 130
+        "y": 137
       },
       "id": 62,
       "options": {
@@ -6602,7 +6769,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 130
+        "y": 137
       },
       "id": 63,
       "options": {
@@ -6737,7 +6904,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 130
+        "y": 137
       },
       "id": 64,
       "options": {
@@ -6781,7 +6948,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 137
+        "y": 144
       },
       "id": 83,
       "title": "Logs (optional)",
@@ -6797,7 +6964,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 138
+        "y": 145
       },
       "id": 66,
       "options": {
@@ -6843,7 +7010,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 138
+        "y": 145
       },
       "id": 67,
       "options": {
@@ -6886,7 +7053,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 147,
+        "y": 154,
         "w": 24,
         "h": 1
       },
@@ -6932,7 +7099,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 148,
+            "y": 155,
             "w": 6,
             "h": 3
           },
@@ -7033,7 +7200,7 @@
           },
           "gridPos": {
             "x": 6,
-            "y": 148,
+            "y": 155,
             "w": 9,
             "h": 6
           },
@@ -7136,7 +7303,7 @@
           },
           "gridPos": {
             "x": 15,
-            "y": 148,
+            "y": 155,
             "w": 9,
             "h": 6
           },
@@ -7215,7 +7382,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 151,
+            "y": 158,
             "w": 6,
             "h": 3
           },
@@ -7292,7 +7459,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 154,
+            "y": 161,
             "w": 6,
             "h": 3
           },
@@ -7393,7 +7560,7 @@
           },
           "gridPos": {
             "x": 6,
-            "y": 154,
+            "y": 161,
             "w": 9,
             "h": 6
           },
@@ -7496,7 +7663,7 @@
           },
           "gridPos": {
             "x": 15,
-            "y": 154,
+            "y": 161,
             "w": 9,
             "h": 6
           },
@@ -7575,7 +7742,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 157,
+            "y": 164,
             "w": 6,
             "h": 3
           },
@@ -7652,7 +7819,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 160,
+            "y": 167,
             "w": 6,
             "h": 3
           },
@@ -7798,9 +7965,9 @@
       },
       {
         "current": {},
-        "description": "Redis/Valkey exporters in this namespace. Select the exporter for the scanner backend; memory includes all workloads on that server.",
+        "description": "Select the exporter for Trivy\u2019s analysis-cache Redis/Valkey. The job/report Redis pool is monitored separately by the adapter.",
         "hide": 0,
-        "label": "Redis service (optional)",
+        "label": "Analysis cache (optional)",
         "name": "redis_service",
         "query": {
           "query": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",

@@ -16,4 +16,6 @@ metadata:
 data:
   harbor-trivy-scanner.json: |
     {{- .Files.Get "dashboards/trivy.json" | nindent 4 }}
+  harbor-valkey.json: |
+    {{- .Files.Get "dashboards/valkey.json" | nindent 4 }}
 {{- end }}

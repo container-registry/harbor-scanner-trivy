@@ -11,6 +11,7 @@ import yaml
 
 CHART = Path(__file__).resolve().parents[1]
 DASHBOARD = json.loads((CHART / "dashboards/trivy.json").read_text())
+VALKEY = json.loads((CHART / "dashboards/valkey.json").read_text())
 
 
 def all_panels(panels=None):
@@ -30,6 +31,11 @@ class DashboardTest(unittest.TestCase):
                       if d and "harbor-trivy-scanner.json" in d.get("data", {})]
         self.assertEqual(len(dashboards), 1)
         self.assertEqual(json.loads(dashboards[0]), DASHBOARD)
+        valkey = [d["data"]["harbor-valkey.json"]
+                  for d in yaml.safe_load_all(output)
+                  if d and "harbor-valkey.json" in d.get("data", {})]
+        self.assertEqual(len(valkey), 1)
+        self.assertEqual(json.loads(valkey[0]), VALKEY)
 
     def test_installation_selectors_cannot_aggregate(self):
         variables = {v["name"]: v for v in DASHBOARD["templating"]["list"]}
@@ -163,6 +169,50 @@ class DashboardTest(unittest.TestCase):
             self.assertEqual((b["w"], b["h"]), (6, 3))
             self.assertEqual(a["x"], b["x"])
             self.assertEqual(a["y"] + a["h"], b["y"])
+
+
+class ValkeyDashboardTest(unittest.TestCase):
+    def test_queries_and_selectors_isolate_one_deployment(self):
+        variables = {v["name"]: v for v in VALKEY["templating"]["list"]}
+        for name in ("cluster", "namespace", "redis_service"):
+            self.assertFalse(variables[name]["includeAll"])
+            self.assertFalse(variables[name]["multi"])
+            self.assertEqual(variables[name]["current"], {})
+        for panel in VALKEY["panels"]:
+            for target in panel.get("targets", []):
+                expr = target["expr"]
+                for selector in ('cluster=~"${cluster:regex}"',
+                                 'namespace=~"${namespace:regex}"',
+                                 'service=~"${redis_service:regex}"', 'service!=""'):
+                    self.assertIn(selector, expr)
+                self.assertNotIn("or vector(0)", expr)
+                self.assertEqual(target["interval"], "1m")
+
+    def test_unknown_idle_and_unlimited_are_distinct(self):
+        panels = {p["id"]: p for p in VALKEY["panels"]}
+        for pid in (2, 3, 4, 5):
+            p = panels[pid]
+            self.assertTrue(p["targets"][0]["instant"])
+            self.assertIn('"node", "$1", "instance"', p["targets"][0]["expr"])
+            self.assertEqual(p["fieldConfig"]["defaults"]["mappings"][0]["options"]["-1"]["text"], "Unknown")
+        for pid, text in ((3, "No maxmemory"), (4, "No lookups")):
+            self.assertEqual(panels[pid]["fieldConfig"]["defaults"]["mappings"][0]["options"]["-2"]["text"], text)
+
+    def test_layout_and_cross_dashboard_links(self):
+        occupied, ids = set(), set()
+        for p in VALKEY["panels"]:
+            self.assertNotIn(p["id"], ids)
+            ids.add(p["id"])
+            pos = p["gridPos"]
+            for x in range(pos["x"], pos["x"] + pos["w"]):
+                self.assertLess(x, 24)
+                for y in range(pos["y"], pos["y"] + pos["h"]):
+                    self.assertNotIn((x, y), occupied)
+                    occupied.add((x, y))
+        for dashboard, destination in ((DASHBOARD, "harbor-valkey"), (VALKEY, "harbor-trivy-scanner")):
+            link = next(link for link in dashboard["links"] if '/d/' + destination + '/' in link["url"])
+            for variable in ("cluster", "namespace", "redis_service", "scanner"):
+                self.assertIn('var-' + variable + '=${' + variable + ':percentencode}', link["url"])
 
 
 if __name__ == "__main__":

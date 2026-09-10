@@ -65,7 +65,7 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
 ## Monitoring
 
 Enable `metrics.serviceMonitor.enabled` for Prometheus Operator scraping and
-`metrics.grafanaDashboard.enabled` to provision the operational Trivy dashboard.
+`metrics.grafanaDashboard.enabled` to provision the Trivy and Valkey/Redis dashboards.
 See [dashboard setup and metric requirements](dashboards/README.md), including
 the required adapter image and cluster labels. Cache footprint collection is
 optional and bounded through `metrics.collection`.
