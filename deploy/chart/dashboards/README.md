@@ -140,38 +140,45 @@ still cover the selected range. Payload traffic remains bytes per second.
 
 Outcome panels use green for success and red for errors. Blue identifies normal
 waiting or skipped work; orange highlights fallbacks and missing records for
-investigation. Database availability and update policy use current-status cards
-per replica. Missing vulnerability data is red; an absent Java index is neutral.
-Unavailable metrics or failed scrapes produce **Unknown**, not a healthy state.
-Collection health and OOM termination history retain named states.
-Status timelines sit in the left column; metadata collection uses a quarter of
-the row width and matches the neighboring metadata-refresh-age panel's height. Each database
-row places all five cards side by side at the standard panel height: availability, update policy, content age,
-last database download, and next update check. Green means healthy or present,
-blue means enabled, red marks failures, and gray marks neutral or unknown states.
-Within each stat, replicas are listed vertically with names beside their values.
-Display labels shorten `harbor-scanner-trivy-0` to `trivy-0`; queries and log
-discovery retain the full pod name.
+investigation. Database rows use one table row per replica, with availability,
+update policy, content age, last download and next update check as columns.
+Missing vulnerability data is red; an absent Java index is neutral. Unavailable
+metrics or failed scrapes produce **Unknown**, not a healthy state. Display labels
+shorten `harbor-scanner-trivy-0` to `trivy-0`; log discovery retains full pod names.
 
-**Content age** shows the current age per replica, without a sparkline. The
-vulnerability database turns orange at 12 hours and red at 24 hours; the Java
-package index turns orange at 48 hours and red at 72 hours. Missing telemetry
-remains gray / **Unknown**. These are dashboard freshness thresholds, not Trivy
-limits or proof of a failed update. They allow time beyond the upstream build
-schedules: [every six hours for vulnerability data](https://github.com/aquasecurity/trivy-db/blob/main/.github/workflows/cron.yml)
-and [daily for the Java index](https://github.com/aquasecurity/trivy-java-db/blob/main/.github/workflows/cron.yml).
-The original content-age graphs remain available through **View history**.
+**Content age** measures the installed content's build age. The vulnerability
+DB turns orange at 12 hours and red at 24 hours; the Java index turns orange at
+48 hours and red at 72 hours. These are dashboard freshness thresholds, not
+Trivy update deadlines or evidence of a failed download. **Last download** is
+the time since the pod downloaded its copy. **Next update check** uses the
+installed metadata's threshold; it does not schedule a download or include all
+of Trivy's recent-download checks.
 
-**Next update check** shows time until the installed metadata's update threshold,
-**Eligible now**, or **Updates disabled**. It does not schedule a download.
-**Last database download** shows the age of the local download separately from
-the content's build age. **Disk metric collection** lists each collector's
-latest result and time since its last success. An unknown optional cache-size
-collector may be disabled; missing telemetry alone cannot establish that.
+The **Database freshness history** row has two content-age charts and two local
+file-presence timelines. Age rises between updates and drops when newer content
+is installed. Compare replicas during relevant scan activity; an idle pod need
+not update on a schedule. Historical scrape instances are consolidated per pod,
+so restarts do not create repeated replica names. Presence checks files and
+metadata, not database integrity. Missing observations remain gaps.
 
-Use each current-status panel's **View history** link, or expand **Database and
-storage history** at the bottom, to investigate past transitions. These views
-retain the selected installation and time range.
+The paths in the tooltips are relative to Trivy's cache directory:
+
+| File | Purpose |
+| --- | --- |
+| `db/trivy.db` | Local vulnerability reference data |
+| `java-db/trivy-java.db` | Local index for identifying Java packages |
+| `fanal/fanal.db` | Local reusable image/layer analysis; replaced by Redis caching |
+
+**Disk metric collection** keeps one row per pod, with status and time since
+last success for each collector. A rising last-success age exposes measurements
+that have stopped refreshing. Optional file sizes may be **Not reported** when
+collection is disabled; missing telemetry alone cannot establish the reason.
+Its **View history** link opens the disk-collection timeline under **Monitoring
+diagnostics**. Collection failure does not establish a disk failure.
+
+Cache summary cards hide the instance name when showing one value and retain
+names for multiple instances. When the adapter reports filesystem caching,
+these cards show **Filesystem cache**, excluding unrelated Redis server metrics.
 
 Prometheus query **Min step** is set to `1m` on rate-based targets. This makes
 Grafana's `$__rate_interval` at least four minutes, allowing rate calculations
@@ -199,14 +206,14 @@ frequency does not change how often Prometheus collects samples.
   SBOM accessory reuse is separate from the Trivy analysis-cache hit rate.
 - **Vulnerability database / Java package index:** separate expanded rows show
   downloaded database presence, age, next update,
-  configured update policy, and metadata collection health. Missing Java DB can
+  and configured update policy. Missing Java DB can
   be normal before Java scanning. Update policy is not proof of a successful download.
   The Java DB identifies Java packages; the vulnerability DB supplies vulnerability
   records. Database age uses the installed metadata's content build timestamp,
   not its download timestamp. Next update is metadata used in update eligibility
   checks, not a promise that a background download will happen at that time.
   Each row filters queries to its own database and keeps replicas separate.
-  **Monitoring diagnostics** is collapsed and shows whether the adapter could
+  **Monitoring diagnostics** shows whether the adapter could
   check DB/Java metadata and how long since the last successful check. A missing
   database can be a valid observation. These panels describe monitoring freshness,
   not BoltDB integrity, scan success, database build age or download age.

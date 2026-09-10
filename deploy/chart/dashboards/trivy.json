@@ -34,10 +34,16 @@
       "url": "https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/dashboards/README.md"
     },
     {
+      "asDropdown": false,
+      "icon": "",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
       "title": "Valkey / Redis details",
-      "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
+      "tooltip": "",
       "type": "link",
-      "targetBlank": false
+      "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}"
     }
   ],
   "liveNow": false,
@@ -45,15 +51,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 0
       },
-      "id": 73,
+      "id": 1072,
       "title": "Overview",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
@@ -85,10 +90,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 1,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 0,
+        "y": 1
       },
       "id": 2,
       "options": {
@@ -157,10 +162,10 @@
         }
       },
       "gridPos": {
-        "x": 4,
-        "y": 1,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 4,
+        "y": 1
       },
       "id": 3,
       "options": {
@@ -230,10 +235,10 @@
         }
       },
       "gridPos": {
-        "x": 8,
-        "y": 1,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 8,
+        "y": 1
       },
       "id": 4,
       "options": {
@@ -303,10 +308,10 @@
         }
       },
       "gridPos": {
-        "x": 12,
-        "y": 1,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 12,
+        "y": 1
       },
       "id": 5,
       "options": {
@@ -375,10 +380,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 1,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 16,
+        "y": 1
       },
       "id": 6,
       "options": {
@@ -447,10 +452,10 @@
         }
       },
       "gridPos": {
-        "x": 20,
-        "y": 1,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 20,
+        "y": 1
       },
       "id": 7,
       "options": {
@@ -537,13 +542,13 @@
                 "id": "mappings",
                 "value": [
                   {
-                    "type": "regex",
                     "options": {
                       "pattern": "^harbor-scanner-(.+)$",
                       "result": {
                         "text": "$1"
                       }
-                    }
+                    },
+                    "type": "regex"
                   }
                 ]
               }
@@ -552,10 +557,10 @@
         ]
       },
       "gridPos": {
-        "x": 0,
-        "y": 5,
+        "h": 4,
         "w": 12,
-        "h": 4
+        "x": 0,
+        "y": 5
       },
       "id": 8,
       "options": {
@@ -609,10 +614,10 @@
     {
       "description": "Dashboard scope and links to metric definitions and troubleshooting.",
       "gridPos": {
-        "x": 12,
-        "y": 5,
+        "h": 4,
         "w": 12,
-        "h": 4
+        "x": 12,
+        "y": 5
       },
       "id": 9,
       "options": {
@@ -632,15 +637,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 9,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 9
       },
-      "id": 74,
+      "id": 1073,
       "title": "Runtime",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
@@ -705,10 +709,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 10,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 10
       },
       "id": 11,
       "options": {
@@ -809,10 +813,10 @@
         }
       },
       "gridPos": {
-        "x": 8,
-        "y": 10,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 10
       },
       "id": 12,
       "options": {
@@ -925,10 +929,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 10,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 10
       },
       "id": 13,
       "options": {
@@ -975,12 +979,19 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#9FA7B3"
+            "fixedColor": "#9FA7B3",
+            "mode": "fixed"
           },
           "custom": {
-            "lineWidth": 0,
+            "axisPlacement": "auto",
             "fillOpacity": 85,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
             "spanNulls": false
           },
           "mappings": [
@@ -996,25 +1007,41 @@
             }
           ],
           "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
           "unit": "none"
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 17,
+        "h": 7,
         "w": 6,
-        "h": 7
+        "x": 0,
+        "y": 17
       },
       "id": 60,
       "options": {
-        "mergeValues": true,
-        "showValue": "auto",
-        "rowHeight": 0.8,
         "alignValue": "center",
         "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
           "showLegend": false
         },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
@@ -1030,7 +1057,7 @@
           "expr": "label_replace(label_replace((max by (pod,container) ((kube_pod_container_status_last_terminated_reason{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",reason=\"OOMKilled\"}) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} · {{container}}",
+          "legendFormat": "{{replica}} \u00b7 {{container}}",
           "range": true,
           "refId": "A"
         }
@@ -1101,10 +1128,10 @@
         }
       },
       "gridPos": {
-        "x": 6,
-        "y": 17,
+        "h": 7,
         "w": 9,
-        "h": 7
+        "x": 6,
+        "y": 17
       },
       "id": 14,
       "options": {
@@ -1204,10 +1231,10 @@
         }
       },
       "gridPos": {
-        "x": 15,
-        "y": 17,
+        "h": 7,
         "w": 9,
-        "h": 7
+        "x": 15,
+        "y": 17
       },
       "id": 15,
       "options": {
@@ -1246,32 +1273,38 @@
       "type": "timeseries"
     },
     {
-      "id": 98,
-      "type": "row",
-      "title": "Scan pipeline — waiting and running",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 24,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 24
       },
-      "panels": []
+      "id": 1074,
+      "title": "Scan pipeline \u2014 waiting and running",
+      "type": "row"
     },
     {
-      "id": 100,
-      "type": "text",
-      "title": "Scan stages",
-      "options": {
-        "mode": "markdown",
-        "content": "**Harbor queue → Adapter queue → Active worker**\n\nThe panels below show current queue age, p95 wait before first start, and elapsed running time. They measure different tasks and cannot be added together."
-      },
       "gridPos": {
-        "x": 0,
-        "y": 25,
+        "h": 3,
         "w": 24,
-        "h": 3
-      }
+        "x": 0,
+        "y": 25
+      },
+      "id": 100,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "**Harbor queue \u2192 Adapter queue \u2192 Active worker**\n\nThe panels below show current queue age, p95 wait before first start, and elapsed running time. They measure different tasks and cannot be added together.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [],
+      "title": "Scan stages",
+      "type": "text"
     },
     {
       "datasource": {
@@ -1336,10 +1369,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 28,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 28
       },
       "id": 63,
       "options": {
@@ -1439,10 +1472,10 @@
         }
       },
       "gridPos": {
-        "x": 8,
-        "y": 28,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 28
       },
       "id": 20,
       "options": {
@@ -1543,10 +1576,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 28,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 28
       },
       "id": 22,
       "options": {
@@ -1586,15 +1619,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 35,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 35
       },
-      "id": 75,
+      "id": 1075,
       "title": "Scanning and workers",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
@@ -1691,10 +1723,10 @@
         ]
       },
       "gridPos": {
-        "x": 0,
-        "y": 36,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 36
       },
       "id": 18,
       "options": {
@@ -1827,10 +1859,10 @@
         ]
       },
       "gridPos": {
-        "x": 8,
-        "y": 36,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 36
       },
       "id": 19,
       "options": {
@@ -1931,10 +1963,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 36,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 36
       },
       "id": 21,
       "options": {
@@ -2035,10 +2067,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 43,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 43
       },
       "id": 23,
       "options": {
@@ -2068,7 +2100,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{stage}} · {{category}}",
+          "legendFormat": "{{stage}} \u00b7 {{category}}",
           "range": true,
           "refId": "A"
         }
@@ -2186,10 +2218,10 @@
         ]
       },
       "gridPos": {
-        "x": 8,
-        "y": 43,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 43
       },
       "id": 24,
       "options": {
@@ -2291,10 +2323,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 43,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 43
       },
       "id": 27,
       "options": {
@@ -2397,7 +2429,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* · success$"
+              "options": ".* \u00b7 success$"
             },
             "properties": [
               {
@@ -2412,7 +2444,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* · (failed|nonzero_exit|signal|start_error)$"
+              "options": ".* \u00b7 (failed|nonzero_exit|signal|start_error)$"
             },
             "properties": [
               {
@@ -2427,10 +2459,10 @@
         ]
       },
       "gridPos": {
-        "x": 0,
-        "y": 50,
+        "h": 7,
         "w": 6,
-        "h": 7
+        "x": 0,
+        "y": 50
       },
       "id": 25,
       "options": {
@@ -2460,7 +2492,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{command}} · {{outcome}}",
+          "legendFormat": "{{command}} \u00b7 {{outcome}}",
           "range": true,
           "refId": "A"
         }
@@ -2593,10 +2625,10 @@
         ]
       },
       "gridPos": {
-        "x": 6,
-        "y": 50,
+        "h": 7,
         "w": 6,
-        "h": 7
+        "x": 6,
+        "y": 50
       },
       "id": 26,
       "options": {
@@ -2699,7 +2731,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* · success$"
+              "options": ".* \u00b7 success$"
             },
             "properties": [
               {
@@ -2714,7 +2746,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* · (failed|nonzero_exit|signal|start_error)$"
+              "options": ".* \u00b7 (failed|nonzero_exit|signal|start_error)$"
             },
             "properties": [
               {
@@ -2729,10 +2761,10 @@
         ]
       },
       "gridPos": {
-        "x": 12,
-        "y": 50,
+        "h": 7,
         "w": 6,
-        "h": 7
+        "x": 12,
+        "y": 50
       },
       "id": 28,
       "options": {
@@ -2762,7 +2794,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{command}} · {{reason}}",
+          "legendFormat": "{{command}} \u00b7 {{reason}}",
           "range": true,
           "refId": "A"
         }
@@ -2833,10 +2865,10 @@
         }
       },
       "gridPos": {
-        "x": 18,
-        "y": 50,
+        "h": 7,
         "w": 6,
-        "h": 7
+        "x": 18,
+        "y": 50
       },
       "id": 29,
       "options": {
@@ -2876,948 +2908,829 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 57,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 57
       },
-      "id": 76,
+      "id": 1076,
       "title": "Vulnerability database",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Local vulnerability database availability. A missing database prevents vulnerability scanning until a copy is downloaded or supplied. Unknown means the metric or current scrape is unavailable.",
+      "description": "Status of db/trivy.db and its metadata.json on each scanner pod. Trivy uses this local database to match packages against known vulnerabilities. Redis analysis caching does not replace this file.",
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "noValue": "Unknown",
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#9FA7B3"
+            "mode": "thresholds"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                },
-                "0": {
-                  "text": "Missing",
-                  "color": "red",
-                  "index": 1
-                },
-                "1": {
-                  "text": "Present",
-                  "color": "green",
-                  "index": 2
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "color-background"
+            },
+            "filterable": false,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Availability"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "Missing"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "Present"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Update policy"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "#9FA7B3",
+                        "index": 1,
+                        "text": "Disabled"
+                      },
+                      "1": {
+                        "color": "blue",
+                        "index": 2,
+                        "text": "Enabled"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Content age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 43200
+                    },
+                    {
+                      "color": "red",
+                      "value": 86400
+                    }
+                  ]
                 }
               }
-            }
-          ]
-        },
-        "overrides": []
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last download"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Next update check"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "blue",
+                        "index": 2,
+                        "text": "Eligible now"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 1,
+                        "text": "Unknown"
+                      },
+                      "-2": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Updates disabled"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
+        "h": 8,
+        "w": 24,
         "x": 0,
-        "y": 58,
-        "w": 4,
-        "h": 7
+        "y": 58
       },
-      "id": 32,
+      "id": 1032,
       "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
+        "cellHeight": "md",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
           ],
-          "fields": ""
+          "show": false
         },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
+        "showHeader": true
       },
       "pluginVersion": "13.3.0-34259522365",
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
           "expr": "label_replace(label_replace((((harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
+          "refId": "A"
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Availability",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=85&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Current database download policy per replica. Enabled permits updates; it does not confirm a successful download. Use View history for policy changes.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#9FA7B3"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                },
-                "0": {
-                  "text": "Disabled",
-                  "color": "#9FA7B3",
-                  "index": 1
-                },
-                "1": {
-                  "text": "Enabled",
-                  "color": "blue",
-                  "index": 2
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 4,
-        "y": 58,
-        "w": 5,
-        "h": 7
-      },
-      "id": 34,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
+          "editorMode": "code",
           "expr": "label_replace(label_replace((((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
+          "refId": "B"
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Update policy",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=86&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Age of the installed vulnerability database content, per replica. Orange from 12h; red from 24h. Old content does not necessarily mean an update failed.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "thresholds"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 43200
-              },
-              {
-                "color": "red",
-                "value": 86400
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 9,
-        "y": 58,
-        "w": 5,
-        "h": 7
-      },
-      "id": 31,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
+          "editorMode": "code",
           "expr": "label_replace(label_replace((((time() - harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
+          "refId": "C"
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Content age",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=94&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Time since this replica downloaded its database copy. Content age measures when that copy was built.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "blue"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 14,
-        "y": 58,
-        "w": 5,
-        "h": 7
-      },
-      "id": 92,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
+          "editorMode": "code",
           "expr": "label_replace(label_replace((((time() - harbor_scanner_trivy_db_downloaded_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
+          "refId": "D"
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Last database download",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Time until Trivy may check for a database update. Eligible now means the metadata threshold has passed; downloads happen when Trivy runs.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "blue"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-2": {
-                  "text": "Updates disabled",
-                  "color": "#9FA7B3",
-                  "index": 0
-                },
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 1
-                },
-                "0": {
-                  "text": "Eligible now",
-                  "color": "blue",
-                  "index": 2
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 19,
-        "y": 58,
-        "w": 5,
-        "h": 7
-      },
-      "id": 33,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
+          "editorMode": "code",
           "expr": "label_replace(label_replace(((((clamp_min(harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} - time(), 0) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} == 1)) or on (cluster,namespace,scanner,pod) ((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} * 0 - 2) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} == 0))) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
+          "refId": "E"
+        }
+      ],
+      "title": "Vulnerability database \u2014 status by replica",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "replica",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(replica|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "renameByName": {
+              "Value #A": "Availability",
+              "Value #B": "Update policy",
+              "Value #C": "Content age",
+              "Value #D": "Last download",
+              "Value #E": "Next update check",
+              "replica": "Replica"
+            }
           }
         }
       ],
-      "title": "Next update check",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=87&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
+      "type": "table"
     },
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 65,
+        "h": 1,
         "w": 24,
-        "h": 1
-      },
-      "id": 77,
-      "title": "Java package index",
-      "type": "row",
-      "panels": []
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Local Java package index availability. Absence can be normal before Java analysis needs it. Unknown means the metric or current scrape is unavailable.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#9FA7B3"
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                },
-                "0": {
-                  "text": "Absent",
-                  "color": "#9FA7B3",
-                  "index": 1
-                },
-                "1": {
-                  "text": "Present",
-                  "color": "green",
-                  "index": 2
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
         "x": 0,
-        "y": 66,
-        "w": 4,
-        "h": 7
+        "y": 66
       },
-      "id": 70,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace(label_replace((((harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
-          "instant": true,
-          "range": false,
-          "format": "time_series",
-          "editorMode": "code",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Availability",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=88&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
+      "id": 1077,
+      "title": "Java package index",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Current database download policy per replica. Enabled permits updates; it does not confirm a successful download. Use View history for policy changes.",
+      "description": "Status of java-db/trivy-java.db and its metadata.json on each scanner pod. Trivy uses this local index to identify Java packages from JAR files. Redis analysis caching does not replace this file.",
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#9FA7B3"
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                },
-                "0": {
-                  "text": "Disabled",
-                  "color": "#9FA7B3",
-                  "index": 1
-                },
-                "1": {
-                  "text": "Enabled",
-                  "color": "blue",
-                  "index": 2
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 4,
-        "y": 66,
-        "w": 5,
-        "h": 7
-      },
-      "id": 72,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace(label_replace((((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
-          "instant": true,
-          "range": false,
-          "format": "time_series",
-          "editorMode": "code",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Update policy",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=89&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Age of the installed Java package index content, per replica. Orange from 48h; red from 72h. Old content does not necessarily mean an update failed.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                }
-              }
-            }
-          ],
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "color-background"
+            },
+            "filterable": false,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 172800
+                "value": 0
               },
               {
                 "color": "red",
-                "value": 259200
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Availability"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "#9FA7B3",
+                        "index": 1,
+                        "text": "Absent"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "Present"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Update policy"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "#9FA7B3",
+                        "index": 1,
+                        "text": "Disabled"
+                      },
+                      "1": {
+                        "color": "blue",
+                        "index": 2,
+                        "text": "Enabled"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Content age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 172800
+                    },
+                    {
+                      "color": "red",
+                      "value": 259200
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last download"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Next update check"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "noValue",
+                "value": "Unknown"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "blue",
+                        "index": 2,
+                        "text": "Eligible now"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 1,
+                        "text": "Unknown"
+                      },
+                      "-2": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Updates disabled"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
       "gridPos": {
-        "x": 9,
-        "y": 66,
-        "w": 5,
-        "h": 7
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 67
       },
-      "id": 69,
+      "id": 1071,
       "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
+        "cellHeight": "md",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
           ],
-          "fields": ""
+          "show": false
         },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
+        "showHeader": true
       },
       "pluginVersion": "13.3.0-34259522365",
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((((harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
           "expr": "label_replace(label_replace((((time() - harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
+          "refId": "C"
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Content age",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=95&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Time since this replica downloaded its database copy. Content age measures when that copy was built.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "blue"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 0
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 14,
-        "y": 66,
-        "w": 5,
-        "h": 7
-      },
-      "id": 93,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
+          "editorMode": "code",
           "expr": "label_replace(label_replace((((time() - harbor_scanner_trivy_db_downloaded_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
+          "refId": "D"
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Last database download",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Time until Trivy may check for a database update. Eligible now means the metadata threshold has passed; downloads happen when Trivy runs.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "blue"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-2": {
-                  "text": "Updates disabled",
-                  "color": "#9FA7B3",
-                  "index": 0
-                },
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3",
-                  "index": 1
-                },
-                "0": {
-                  "text": "Eligible now",
-                  "color": "blue",
-                  "index": 2
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 19,
-        "y": 66,
-        "w": 5,
-        "h": 7
-      },
-      "id": 71,
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
+          "editorMode": "code",
           "expr": "label_replace(label_replace(((((clamp_min(harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} - time(), 0) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} == 1)) or on (cluster,namespace,scanner,pod) ((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} * 0 - 2) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} == 0))) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{replica}}",
+          "format": "table",
           "instant": true,
           "range": false,
-          "format": "time_series",
-          "editorMode": "code",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
+          "refId": "E"
+        }
+      ],
+      "title": "Java package index \u2014 status by replica",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "replica",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(replica|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "renameByName": {
+              "Value #A": "Availability",
+              "Value #B": "Update policy",
+              "Value #C": "Content age",
+              "Value #D": "Last download",
+              "Value #E": "Next update check",
+              "replica": "Replica"
+            }
           }
         }
       ],
-      "title": "Next update check",
-      "type": "stat",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=90&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
+      "type": "table"
     },
     {
-      "id": 101,
-      "type": "row",
-      "title": "Redis / Valkey analysis cache",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 73,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 75
       },
-      "panels": []
+      "id": 1078,
+      "title": "Redis / Valkey analysis cache",
+      "type": "row"
     },
     {
-      "id": 56,
-      "type": "stat",
-      "title": "Analysis cache memory / limit",
-      "description": "Memory used by the dedicated Redis/Valkey analysis cache as a percentage of maxmemory. All scanner pods share reusable image/layer analysis here, replacing fanal.db. Evicted analysis can be recomputed. Jobs and reports use a separate instance; vulnerability and Java databases remain on each pod’s local volume.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 74,
-        "w": 8,
-        "h": 7
-      },
-      "options": {
-        "orientation": "horizontal",
-        "wideLayout": true,
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto"
-      },
+      "description": "Memory used by the shared Redis/Valkey image/layer analysis cache as a percentage of maxmemory. It replaces the local fanal/fanal.db cache; evicted analysis can be recomputed. db/trivy.db and java-db/trivy-java.db remain on each pod's local volume. Jobs and reports use a separate Redis instance. Filesystem cache means Trivy uses local fanal/fanal.db; Redis server measurements are then hidden.",
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
-          "noValue": "Unknown",
           "color": {
             "mode": "thresholds"
           },
           "mappings": [
             {
-              "type": "value",
               "options": {
                 "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3"
+                  "color": "#9FA7B3",
+                  "text": "Unknown"
                 },
                 "-2": {
-                  "text": "No maxmemory",
-                  "color": "#9FA7B3"
+                  "color": "#9FA7B3",
+                  "text": "No maxmemory"
+                },
+                "-3": {
+                  "color": "#9FA7B3",
+                  "index": 1,
+                  "text": "Filesystem cache"
                 }
-              }
+              },
+              "type": "value"
             }
           ],
+          "max": 100,
+          "min": 0,
+          "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "orange",
@@ -3828,221 +3741,276 @@
                 "value": 95
               }
             ]
-          }
-        },
-        "overrides": []
+          },
+          "unit": "percent"
+        }
       },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 76
+      },
+      "id": 56,
+      "links": [
+        {
+          "targetBlank": false,
+          "title": "Valkey / Redis details",
+          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0-34259522365",
       "targets": [
         {
-          "refId": "A",
-          "expr": "label_replace(label_replace((label_replace(((((100 * redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} / (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} > 0)) or (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} * 0 - 2 and redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{node}}",
-          "instant": true,
-          "range": false,
-          "format": "time_series",
-          "editorMode": "code",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "interval": "1m"
+          "editorMode": "code",
+          "expr": "((label_replace(label_replace((label_replace(((((100 * redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} / (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} > 0)) or (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} * 0 - 2 and redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")) and on () (max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"redis\"}) == 1)) or ((((max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"filesystem\"}) == 1) * 0 - 3)) unless on () (max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"redis\"}) == 1))",
+          "format": "time_series",
+          "instant": true,
+          "interval": "1m",
+          "legendFormat": "{{node}}",
+          "range": false,
+          "refId": "A"
         }
       ],
-      "links": [
-        {
-          "title": "Valkey / Redis details",
-          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
+      "title": "Analysis cache memory / limit",
+      "type": "stat"
     },
     {
-      "id": 96,
-      "type": "stat",
-      "title": "Analysis cache hit rate",
-      "description": "Key lookup hit rate for the selected analysis-cache server. No lookups means no cache traffic in the recent window.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "gridPos": {
-        "x": 8,
-        "y": 74,
-        "w": 8,
-        "h": 7
-      },
-      "options": {
-        "orientation": "horizontal",
-        "wideLayout": true,
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto"
-      },
+      "description": "Key lookup hit rate for the selected analysis-cache server. No lookups means no cache traffic in the recent window. Filesystem cache means Trivy uses local fanal/fanal.db; Redis server measurements are then hidden.",
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
-          "noValue": "Unknown",
           "color": {
-            "mode": "fixed",
-            "fixedColor": "blue"
+            "fixedColor": "blue",
+            "mode": "fixed"
           },
           "mappings": [
             {
-              "type": "value",
               "options": {
                 "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3"
+                  "color": "#9FA7B3",
+                  "text": "Unknown"
                 },
                 "-2": {
-                  "text": "No lookups",
-                  "color": "#9FA7B3"
+                  "color": "#9FA7B3",
+                  "text": "No lookups"
+                },
+                "-3": {
+                  "color": "#9FA7B3",
+                  "index": 1,
+                  "text": "Filesystem cache"
                 }
-              }
+              },
+              "type": "value"
             }
-          ]
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace(label_replace((label_replace(((((100 * rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) / ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) > 0)) or ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) * 0 - 2 and (rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{node}}",
-          "instant": true,
-          "range": false,
-          "format": "time_series",
-          "editorMode": "code",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "interval": "1m"
-        }
-      ],
-      "links": [
-        {
-          "title": "Valkey / Redis details",
-          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
-    },
-    {
-      "id": 97,
-      "type": "stat",
-      "title": "Analysis cache evictions",
-      "description": "Keys evicted for memory pressure during the selected range. Some eviction is normal for a bounded analysis cache.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 16,
-        "y": 74,
-        "w": 8,
-        "h": 7
-      },
-      "options": {
-        "orientation": "horizontal",
-        "wideLayout": true,
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
           ],
-          "fields": ""
-        },
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
+          "max": 100,
+          "min": 0,
           "noValue": "Unknown",
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "Unknown",
-                  "color": "#9FA7B3"
-                }
-              }
-            }
-          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 76
+      },
+      "id": 96,
+      "links": [
+        {
+          "targetBlank": false,
+          "title": "Valkey / Redis details",
+          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "((label_replace(label_replace((label_replace(((((100 * rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) / ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) > 0)) or ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) * 0 - 2 and (rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")) and on () (max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"redis\"}) == 1)) or ((((max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"filesystem\"}) == 1) * 0 - 3)) unless on () (max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"redis\"}) == 1))",
+          "format": "time_series",
+          "instant": true,
+          "interval": "1m",
+          "legendFormat": "{{node}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Analysis cache hit rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Keys evicted for memory pressure during the selected range. Some eviction is normal for a bounded analysis cache. Filesystem cache means Trivy uses local fanal/fanal.db; Redis server measurements are then hidden.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "-1": {
+                  "color": "#9FA7B3",
+                  "text": "Unknown"
+                },
+                "-3": {
+                  "color": "#9FA7B3",
+                  "index": 1,
+                  "text": "Filesystem cache"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "orange",
                 "value": 1
               }
             ]
-          }
-        },
-        "overrides": []
+          },
+          "unit": "short"
+        }
       },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 76
+      },
+      "id": 97,
+      "links": [
+        {
+          "targetBlank": false,
+          "title": "Valkey / Redis details",
+          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0-34259522365",
       "targets": [
         {
-          "refId": "A",
-          "expr": "label_replace(label_replace((label_replace((((increase(redis_evicted_keys_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__range])) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "legendFormat": "{{node}}",
-          "instant": true,
-          "range": false,
-          "format": "time_series",
-          "editorMode": "code",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "interval": "1m"
+          "editorMode": "code",
+          "expr": "((label_replace(label_replace((label_replace((((increase(redis_evicted_keys_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__range])) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")) and on () (max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"redis\"}) == 1)) or ((((max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"filesystem\"}) == 1) * 0 - 3)) unless on () (max(harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"redis\"}) == 1))",
+          "format": "time_series",
+          "instant": true,
+          "interval": "1m",
+          "legendFormat": "{{node}}",
+          "range": false,
+          "refId": "A"
         }
       ],
-      "links": [
-        {
-          "title": "Valkey / Redis details",
-          "url": "/d/harbor-valkey/valkey-redis?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-redis_service=${redis_service:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ]
+      "title": "Analysis cache evictions",
+      "type": "stat"
     },
     {
-      "id": 102,
-      "type": "row",
-      "title": "Redis job/report client pool",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 81,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 83
       },
-      "panels": []
+      "id": 1079,
+      "title": "Redis job/report client pool",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Adapter connections to the job/report Redis/Valkey, usually Harbor’s existing instance. All scanner pods share its queue, delivery leases, job state and scan reports. The dedicated analysis cache uses separate connections. Total includes idle connections; compare with pool waits and timeouts.",
+      "description": "Adapter connections to the job/report Redis/Valkey, usually Harbor\u2019s existing instance. All scanner pods share its queue, delivery leases, job state and scan reports. The dedicated analysis cache uses separate connections. Total includes idle connections; compare with pool waits and timeouts.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4100,10 +4068,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 82,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 84
       },
       "id": 53,
       "options": {
@@ -4132,7 +4100,7 @@
           "expr": "label_replace(label_replace((harbor_scanner_trivy_redis_pool_connections{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} · {{state}}",
+          "legendFormat": "{{replica}} \u00b7 {{state}}",
           "range": true,
           "refId": "A"
         }
@@ -4204,10 +4172,10 @@
         }
       },
       "gridPos": {
-        "x": 8,
-        "y": 82,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 84
       },
       "id": 54,
       "options": {
@@ -4308,10 +4276,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 82,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 84
       },
       "id": 55,
       "options": {
@@ -4352,15 +4320,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 89,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 91
       },
-      "id": 79,
-      "title": "Local disk — databases and reports",
-      "type": "row",
-      "panels": []
+      "id": 1080,
+      "title": "Local disk \u2014 databases and reports",
+      "type": "row"
     },
     {
       "datasource": {
@@ -4425,10 +4392,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 90,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 92
       },
       "id": 39,
       "options": {
@@ -4457,7 +4424,7 @@
           "expr": "label_replace(label_replace(label_replace((1-(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / harbor_scanner_trivy_storage_capacity_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} · {{area}}",
+          "legendFormat": "{{replica}} \u00b7 {{area}}",
           "range": true,
           "refId": "A"
         }
@@ -4528,10 +4495,10 @@
         }
       },
       "gridPos": {
-        "x": 8,
-        "y": 90,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 92
       },
       "id": 40,
       "options": {
@@ -4560,7 +4527,7 @@
           "expr": "label_replace(label_replace(label_replace((harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} · {{area}}",
+          "legendFormat": "{{replica}} \u00b7 {{area}}",
           "range": true,
           "refId": "A"
         }
@@ -4631,10 +4598,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 90,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 92
       },
       "id": 41,
       "options": {
@@ -4663,7 +4630,7 @@
           "expr": "label_replace(label_replace(label_replace((harbor_scanner_trivy_storage_inodes_available{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} · {{area}}",
+          "legendFormat": "{{replica}} \u00b7 {{area}}",
           "range": true,
           "refId": "A"
         }
@@ -4736,34 +4703,34 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* · vulnerability_db$"
+              "options": ".* \u00b7 vulnerability_db$"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "Vulnerability DB · ${__field.labels.replica}"
+                "value": "Vulnerability DB \u00b7 ${__field.labels.replica}"
               }
             ]
           },
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* · java_db$"
+              "options": ".* \u00b7 java_db$"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "Java package index · ${__field.labels.replica}"
+                "value": "Java package index \u00b7 ${__field.labels.replica}"
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "x": 0,
-        "y": 97,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 99
       },
       "id": 38,
       "options": {
@@ -4792,7 +4759,7 @@
           "expr": "label_replace(label_replace((harbor_scanner_trivy_cache_size_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",kind=~\"vulnerability_db|java_db\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} · {{kind}}",
+          "legendFormat": "{{replica}} \u00b7 {{kind}}",
           "range": true,
           "refId": "A"
         }
@@ -4863,10 +4830,10 @@
         }
       },
       "gridPos": {
-        "x": 12,
-        "y": 97,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 12,
+        "y": 99
       },
       "id": 42,
       "options": {
@@ -4895,7 +4862,7 @@
           "expr": "label_replace(label_replace(label_replace(((harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / -deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h])) and (deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) < 0) and (count_over_time(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) >= 60)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} · {{area}}",
+          "legendFormat": "{{replica}} \u00b7 {{area}}",
           "range": true,
           "refId": "A"
         }
@@ -4906,15 +4873,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 104,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 106
       },
-      "id": 80,
+      "id": 1081,
       "title": "Reports and persistence",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
@@ -4979,10 +4945,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 105,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 107
       },
       "id": 45,
       "options": {
@@ -5012,7 +4978,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{encoding}} · {{format}}",
+          "legendFormat": "{{encoding}} \u00b7 {{format}}",
           "range": true,
           "refId": "A"
         }
@@ -5083,10 +5049,10 @@
         }
       },
       "gridPos": {
-        "x": 8,
-        "y": 105,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 107
       },
       "id": 46,
       "options": {
@@ -5187,10 +5153,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 105,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 107
       },
       "id": 47,
       "options": {
@@ -5220,7 +5186,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{record}} · {{encoding}}",
+          "legendFormat": "{{record}} \u00b7 {{encoding}}",
           "range": true,
           "refId": "A"
         }
@@ -5353,10 +5319,10 @@
         ]
       },
       "gridPos": {
-        "x": 0,
-        "y": 112,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 114
       },
       "id": 48,
       "options": {
@@ -5457,10 +5423,10 @@
         }
       },
       "gridPos": {
-        "x": 8,
-        "y": 112,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 114
       },
       "id": 49,
       "options": {
@@ -5561,10 +5527,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 112,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 114
       },
       "id": 50,
       "options": {
@@ -5666,7 +5632,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^success · .*"
+              "options": "^success \u00b7 .*"
             },
             "properties": [
               {
@@ -5681,7 +5647,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^error · .*"
+              "options": "^error \u00b7 .*"
             },
             "properties": [
               {
@@ -5696,7 +5662,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^not_found · .*"
+              "options": "^not_found \u00b7 .*"
             },
             "properties": [
               {
@@ -5711,7 +5677,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^not_applied · .*"
+              "options": "^not_applied \u00b7 .*"
             },
             "properties": [
               {
@@ -5726,10 +5692,10 @@
         ]
       },
       "gridPos": {
-        "x": 0,
-        "y": 119,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 121
       },
       "id": 51,
       "options": {
@@ -5759,7 +5725,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{outcome}} · {{operation}}",
+          "legendFormat": "{{outcome}} \u00b7 {{operation}}",
           "range": true,
           "refId": "A"
         }
@@ -5830,10 +5796,10 @@
         }
       },
       "gridPos": {
-        "x": 12,
-        "y": 119,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 12,
+        "y": 121
       },
       "id": 52,
       "options": {
@@ -5874,15 +5840,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 126,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 128
       },
-      "id": 81,
+      "id": 1082,
       "title": "API",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
@@ -5954,7 +5919,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Metadata · ${__field.labels.code}"
+                "value": "Metadata \u00b7 ${__field.labels.code}"
               }
             ]
           },
@@ -5966,7 +5931,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Report · ${__field.labels.code}"
+                "value": "Report \u00b7 ${__field.labels.code}"
               }
             ]
           },
@@ -5978,7 +5943,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Submit scan · ${__field.labels.code}"
+                "value": "Submit scan \u00b7 ${__field.labels.code}"
               }
             ]
           },
@@ -6030,10 +5995,10 @@
         ]
       },
       "gridPos": {
-        "x": 0,
-        "y": 127,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 0,
+        "y": 129
       },
       "id": 58,
       "options": {
@@ -6063,7 +6028,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{route}} · {{code}}",
+          "legendFormat": "{{route}} \u00b7 {{code}}",
           "range": true,
           "refId": "A"
         }
@@ -6172,10 +6137,10 @@
         ]
       },
       "gridPos": {
-        "x": 8,
-        "y": 127,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 8,
+        "y": 129
       },
       "id": 59,
       "options": {
@@ -6276,10 +6241,10 @@
         }
       },
       "gridPos": {
-        "x": 16,
-        "y": 127,
+        "h": 7,
         "w": 8,
-        "h": 7
+        "x": 16,
+        "y": 129
       },
       "id": 16,
       "options": {
@@ -6319,15 +6284,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 134,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 136
       },
-      "id": 82,
+      "id": 1083,
       "title": "Harbor scheduling context (optional)",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
@@ -6392,10 +6356,10 @@
         }
       },
       "gridPos": {
-        "x": 0,
-        "y": 135,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 137
       },
       "id": 62,
       "options": {
@@ -6527,10 +6491,10 @@
         ]
       },
       "gridPos": {
-        "x": 12,
-        "y": 135,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 12,
+        "y": 137
       },
       "id": 64,
       "options": {
@@ -6571,15 +6535,14 @@
     {
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 142,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 144
       },
-      "id": 83,
+      "id": 1084,
       "title": "Logs (optional)",
-      "type": "row",
-      "panels": []
+      "type": "row"
     },
     {
       "datasource": {
@@ -6588,10 +6551,10 @@
       },
       "description": "Logs from the selected scanner pods. Use to investigate scan progress, database downloads, and failures. Requires matching Loki labels; deleted pods fall out of discovery.",
       "gridPos": {
-        "x": 0,
-        "y": 143,
+        "h": 9,
         "w": 12,
-        "h": 9
+        "x": 0,
+        "y": 145
       },
       "id": 66,
       "options": {
@@ -6634,10 +6597,10 @@
       },
       "description": "Scanner log lines matching error, fatal, or panic. Inspect messages alongside execution failures; keyword matches can include harmless output.",
       "gridPos": {
-        "x": 12,
-        "y": 143,
+        "h": 9,
         "w": 12,
-        "h": 9
+        "x": 12,
+        "y": 145
       },
       "id": 67,
       "options": {
@@ -6674,23 +6637,21 @@
       "type": "logs"
     },
     {
-      "id": 103,
-      "type": "row",
-      "title": "Filesystem analysis cache (filesystem backend only)",
       "collapsed": true,
       "gridPos": {
-        "x": 0,
-        "y": 152,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 154
       },
+      "id": 1085,
       "panels": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Active local fanal cache only. Hidden unless the adapter reports the filesystem backend; Redis, memory and unreported backends produce no data. Requires cacheSizeEnabled.",
+          "description": "Local image/layer analysis cache in fanal/fanal.db under Trivy's cache directory. Redis replaces this cache; leftover fanal.db files are inactive and excluded. Requires the filesystem backend and cacheSizeEnabled.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -6745,14 +6706,13 @@
                 ]
               },
               "unit": "bytes"
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
-            "x": 0,
-            "y": 153,
+            "h": 7,
             "w": 24,
-            "h": 7
+            "x": 0,
+            "y": 155
           },
           "id": 99,
           "options": {
@@ -6789,1241 +6749,1203 @@
           "title": "Filesystem analysis cache size",
           "type": "timeseries"
         }
-      ]
+      ],
+      "title": "Filesystem analysis cache (filesystem backend only)",
+      "type": "row"
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 160,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 155
       },
-      "id": 78,
+      "id": 1086,
       "title": "Monitoring diagnostics",
-      "type": "row",
-      "panels": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Whether the adapter could check vulnerability DB and Java index metadata and obtain the Trivy version. A missing database can be a valid check result; this does not test database integrity.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "#9FA7B3"
-              },
-              "custom": {
-                "lineWidth": 0,
-                "fillOpacity": 85,
-                "spanNulls": false
-              },
-              "mappings": [
-                {
-                  "options": {
-                    "0": {
-                      "color": "red",
-                      "index": 0,
-                      "text": "Failed"
-                    },
-                    "1": {
-                      "color": "green",
-                      "index": 1,
-                      "text": "OK"
-                    }
-                  },
-                  "type": "value"
-                }
-              ],
-              "noValue": "No observations",
-              "unit": "none"
-            }
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 161,
-            "w": 6,
-            "h": 7
-          },
-          "id": 35,
-          "options": {
-            "mergeValues": true,
-            "showValue": "auto",
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": false
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_metadata_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "DB metadata checks",
-          "type": "state-timeline"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Time since the last successful metadata check. A growing value means database status panels may be stale; this is not database content age.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 8,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "showValues": false,
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "noValue": "No observations",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "s"
-            }
-          },
-          "gridPos": {
-            "x": 6,
-            "y": 161,
-            "w": 18,
-            "h": 7
-          },
-          "id": 36,
-          "options": {
-            "legend": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((time()-harbor_scanner_trivy_metadata_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Time since DB metadata refresh",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Collection results for local disk space and optional file sizes. Failed means those disk measurements are unavailable; it does not establish a disk failure.",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none",
-              "noValue": "Unknown",
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Collector"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "cache_filesystem": {
-                            "text": "Database filesystem",
-                            "color": "blue",
-                            "index": 0
-                          },
-                          "reports_filesystem": {
-                            "text": "Report filesystem",
-                            "color": "blue",
-                            "index": 1
-                          },
-                          "cache_size": {
-                            "text": "Local file sizes (optional)",
-                            "color": "#9FA7B3",
-                            "index": 2
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Status"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "-1": {
-                            "text": "Unknown",
-                            "color": "#9FA7B3",
-                            "index": 0
-                          },
-                          "0": {
-                            "text": "Failed",
-                            "color": "red",
-                            "index": 1
-                          },
-                          "1": {
-                            "text": "OK",
-                            "color": "green",
-                            "index": 2
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-text"
-                    }
-                  },
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "fixed",
-                      "fixedColor": "#9FA7B3"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Last success"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "s"
-                  },
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "-1": {
-                            "text": "Unknown",
-                            "color": "#9FA7B3",
-                            "index": 0
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Replica"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "regex",
-                        "options": {
-                          "pattern": "^harbor-scanner-(.+)$",
-                          "result": {
-                            "text": "$1"
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 168,
-            "w": 24,
-            "h": 7
-          },
-          "id": 43,
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "sortBy": [
-              {
-                "displayName": "Replica",
-                "desc": false
-              }
-            ]
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "label_replace((((harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\"))), \"measurement\", \"Status\", \"pod\", \".*\") or label_replace(((time() - harbor_scanner_trivy_storage_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\"))), \"measurement\", \"Last success\", \"pod\", \".*\")",
-              "legendFormat": "{{pod}}",
-              "instant": true,
-              "range": false,
-              "format": "time_series",
-              "editorMode": "code",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              }
-            }
-          ],
-          "title": "Disk metric collection",
-          "type": "table",
-          "links": [
-            {
-              "title": "View history",
-              "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=91&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-              "targetBlank": false
-            }
-          ],
-          "transformations": [
-            {
-              "id": "labelsToFields",
-              "options": {
-                "mode": "columns",
-                "keepLabels": [
-                  "pod",
-                  "collector",
-                  "measurement"
-                ],
-                "valueLabel": "measurement"
-              }
-            },
-            {
-              "id": "merge",
-              "options": {}
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true
-                },
-                "indexByName": {
-                  "collector": 0,
-                  "Status": 1,
-                  "Last success": 2,
-                  "pod": 3
-                },
-                "renameByName": {
-                  "pod": "Replica",
-                  "collector": "Collector"
-                }
-              }
-            }
-          ]
-        }
-      ]
+      "type": "row"
     },
     {
-      "id": 84,
-      "title": "Database and storage history",
-      "type": "row",
-      "collapsed": true,
-      "gridPos": {
-        "x": 0,
-        "y": 175,
-        "w": 24,
-        "h": 1
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
       },
-      "description": "Historical availability, update policy, eligibility, and storage collection results.",
-      "panels": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
+      "description": "Whether the adapter could check vulnerability DB and Java index metadata and obtain the Trivy version. A missing database can be a valid check result; this does not test database integrity.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#9FA7B3",
+            "mode": "fixed"
           },
-          "description": "Local vulnerability database availability. A missing database prevents vulnerability scanning until a copy is downloaded or supplied.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "#9FA7B3"
-              },
-              "custom": {
-                "lineWidth": 0,
-                "fillOpacity": 85,
-                "spanNulls": false
-              },
-              "mappings": [
-                {
-                  "options": {
-                    "0": {
-                      "color": "red",
-                      "index": 0,
-                      "text": "Missing"
-                    },
-                    "1": {
-                      "color": "green",
-                      "index": 1,
-                      "text": "Present"
-                    }
-                  },
-                  "type": "value"
-                }
-              ],
-              "noValue": "No observations",
-              "unit": "none"
-            }
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 176,
-            "w": 6,
-            "h": 3
-          },
-          "id": 85,
-          "options": {
-            "mergeValues": true,
-            "showValue": "auto",
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": false
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 85,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
           },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
+          "mappings": [
             {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Vulnerability DB availability",
-          "type": "state-timeline"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Time until the installed vulnerability database is eligible for an update. Negative means due; downloads depend on Trivy invocation and update policy.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 8,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Failed"
                 },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "showValues": false,
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "OK"
                 }
               },
-              "noValue": "No observations",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "s"
-            }
-          },
-          "gridPos": {
-            "x": 6,
-            "y": 176,
-            "w": 9,
-            "h": 6
-          },
-          "id": 87,
-          "options": {
-            "legend": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}-time()), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
+              "type": "value"
             }
           ],
-          "title": "Vulnerability DB update eligibility",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Age of the installed vulnerability database content. If age grows during active scanning, check update policy and download errors.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
               },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 8,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "showValues": false,
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "noValue": "No observations",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "s"
-            }
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
-          "gridPos": {
-            "x": 15,
-            "y": 176,
-            "w": 9,
-            "h": 6
-          },
-          "id": 94,
-          "options": {
-            "legend": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Vulnerability DB content age",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Whether Trivy may download vulnerability database updates. Disabled updates require a separately maintained database.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "#9FA7B3"
-              },
-              "custom": {
-                "lineWidth": 0,
-                "fillOpacity": 85,
-                "spanNulls": false
-              },
-              "mappings": [
-                {
-                  "options": {
-                    "0": {
-                      "color": "#9FA7B3",
-                      "index": 0,
-                      "text": "Disabled"
-                    },
-                    "1": {
-                      "color": "blue",
-                      "index": 1,
-                      "text": "Enabled"
-                    }
-                  },
-                  "type": "value"
-                }
-              ],
-              "noValue": "No observations",
-              "unit": "none"
-            }
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 179,
-            "w": 6,
-            "h": 3
-          },
-          "id": 86,
-          "options": {
-            "mergeValues": true,
-            "showValue": "auto",
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": false
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Vulnerability DB update policy",
-          "type": "state-timeline"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Local Java package index availability. Absence can be normal before Java analysis needs it.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "#9FA7B3"
-              },
-              "custom": {
-                "lineWidth": 0,
-                "fillOpacity": 85,
-                "spanNulls": false
-              },
-              "mappings": [
-                {
-                  "options": {
-                    "0": {
-                      "color": "#9FA7B3",
-                      "index": 0,
-                      "text": "Absent"
-                    },
-                    "1": {
-                      "color": "green",
-                      "index": 1,
-                      "text": "Present"
-                    }
-                  },
-                  "type": "value"
-                }
-              ],
-              "noValue": "No observations",
-              "unit": "none"
-            }
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 182,
-            "w": 6,
-            "h": 3
-          },
-          "id": 88,
-          "options": {
-            "mergeValues": true,
-            "showValue": "auto",
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": false
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Java index availability",
-          "type": "state-timeline"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Time until the installed Java package index is eligible for an update. Negative means due; downloads depend on Trivy invocation and update policy.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 8,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "showValues": false,
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "noValue": "No observations",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "s"
-            }
-          },
-          "gridPos": {
-            "x": 6,
-            "y": 182,
-            "w": 9,
-            "h": 6
-          },
-          "id": 90,
-          "options": {
-            "legend": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}-time()), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Java index update eligibility",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Age of the installed Java package index. If age grows during Java scanning, check update policy and download errors.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 8,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "showValues": false,
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "noValue": "No observations",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "s"
-            }
-          },
-          "gridPos": {
-            "x": 15,
-            "y": 182,
-            "w": 9,
-            "h": 6
-          },
-          "id": 95,
-          "options": {
-            "legend": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((time()-harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Java index content age",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Whether Trivy may download Java package index updates. This policy is independent of vulnerability database updates.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "#9FA7B3"
-              },
-              "custom": {
-                "lineWidth": 0,
-                "fillOpacity": 85,
-                "spanNulls": false
-              },
-              "mappings": [
-                {
-                  "options": {
-                    "0": {
-                      "color": "#9FA7B3",
-                      "index": 0,
-                      "text": "Disabled"
-                    },
-                    "1": {
-                      "color": "blue",
-                      "index": 1,
-                      "text": "Enabled"
-                    }
-                  },
-                  "type": "value"
-                }
-              ],
-              "noValue": "No observations",
-              "unit": "none"
-            }
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 185,
-            "w": 6,
-            "h": 3
-          },
-          "id": 89,
-          "options": {
-            "mergeValues": true,
-            "showValue": "auto",
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": false
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Java index update policy",
-          "type": "state-timeline"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Latest storage collection result. On failure, check permissions, missing paths, and collection limits. Cache-walk metrics are absent when disabled.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "#9FA7B3"
-              },
-              "custom": {
-                "lineWidth": 0,
-                "fillOpacity": 85,
-                "spanNulls": false
-              },
-              "mappings": [
-                {
-                  "options": {
-                    "0": {
-                      "color": "red",
-                      "index": 0,
-                      "text": "Failed"
-                    },
-                    "1": {
-                      "color": "green",
-                      "index": 1,
-                      "text": "OK"
-                    }
-                  },
-                  "type": "value"
-                }
-              ],
-              "noValue": "No observations",
-              "unit": "none"
-            }
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 188,
-            "w": 6,
-            "h": 3
-          },
-          "id": 91,
-          "options": {
-            "mergeValues": true,
-            "showValue": "auto",
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": false
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "13.3.0-34259522365",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "label_replace(label_replace((harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-              "format": "time_series",
-              "instant": false,
-              "legendFormat": "{{replica}} · {{collector}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Storage collection history",
-          "type": "state-timeline"
+          "unit": "none"
         }
-      ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 156
+      },
+      "id": 35,
+      "options": {
+        "alignValue": "center",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((harbor_scanner_trivy_metadata_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "DB metadata checks",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Time since the last successful metadata check. A growing value means database status panels may be stale; this is not database content age.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 18,
+        "x": 6,
+        "y": 156
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((time()-harbor_scanner_trivy_metadata_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Time since DB metadata refresh",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Each collector shows its latest result and time since its last successful measurement. A rising last-success age means disk metrics are no longer being refreshed, even if the last result was Collected. Database disk holds db/trivy.db and java-db/trivy-java.db; Report disk holds temporary scan output. File sizes is optional and excludes inactive fanal/fanal.db when Redis caching is used. Not reported can mean collection is disabled. Failed means measurements were unavailable, not that storage failed.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Replica"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "pattern": "^harbor-scanner-(.+)$",
+                      "result": {
+                        "text": "$1"
+                      }
+                    },
+                    "type": "regex"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Database disk \u00b7 status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "Failed"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "Collected"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9FA7B3",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Database disk \u00b7 last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Report disk \u00b7 status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "Failed"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "Collected"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9FA7B3",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Report disk \u00b7 last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "File sizes \u00b7 status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "Failed"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "Collected"
+                      },
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Not reported"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9FA7B3",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "File sizes \u00b7 last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "-1": {
+                        "color": "#9FA7B3",
+                        "index": 0,
+                        "text": "Not reported"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 163
+      },
+      "id": 43,
+      "links": [
+        {
+          "targetBlank": false,
+          "title": "View history",
+          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=91&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}"
+        }
+      ],
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Replica"
+          }
+        ]
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(min by (pod,collector) ((harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} and on (cluster,namespace,scanner,pod,instance) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"} == 1)) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\")))) or label_replace((max by (pod,collector) ((time() - harbor_scanner_trivy_storage_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\")))), \"collector\", \"$1-age\", \"collector\", \"(.*)\")",
+          "format": "time_series",
+          "instant": true,
+          "legendFormat": "{{pod}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Disk metric collection",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "keepLabels": [
+              "pod",
+              "collector"
+            ],
+            "mode": "columns",
+            "valueLabel": "collector"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "cache_filesystem": 1,
+              "cache_filesystem-age": 2,
+              "cache_size": 5,
+              "cache_size-age": 6,
+              "pod": 0,
+              "reports_filesystem": 3,
+              "reports_filesystem-age": 4
+            },
+            "renameByName": {
+              "cache_filesystem": "Database disk \u00b7 status",
+              "cache_filesystem-age": "Database disk \u00b7 last success",
+              "cache_size": "File sizes \u00b7 status",
+              "cache_size-age": "File sizes \u00b7 last success",
+              "pod": "Replica",
+              "reports_filesystem": "Report disk \u00b7 status",
+              "reports_filesystem-age": "Report disk \u00b7 last success"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Whether the adapter could collect local disk measurements. Database disk contains db/trivy.db, java-db/trivy-java.db and, with filesystem caching, fanal/fanal.db. Report disk holds temporary scan output. Failed means measurements were unavailable, not that storage failed. File sizes appear only when collection is enabled.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#9FA7B3",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 85,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Failed"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Collected"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 170
+      },
+      "id": 91,
+      "options": {
+        "alignValue": "center",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace((min by (cluster,namespace,scanner,pod,collector) (harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"),\"measurement\",\"Database disk\",\"collector\",\"cache_filesystem\"),\"measurement\",\"Report disk\",\"collector\",\"reports_filesystem\"),\"measurement\",\"File sizes\",\"collector\",\"cache_size\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}} \u00b7 {{measurement}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Disk metric collection history",
+      "type": "state-timeline"
+    },
+    {
+      "collapsed": false,
+      "description": "Compare database content age and local file presence across replicas. Use the status tables above for current update policy and timing.",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 177
+      },
+      "id": 1087,
+      "title": "Database freshness history",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Age of the vulnerability content installed in db/trivy.db, read from db/metadata.json. Age rises between updates; a drop means newer content was installed. Investigate a replica falling behind during active vulnerability scanning.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Content age",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trivy-0"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#5794F2",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trivy-1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#B877D9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trivy-2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF9830",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 178
+      },
+      "id": 94,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((time() - min by (cluster,namespace,scanner,pod,database) (harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Vulnerability DB content age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Age of the Java package index installed in java-db/trivy-java.db, read from java-db/metadata.json. Age rises between updates; a drop means newer content was installed. Investigate a replica falling behind during scans that need the Java index.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Content age",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trivy-0"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#5794F2",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trivy-1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#B877D9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trivy-2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF9830",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 178
+      },
+      "id": 95,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((time() - min by (cluster,namespace,scanner,pod,database) (harbor_scanner_trivy_db_updated_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Java index content age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Presence of db/trivy.db and valid db/metadata.json on each pod. Persistent absence blocks vulnerability scanning until a database is downloaded or supplied. Gaps mean no observations; presence does not verify database integrity.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#9FA7B3",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 85,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Missing"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Present"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 185
+      },
+      "id": 85,
+      "options": {
+        "alignValue": "center",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((min by (cluster,namespace,scanner,pod,database) (harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Vulnerability DB presence",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Presence of java-db/trivy-java.db and valid java-db/metadata.json on each pod. Absence can be normal until Java package identification needs the index. Gaps mean no observations; presence does not verify database integrity.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#9FA7B3",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 85,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "#9FA7B3",
+                  "index": 0,
+                  "text": "Absent"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Present"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 185
+      },
+      "id": 88,
+      "options": {
+        "alignValue": "center",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((min by (cluster,namespace,scanner,pod,database) (harbor_scanner_trivy_db_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Java index presence",
+      "type": "state-timeline"
     }
   ],
   "preload": false,
@@ -8131,29 +8053,30 @@
         "type": "query"
       },
       {
+        "allowCustomValue": false,
         "current": {},
-        "description": "Select the exporter for Trivy’s analysis-cache Redis/Valkey. The job/report Redis pool is monitored separately by the adapter.",
-        "hide": 0,
-        "label": "Analysis cache (optional)",
-        "name": "redis_service",
-        "query": {
-          "query": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
-          "refId": "redis_service"
-        },
-        "skipUrlSync": false,
-        "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "definition": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
-        "options": [],
-        "refresh": 1,
-        "sort": 1,
-        "multi": false,
+        "description": "Select the exporter for Trivy\u2019s analysis-cache Redis/Valkey. The job/report Redis pool is monitored separately by the adapter.",
+        "hide": 0,
         "includeAll": false,
-        "allowCustomValue": false,
-        "regex": ""
+        "label": "Analysis cache (optional)",
+        "multi": false,
+        "name": "redis_service",
+        "options": [],
+        "query": {
+          "query": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
+          "refId": "redis_service"
+        },
+        "refresh": 1,
+        "regex": "",
+        "regexApplyTo": "value",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       },
       {
         "allowCustomValue": true,
