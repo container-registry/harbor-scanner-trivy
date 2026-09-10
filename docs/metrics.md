@@ -1,14 +1,14 @@
 # Operational metrics
 
 The adapter exposes Prometheus metrics on the existing API listener at `/metrics`.
-`SCANNER_API_SERVER_METRICS_ENABLED=false` disables the `/metrics` endpoint (scrapes return 404), application recording and
-background collection. Scraping uses the API listener's TLS, client-certificate
-and network-policy settings; no extra listener is opened.
+`SCANNER_API_SERVER_METRICS_ENABLED=false` disables `/metrics` (scrapes return
+404), application recording and background collection. Scrapes use the API
+listener's TLS, client-certificate and network-policy settings.
 
-This implements the adapter instrumentation phase of [#97](https://github.com/container-registry/harbor-scanner-trivy/issues/97).
-Vulnerability findings belong in Harbor. Engine cache hits, cache lock waits,
+These metrics cover the adapter instrumentation in [#97](https://github.com/container-registry/harbor-scanner-trivy/issues/97).
+Use Harbor to inspect vulnerability findings. Engine cache hits, cache lock waits,
 internal phase timings, download/retry instrumentation and cache maintenance
-policies are not implemented by this change.
+policies remain outside this instrumentation.
 
 ## Configuration
 
@@ -19,15 +19,15 @@ policies are not implemented by this change.
 | `SCANNER_METRICS_CACHE_SIZE_ENABLED` | `false` | Opt in to walking the verified local cache directories for logical file sizes. Basic capacity and DB metadata collection do not require this. |
 | `SCANNER_METRICS_CACHE_MAX_FILES` | `10000` | Maximum entries visited per cache sample, shared across directories; range 1–1000000. |
 
-Collection reads cached files and filesystem statistics in a background loop,
-never on the scrape path. The engine version is obtained with a bounded
+A background loop reads cached files and filesystem statistics. Scrapes return
+the collected values without starting filesystem work. The engine version is obtained with a bounded
 `trivy version --format json` command, retried until available. File walks do not
-follow symlinks. Missing or unsupported cache layouts produce collection failure
-and absent size series, not invented zeros. Capacity areas and replicas may
+follow symlinks. Missing or unsupported cache layouts produce collection failures and omit
+the affected size series. They do not report a zero size. Capacity areas and replicas may
 refer to the same filesystem: do not sum them as independent disks.
 
-Metadata collection verifies that a regular database file and parseable metadata
-exist. It does not open or validate the database contents. Missing DBs are valid
+Metadata collection checks for a regular database file and parseable metadata.
+It cannot establish database integrity because it does not open the database. Missing DBs are valid
 `db_present=0` observations; unreadable/malformed metadata is unknown. Java DBs
 can be absent until needed. `db_updates_enabled` follows the skip-update flags;
 Trivy's `offline-scan` flag alone does not disable database downloads. The adapter
@@ -35,7 +35,7 @@ metadata API also includes Java DB updated-at, including with updates disabled.
 
 ## Metric families
 
-Every suffix below has prefix **`harbor_scanner_trivy_`**. Histograms export
+Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 `_bucket`, `_sum`, and `_count`. Times are seconds and sizes are bytes.
 
 | Suffix | Type | Application labels | Meaning |
@@ -96,17 +96,17 @@ Every suffix below has prefix **`harbor_scanner_trivy_`**. Histograms export
 
 The client's cumulative pool counters reset on client replacement and the
 upstream 32-bit counters can wrap; apply Prometheus `rate`/`increase` reset
-semantics. Each client is registered once. No Redis keyspace scans or server
-`INFO` calls are made by these collectors. Actual server memory and evictions
-come from a Redis/Valkey exporter, with shared-instance scope documented.
+semantics. Each client is registered once. These collectors read client statistics without scanning Redis keys or calling
+server `INFO`. Use a Redis/Valkey exporter for server memory and evictions; those
+measurements cover every workload sharing the instance.
 
 ## Counting and interpreting results
 
 - A request can enqueue multiple tasks by capability/format. Redis Streams retain
   deliveries until acknowledged, and workers use renewable leases.
-  `job_dispatch_total{result="lock_busy"}` counts ownership contention, not failed
-  scans. Delivery is at least once; fencing prevents stale workers from storing
-  results, but does not guarantee exactly-once execution.
+  `job_dispatch_total{result="lock_busy"}` counts ownership contention. It does
+  not count a scan failure. Delivery is at least once: ownership checks block
+  stale result writes, but an interrupted scan can execute again.
 - `queue_wait_duration_seconds` measures adapter enqueue to first-attempt lock acquisition.
   Harbor's own queue is upstream. Old messages without an enqueue timestamp and
   future timestamps are excluded. Controller duration includes target resolution,
@@ -121,7 +121,8 @@ come from a Redis/Valkey exporter, with shared-instance scope documented.
   Child stderr classification remains heuristic; exact diagnostic detail stays
   in logs. Error labels never contain raw stderr or image identifiers.
 - Report-size raw/compressed observations describe the same applied report write.
-  Compare sums for a byte-weighted compression ratio, not unrelated percentiles.
+  Calculate a byte-weighted compression ratio from the sums. Dividing unrelated
+  percentiles does not give that ratio.
   Byte-write counters include only confirmed applied writes. Duplicate `SETNX`
   calls can return successfully with `outcome="not_applied"`; they add no bytes.
 - A missing report may be expired or an unknown ID. `report_fetch_age_seconds`
@@ -133,7 +134,8 @@ come from a Redis/Valkey exporter, with shared-instance scope documented.
 - Child peak RSS is available after termination on Linux (converted from KiB)
   and macOS (already bytes). It is not live usage, a sum of concurrent children,
   or total container peak. If the child never starts or the adapter is killed,
-  usage may be unavailable. A signal alone does not establish OOM.
+  usage may be unavailable. Check the container termination reason to determine
+  whether a signal was caused by OOM.
 - Last-success and metadata timestamps remain absent until observed. An idle
   installation need not have a recent successful scan. Use collection-success
   and last-success timestamps together; failed samples remove invalid snapshot
@@ -175,5 +177,4 @@ Use the scanner's metrics for execution/worker health, database freshness,
 cache/storage and report persistence. Use container/node metrics for CPU, memory,
 limits, throttling and OOM/restarts. Adapter Go/process collectors are retained
 and describe only the adapter process. Harbor jobservice metrics can provide
-upstream scheduling context. A dedicated dashboard and Helm provisioning are
-provided in the stacked chart change, not this metrics commit.
+upstream scheduling context. The stacked chart change provides the dashboard and Helm provisioning.

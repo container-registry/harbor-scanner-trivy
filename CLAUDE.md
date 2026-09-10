@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Harbor Scanner Adapter for Trivy -- a Go microservice that integrates the Trivy vulnerability scanner with Harbor container registry. It implements Harbor's scanner adapter API, accepting async scan requests via HTTP, processing them through a Redis-backed job queue, and returning vulnerability/SBOM reports. This is the default scanner in Harbor >= 2.2.
+Harbor Scanner Adapter for Trivy is a Go service that runs Trivy scans for Harbor. It implements Harbor's scanner adapter API: HTTP requests enter a Redis-backed job queue, workers execute scans, and Harbor retrieves vulnerability reports or SBOMs. Harbor >= 2.2 uses this adapter as its default scanner.
 
 Module: `github.com/container-registry/harbor-scanner-trivy`
 
@@ -27,9 +27,8 @@ task docs:svgbob        # Regenerate Kroki links for SVGBob diagrams in markdown
 Tool and base-image pins live in `versions.env` (loaded by Taskfile via dotenv).
 Chart tasks live in `taskfile/helm.yml`, included under the `helm:` namespace.
 
-Releases are automated with release-please. There are **two independent release
-lines** - the adapter (`vX.Y.Z`) and the Helm chart (`chart-vX.Y.Z`), each with
-its own config, manifest and changelog. Never push `v*` or `chart-v*` tags
+Releases are automated with release-please. The adapter (`vX.Y.Z`) and Helm chart (`chart-vX.Y.Z`) have independent release
+lines, each with its own config, manifest and changelog. Never push `v*` or `chart-v*` tags
 manually (see docs/RELEASES.md).
 
 Run a single test:
@@ -44,32 +43,32 @@ go test -v -tags=integration -run TestName ./test/integration/...
 
 ## Architecture
 
-**Request flow:**
+Request flow:
 1. `POST /api/v1/scan` -> API handler validates request -> Enqueuer atomically creates queued state and a Redis Stream delivery -> returns 202 with job ID
 2. One worker per pod claims a stream delivery with a renewable lease -> Controller executes Trivy CLI as a cancellable subprocess -> transforms JSON output to Harbor report format -> stores result in Redis -> acknowledges delivery and starts report retention
 3. `GET /api/v1/scan/{id}/report` -> returns 302 (still processing) or the finished report
 
-**Key packages:**
-- `cmd/scanner-trivy/` -- entry point, wires all components together
-- `pkg/http/api/v1/` -- HTTP handler implementing Harbor scanner adapter API (scan, report, metadata, probes)
-- `pkg/scan/` -- controller (orchestrates scan execution) and transformer (Trivy output -> Harbor report)
-- `pkg/trivy/` -- wrapper around Trivy CLI (`trivy image` subprocess), model types for Trivy JSON output
-- `pkg/queue/` -- Redis Streams consumer group, renewable fenced ownership and recovery; requires Redis 6.2+ or compatible Valkey
-- `pkg/persistence/redis/` -- atomic enqueue/acknowledgement and fenced job/report writes; queued work persists, completed reports have a configurable TTL
-- `pkg/etc/` -- configuration via environment variables (all prefixed `SCANNER_`), parsed with `caarlos0/env/v6`
-- `pkg/harbor/` -- Harbor domain models (ScanRequest, ScanReport, Severity, etc.)
-- `pkg/mock/` -- testify mocks for interfaces
-- `deploy/chart/` -- the Helm chart: `values.schema.json` closes the
+Packages:
+- `cmd/scanner-trivy/`: entry point, wires all components together
+- `pkg/http/api/v1/`: HTTP handler implementing Harbor scanner adapter API (scan, report, metadata, probes)
+- `pkg/scan/`: controller (orchestrates scan execution) and transformer (Trivy output -> Harbor report)
+- `pkg/trivy/`: wrapper around Trivy CLI (`trivy image` subprocess), model types for Trivy JSON output
+- `pkg/queue/`: Redis Streams consumer group, renewable fenced ownership and recovery; requires Redis 6.2+ or compatible Valkey
+- `pkg/persistence/redis/`: atomic enqueue/acknowledgement and fenced job/report writes; queued work persists, completed reports have a configurable TTL
+- `pkg/etc/`: configuration via environment variables (all prefixed `SCANNER_`), parsed with `caarlos0/env/v6`
+- `pkg/harbor/`: Harbor domain models (ScanRequest, ScanReport, Severity, etc.)
+- `pkg/mock/`: testify mocks for interfaces
+- `deploy/chart/`: the Helm chart: `values.schema.json` closes the
   root so unknown keys fail the render, `templates/validate-values.yaml` holds the
   cross-field guards a schema cannot express, `tests/` is a helm-unittest suite,
   and `ci/` + `example/` are values scenarios CI renders on every change
 
-**API endpoints:**
-- `POST /api/v1/scan` -- submit scan request
-- `GET /api/v1/scan/{scan_request_id}/report` -- retrieve scan report
-- `GET /api/v1/metadata` -- adapter metadata and capabilities
-- `GET /probe/healthy`, `GET /probe/ready` -- health probes
-- `GET /metrics` -- Prometheus metrics
+API endpoints:
+- `POST /api/v1/scan`: submit scan request
+- `GET /api/v1/scan/{scan_request_id}/report`: retrieve scan report
+- `GET /api/v1/metadata`: adapter metadata and capabilities
+- `GET /probe/healthy`, `GET /probe/ready`: health probes
+- `GET /metrics`: Prometheus metrics
 
 ## Key Design Decisions
 

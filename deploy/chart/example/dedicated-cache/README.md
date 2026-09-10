@@ -1,7 +1,8 @@
 # Dedicated Valkey analysis cache
 
-Uses Harbor-next's official `valkey` chart **0.9.3** from
-`oci://ghcr.io/valkey-io/valkey-helm` as a separate release-scoped instance.
+This example deploys the official `valkey` chart 0.9.3 from
+`oci://ghcr.io/valkey-io/valkey-helm`, the same version used by Harbor-next.
+The cache instance belongs to the scanner release.
 Enable it with `valkey.enabled: true`; the adapter's default `trivy.cacheBackend:
 fs` then resolves to the subchart's primary Service automatically.
 
@@ -11,11 +12,13 @@ helm upgrade --install scanner deploy/chart -n harbor \
   -f deploy/chart/example/dedicated-cache/values.yaml
 ```
 
-This runs three adapter pods with one worker each. `redis.*` still points at
-the operational job/report backend; never point it at this evicting cache.
-Defaults: `maxmemory 512mb`, `allkeys-lru`, no snapshots/AOF, 1 GiB container
-limit. Tune memory and headroom for the working set. Restarting the cache
-causes re-analysis. Upstream resources, persistence, ACL, TLS and network-policy
+The deployment has three adapter pods with one worker each. Keep `redis.*`
+pointing to the job/report backend: this analysis cache evicts keys and cannot
+safely store pending jobs or reports.
+
+The defaults are `maxmemory 512mb`, `allkeys-lru`, a 1 GiB container limit,
+and disabled snapshots/AOF. Size the memory budget and headroom for the working
+set. After a cache restart, Trivy analyzes the affected images again. Upstream resources, persistence, ACL, TLS and network-policy
 settings pass through under `valkey`. Avoid naming this service after Harbor's
 existing operational Valkey instance.
 
@@ -41,8 +44,8 @@ extraEnv:
         key: url
 ```
 
-Authentication without an adapter URL override fails Helm validation. No
-passwords are generated during rendering. For TLS, configure the upstream
+Helm validation rejects authentication settings without an adapter URL
+override. Supply the passwords in the Secret; rendering does not generate them. For TLS, configure the upstream
 `valkey.tls` server Secret and the adapter CA/client certificate paths described
 in [the scaling guide](../../../../docs/SCALING.md). The automatic URL selects
 `rediss://` when server TLS is enabled; explicit Secret URLs must do so too.

@@ -4,10 +4,9 @@
 
 {{ template "chart.description" . }}
 
-The adapter implements Harbor's scanner adapter API: Harbor posts a scan
-request, the adapter queues it in Redis, a worker shells out to the `trivy` CLI,
-and the result is transformed into a Harbor vulnerability report or SBOM. It is
-the scanner behind Harbor's Interrogation Services.
+Harbor submits scan requests through its scanner adapter API. The adapter
+queues each request in Redis, runs the `trivy` CLI in a worker, and converts
+the result to a vulnerability report or SBOM for Harbor's Interrogation Services.
 
 ## Prerequisites
 
@@ -28,8 +27,8 @@ helm install harbor-scanner-trivy \
   --namespace harbor --create-namespace
 ```
 
-Then register the scanner in Harbor under **Administration -> Interrogation
-Services -> Scanners -> NEW SCANNER**, using the endpoint the chart prints on
+Then register the scanner in Harbor under Administration -> Interrogation
+Services -> Scanners -> NEW SCANNER, using the endpoint the chart prints on
 install:
 
 ```
@@ -45,10 +44,10 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
 Keep `jobQueue.workerConcurrency: 1`; larger values fail validation. Increase
 `replicaCount` and give each pod its own local database volume. For cache reuse,
 enable `valkey.enabled` to deploy Harbor-next's official Valkey chart (`0.9.3`)
-as a **dedicated cache instance**, or set `trivy.cacheBackend` to an external cache. Use a positive
-`trivy.cacheTTL` and an instance-level memory/eviction budget. Another logical
-DB on Harbor's instance cannot isolate that budget. `redis.url` remains the
-separate job/report connection.
+as a dedicated cache, or set `trivy.cacheBackend` to an external cache. Set a
+positive `trivy.cacheTTL` and configure the instance's memory budget and eviction
+policy. Logical databases on Harbor's instance share those limits. Keep
+`redis.url` pointing to the separate job/report backend.
 
 This version uses Redis Streams. Upgrades from Pub/Sub versions must stop scan
 submissions, drain existing scans, and replace all adapter pods before resuming.
@@ -60,27 +59,25 @@ with one worker each and a separate Valkey cache with memory headroom and
 `allkeys-lru` eviction. When working from source, run `task helm:dependencies`
 before rendering or installing the chart.
 
-## What this chart gives you
+## Chart features
 
-- **Secrets stay yours.** Every credential has an `existingSecret` form -
-  the GitHub token, the Redis URL (password included), the TLS keypair - so
-  nothing sensitive has to live in a values file or in Git.
-- **Deterministic renders.** Nothing is generated at render time, so Argo CD and
-  Flux see no drift. CI renders the GitOps values twice and fails on any diff.
-- **Fail-fast validation.** A closed `values.schema.json` rejects unknown or
-  malformed keys, and render-time guards catch the cross-field mistakes a schema
-  cannot express - TLS enabled with no certificate, a PDB with no budget, one
-  RWO claim shared across replicas. They fail `helm template`, not the cluster.
-- **Probes as data.** The full Kubernetes probe specs are values, with a startup
-  probe that lets a cold Trivy DB download take its time without a liveness
-  restart loop. The chart injects `scheme: HTTPS` when you turn TLS on.
-- **The whole production surface.** ServiceAccount, PodDisruptionBudget, HPA,
-  ServiceMonitor, NetworkPolicy, scheduling constraints, sidecars, init
-  containers, and `extraManifests` - independently switchable, and off by
-  default except the dedicated ServiceAccount, which is created for you.
-- **No dead ends.** Every adapter setting is reachable through `config` /
-  `secret` without a chart change, and every Kubernetes field the chart does not
-  template is reachable through the merge hatches below.
+- Every credential supports `existingSecret`, including the GitHub token, Redis
+  URL with password, and TLS keypair. You can keep secrets out of values files
+  and Git.
+- Rendering produces the same output for the same values, avoiding drift in
+  Argo CD and Flux. CI renders the GitOps values twice and checks for differences.
+- A closed `values.schema.json` rejects unknown or malformed keys. Additional
+  checks catch invalid combinations, including TLS without a certificate, a PDB
+  without a budget, or one RWO claim shared across replicas. These errors stop
+  `helm template` before anything reaches the cluster.
+- Values expose the full Kubernetes probe specifications. The startup probe
+  gives cold Trivy DB downloads time to finish before liveness checks can restart
+  the pod. Enabling TLS sets `scheme: HTTPS` on the probes.
+- ServiceAccount, PodDisruptionBudget, HPA, ServiceMonitor, NetworkPolicy,
+  scheduling constraints, sidecars, init containers and `extraManifests` can be
+  configured independently. Only the dedicated ServiceAccount is enabled by default.
+- Use `config` / `secret` for any adapter setting, including settings the chart
+  does not expose directly. The merge hooks below cover other Kubernetes fields.
 
 ## Monitoring
 
@@ -92,8 +89,8 @@ optional and bounded through `metrics.collection`.
 
 ## Configuring the adapter
 
-The adapter is configured entirely by environment variables, so `config` reaches
-all of it - including settings added after this chart version:
+Use `config` to set any adapter environment variable, including settings added
+after this chart version:
 
 ```yaml
 config:
@@ -142,16 +139,17 @@ order; opting in re-marshals the object (sorted keys, still deterministic).
 
 ## Sizing
 
-The Trivy vulnerability DB is downloaded on first start and refreshed every 12
-hours. Two settings follow from that:
+Trivy downloads the vulnerability DB when a scan first needs it. Later scans
+check its metadata to decide whether to update. Size the deployment for those
+downloads and for the number of scanner pods:
 
-- **Keep `persistence.enabled`.** Without a volume the DB lives in an
+- Keep `persistence.enabled`. Without a volume the DB lives in an
   `emptyDir` and every pod restart re-downloads roughly a gigabyte - slow, and a
   quick way to hit the DB registry's anonymous pull rate limit. If that happens,
   point `trivy.dbRepository` at a mirror (`mirror.gcr.io/aquasec/trivy-db`, or
   your own - see [`example/air-gapped/`](example/air-gapped/)).
   `trivy.gitHubToken` does not help here; Trivy uses it only for VEX repositories.
-- **Size each pod for one scan, then increase `replicaCount`.** Keep
+- Size each pod for one scan, then increase `replicaCount`. Keep
   `jobQueue.workerConcurrency: 1`. Every pod runs its own Trivy process and
   local databases, so replicas multiply CPU, memory and disk demand. Share
   image/layer analysis through a dedicated Redis/Valkey cache instance.
@@ -186,7 +184,7 @@ Flux can enforce the same check on every reconcile - see
 
 ## Troubleshooting
 
-**The scanner shows as unhealthy in Harbor.** Harbor calls `/api/v1/metadata`.
+The scanner shows as unhealthy in Harbor. Harbor calls `/api/v1/metadata`.
 Check the adapter answers from inside the cluster, then check Harbor can reach
 that exact URL - a TLS-enabled adapter registered with an `http://` endpoint
 fails here, and so does an `https://` endpoint whose CA Harbor does not trust.
@@ -196,7 +194,7 @@ kubectl -n harbor exec sts/harbor-scanner-trivy -- \
   wget -qO- http://localhost:8080/probe/ready
 ```
 
-**Scans stay queued forever.** The worker takes jobs off a Redis queue, so this
+Scans stay queued forever. The worker takes jobs off a Redis queue, so this
 is almost always Redis: wrong URL, wrong database, or a password that never
 arrived. The adapter logs the failure at startup.
 
@@ -204,16 +202,16 @@ arrived. The adapter logs the failure at startup.
 kubectl -n harbor logs sts/harbor-scanner-trivy | grep -i redis
 ```
 
-**The pod restarts during its first minutes.** The startup probe allows 60s
+The pod restarts during its first minutes. The startup probe allows 60s
 (30 failures x 2s) for the initial Trivy DB download. On a slow link, raise
 `probes.startup.failureThreshold` rather than the liveness settings.
 
-**`x509: certificate signed by unknown authority`.** The registry, Redis or DB
+`x509: certificate signed by unknown authority`. The registry, Redis or DB
 source is behind a private CA. Use `extraCA` - see
 [`example/private-ca/`](example/private-ca/). Do not reach for `trivy.insecure`,
 which disables verification everywhere.
 
-**Rate limited on the DB download.** Trivy pulls the DB from an OCI registry,
+Rate limited on the DB download. Trivy pulls the DB from an OCI registry,
 and `trivy.gitHubToken` does not raise that limit (Trivy uses the token only for
 VEX repositories). Keep `persistence.enabled` so the DB is not re-fetched on
 every restart, and point the two databases at mirrors: `trivy.dbRepository` at
@@ -221,11 +219,11 @@ every restart, and point the two databases at mirrors: `trivy.dbRepository` at
 `mirror.gcr.io/aquasec/trivy-java-db`, or at mirrors of your own - see
 [`example/air-gapped/`](example/air-gapped/).
 
-**Permission denied on `/home/scanner/.cache`.** The cache volume is not owned
+Permission denied on `/home/scanner/.cache`. The cache volume is not owned
 by the pod's `fsGroup`. On OpenShift see [`example/openshift/`](example/openshift/);
 elsewhere check that your StorageClass honours `fsGroup`.
 
-**A values key stopped working after an upgrade.** The schema root is closed, so
+A values key stopped working after an upgrade. The schema root is closed, so
 an unknown key fails the render by name. Check
 [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
@@ -235,13 +233,13 @@ an unknown key fails the render by name. Check
 helm uninstall harbor-scanner-trivy --namespace harbor
 ```
 
-The cache PVCs are created by a StatefulSet volume claim template, so Helm does
-not delete them. That is deliberate - it makes an uninstall/reinstall cheap.
-Remove them explicitly when you mean it:
+The StatefulSet creates cache PVCs from its volume claim template. Helm keeps
+them after uninstall so a reinstall can reuse the data. Delete them explicitly
+when you no longer need them:
 
-The claim template carries no labels on purpose (`volumeClaimTemplates` is
-immutable, so a label that moves with the chart version would break every
-upgrade), which means the PVCs cannot be selected by label. They are named
+The claim template omits labels because `volumeClaimTemplates` is immutable:
+changing a chart-version label would break upgrades. Select these PVCs by name
+instead of by label. They are named
 `data-<release>-<ordinal>`:
 
 ```sh
