@@ -84,6 +84,9 @@ the row width and matches the neighboring snapshot-age panel's height. Each data
 row places all five cards side by side at the standard panel height: availability, update policy, content age,
 last database download, and next update check. Green means healthy or present,
 blue means enabled, red marks failures, and gray marks neutral or unknown states.
+Within each stat, replicas are listed vertically with names beside their values.
+Display labels shorten `harbor-scanner-trivy-0` to `trivy-0`; queries and log
+discovery retain the full pod name.
 
 **Content age** shows the current age per replica, without a sparkline. The
 vulnerability database turns orange at 12 hours and red at 24 hours; the Java
@@ -144,7 +147,8 @@ frequency does not change how often Prometheus collects samples.
   Histograms have no observations until the corresponding operation occurs.
 - **Optional context:** Harbor's IMAGE_SCAN jobservice panels cover the selected
   cluster/namespace and may include other scanner registrations. Redis server memory
-  requires a Redis exporter and an explicit **Redis service** value; it is shared
+  requires a Redis/Valkey exporter. **Redis service** lists exporters in the selected
+  namespace; select the one serving the scanner. Server memory is shared
   server memory, not this scanner's attributed memory.
 - **Optional logs:** select a Loki data source with matching `cluster`, `namespace`,
   and `pod` labels. A hidden pod variable expands the selected scanner's discovered
@@ -172,7 +176,7 @@ one-minute samples. Do not replace unknown measurements with zero.
 | Local cache footprint | Collection is disabled by default; missing directories or incomplete walks also omit sizes | `metrics.collection.cacheSizeEnabled` and Storage collection status |
 | Estimated time to full | Fewer than 60 samples, or free space is not declining | Available filesystem space; the trend always looks back six hours |
 | Average pool wait | No requests waited for a pool connection, so the average is undefined | Redis pool timeouts and connection counts |
-| Redis server memory | Redis service selector is blank or its exporter is unavailable | Select the actual exporter Service; memory may include other workloads |
+| Redis server memory | No exporter was discovered, or the selected exporter is unavailable | Select the scanner backend's exporter Service; memory may include other workloads |
 | Database age / next update | Database or required metadata timestamp is missing | Database presence and Metadata collection status |
 | Pod, Harbor, or log panels | Their separate metric/log source is unavailable or labels do not match | cAdvisor, kube-state-metrics, Harbor scraping, or Loki labels |
 
