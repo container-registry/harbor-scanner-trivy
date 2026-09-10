@@ -37,7 +37,7 @@ func TestStorageInterruptionLeavesScanRecoverable(t *testing.T) {
 			}
 			s.On("UpdateStatus", ctx, key, job.Pending, []string(nil)).Return(pendingErr).Once()
 			if stage != "pending" {
-				w.On("Scan", testifymock.Anything, testifymock.Anything).Return(trivy.Report{}, nil).Once()
+				w.On("Scan", testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(trivy.Report{}, nil).Once()
 				transformer.On("Transform", testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(harbor.ScanReport{}).Once()
 				s.On("UpdateReport", ctx, key, harbor.ScanReport{}).Return(reportErr).Once()
 				if stage == "finished" {
@@ -133,6 +133,7 @@ func TestController_Scan(t *testing.T) {
 			wrapperExpectation: &mock.Expectation{
 				Method: "Scan",
 				Args: []interface{}{
+					ctx,
 					trivy.ImageRef{
 						Name: "core.harbor.domain:443/library/mongo@sha256:917f5b7f4bef1b35ee90f03033f33a81002511c1e0767fd44276d4bd9cd2fa8e",
 						Auth: trivy.BasicAuth{
@@ -141,7 +142,7 @@ func TestController_Scan(t *testing.T) {
 						},
 						NonSSL: false,
 					},
-					trivy.ScanOption{Format: "json", Context: ctx},
+					trivy.ScanOption{Format: "json"},
 				},
 				ReturnArgs: []interface{}{
 					trivyReport,
@@ -207,6 +208,7 @@ func TestController_Scan(t *testing.T) {
 			wrapperExpectation: &mock.Expectation{
 				Method: "Scan",
 				Args: []interface{}{
+					ctx,
 					trivy.ImageRef{
 						Name: "core.harbor.domain:443/library/mongo@sha256:917f5b7f4bef1b35ee90f03033f33a81002511c1e0767fd44276d4bd9cd2fa8e",
 						Auth: trivy.BasicAuth{
@@ -215,7 +217,7 @@ func TestController_Scan(t *testing.T) {
 						},
 						NonSSL: false,
 					},
-					trivy.ScanOption{Format: "json", Context: ctx},
+					trivy.ScanOption{Format: "json"},
 				},
 				ReturnArgs: []interface{}{
 					trivy.Report{},

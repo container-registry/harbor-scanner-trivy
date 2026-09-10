@@ -91,26 +91,18 @@ Keep one CLI worker per pod regardless of scan backend: local vulnerability
 databases still need isolation. Redis TTL must be positive.
 */}}
 {{- $cacheBackend := include "harbor-scanner-trivy.cacheBackend" . }}
+{{- $sources := include "harbor-scanner-trivy.envOverrideSources" . | fromYaml }}
 {{- if .Values.valkey.enabled }}
 {{- if eq $cacheBackend "memory" }}
 {{- fail "valkey.enabled cannot be combined with trivy.cacheBackend=memory; disable the subchart for an in-process cache." }}
 {{- end }}
 {{- if and .Values.valkey.auth.enabled (eq .Values.trivy.cacheBackend "fs") }}
-{{- $secretVars := include "harbor-scanner-trivy.toEnvVars" (dict "values" (.Values.secret | default dict) "prefix" "" "isSecret" false) | fromYaml }}
-{{- $secretBacked := hasKey $secretVars "SCANNER_TRIVY_CACHE_BACKEND" }}
-{{- range .Values.extraEnv }}
-{{- if eq .name "SCANNER_TRIVY_CACHE_BACKEND" }}
-{{- $secretBacked = not (empty (dig "valueFrom" "secretKeyRef" dict .)) }}
-{{- end }}
-{{- end }}
-{{- if not $secretBacked }}
+{{- if ne (get $sources "SCANNER_TRIVY_CACHE_BACKEND") "secret" }}
 {{- fail "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)." }}
 {{- end }}
 {{- end }}
 {{- end }}
-{{- $overrides := include "harbor-scanner-trivy.claimedEnvNames" . | fromYamlArray }}
-{{- range .Values.extraEnv }}{{- $overrides = append $overrides .name }}{{- end }}
-{{- if and (not (has "SCANNER_TRIVY_CACHE_BACKEND" $overrides)) (or (eq $cacheBackend "fs") (eq $cacheBackend "memory")) (or .Values.trivy.cacheRedisTLS .Values.trivy.cacheRedisCACert .Values.trivy.cacheRedisCert .Values.trivy.cacheRedisKey) }}
+{{- if and (not (hasKey $sources "SCANNER_TRIVY_CACHE_BACKEND")) (or (eq $cacheBackend "fs") (eq $cacheBackend "memory")) (or .Values.trivy.cacheRedisTLS .Values.trivy.cacheRedisCACert .Values.trivy.cacheRedisCert .Values.trivy.cacheRedisKey) }}
 {{- fail "Redis TLS settings require a Redis scan cache; set trivy.cacheBackend or supply SCANNER_TRIVY_CACHE_BACKEND through a Secret." }}
 {{- end }}
 {{- if and (not (hasKey .Values.lifecycle "preStop")) (le (int .Values.terminationGracePeriodSeconds) 10) }}
@@ -120,8 +112,13 @@ databases still need isolation. Redis TTL must be positive.
 {{- fail "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://." }}
 {{- end }}
 
-{{- if ne (int .Values.jobQueue.workerConcurrency) 1 }}
-{{- fail "jobQueue.workerConcurrency must be 1; scale adapter replicas with separate database volumes and a dedicated Redis/Valkey scan cache." }}
+{{/* Secret-backed certificate paths can be opaque at render time. */}}
+{{- $certParts := 0 }}
+{{- range $name, $value := dict "SCANNER_TRIVY_CACHE_REDIS_CA" .Values.trivy.cacheRedisCACert "SCANNER_TRIVY_CACHE_REDIS_CERT" .Values.trivy.cacheRedisCert "SCANNER_TRIVY_CACHE_REDIS_KEY" .Values.trivy.cacheRedisKey }}
+{{- if or $value (hasKey $sources $name) }}{{- $certParts = add1 $certParts }}{{- end }}
+{{- end }}
+{{- if and (gt $certParts 0) (lt $certParts 3) }}
+{{- fail "Redis scan cache TLS requires CA, certificate, and key together." }}
 {{- end }}
 
 {{- if and (hasPrefix "redis" $cacheBackend) (regexMatch "^(0+(\\.0+)?(ns|us|ms|s|m|h)?)+$" (toString .Values.trivy.cacheTTL)) }}

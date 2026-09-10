@@ -138,12 +138,6 @@ tests:
       - failedTemplate:
           errorMessage: "metrics.serviceMonitor.enabled requires metrics.enabled: the adapter would serve no /metrics endpoint to scrape."
 
-  - it: refuses several workers on the single-writer fs cache
-    set:
-      jobQueue.workerConcurrency: 4
-    asserts:
-      - failedTemplate:
-          errorMessage: "jobQueue.workerConcurrency must be 1; scale adapter replicas with separate database volumes and a dedicated Redis/Valkey scan cache."
   - it: refuses a Redis cache whose keys never expire
     set:
       trivy.cacheBackend: redis://scan-cache:6379/0
@@ -263,14 +257,6 @@ tests:
       - failedTemplate:
           errorPattern: "flatten to the same environment variable name"
 
-  - it: rejects several workers even with a shared Redis cache
-    set:
-      trivy.cacheBackend: redis://scan-cache:6379/0
-      jobQueue.workerConcurrency: 4
-    asserts:
-      - failedTemplate:
-          errorMessage: "jobQueue.workerConcurrency must be 1; scale adapter replicas with separate database volumes and a dedicated Redis/Valkey scan cache."
-
   - it: rejects TLS settings for a filesystem cache before deployment
     set:
       trivy.cacheRedisTLS: true
@@ -322,3 +308,11 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "terminationGracePeriodSeconds must exceed 10 seconds for the default preStop drain hook; increase it or explicitly replace/disable lifecycle.preStop."
+
+  - it: rejects incomplete cache TLS material before deployment
+    set:
+      trivy.cacheBackend: rediss://cache:6379/0
+      trivy.cacheRedisCACert: /certs/ca.crt
+    asserts:
+      - failedTemplate:
+          errorMessage: "Redis scan cache TLS requires CA, certificate, and key together."

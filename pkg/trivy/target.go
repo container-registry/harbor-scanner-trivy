@@ -99,9 +99,6 @@ func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassa
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: config.Insecure}
 	trOpt := remote.WithTransport(tr)
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	ctxOpt := remote.WithContext(ctx)
 
 	img, err := ambassador.RemoteImage(ref, authOpt, trOpt, ctxOpt)

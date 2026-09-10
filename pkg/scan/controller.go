@@ -62,7 +62,7 @@ func (c *controller) Scan(ctx context.Context, scanJobKey job.ScanJobKey, reques
 		errMsg := err.Error()
 		var scanErr *trivy.ScanError
 		if errors.As(err, &scanErr) {
-			if scanErr.Category == trivy.ErrCategoryCache {
+			if scanErr.Retryable {
 				return err
 			}
 			slog.Error("Scan failed",
@@ -118,9 +118,8 @@ func (c *controller) scan(ctx context.Context, scanJobKey job.ScanJobKey, req *h
 	}
 
 	*stage = "scan"
-	scanReport, err := c.wrapper.Scan(ref, trivy.ScanOption{
-		Format:  determineFormat(scanJobKey.MediaType),
-		Context: ctx,
+	scanReport, err := c.wrapper.Scan(ctx, ref, trivy.ScanOption{
+		Format: determineFormat(scanJobKey.MediaType),
 	})
 	if err != nil {
 		return xerrors.Errorf("running trivy wrapper: %w", err)

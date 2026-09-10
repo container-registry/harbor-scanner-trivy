@@ -21,7 +21,7 @@ func TestMalformedDeliveryIsPreservedWithoutBlockingValidWork(t *testing.T) {
 	fields := map[string]interface{}{"job": "broken JSON", "unknown_field": "retained"}
 	id, err := rdb.XAdd(ctx, &redis.XAddArgs{Stream: stream, Values: fields}).Result()
 	require.NoError(t, err)
-	_, err = NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+	_, err = NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	r := metrics.New(true)
 	w := NewWorker(cfg, rdb, scanFunc(func(ctx context.Context, key job.ScanJobKey, _ *harbor.ScanRequest) error {

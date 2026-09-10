@@ -26,7 +26,7 @@ func TestDurableEnqueueHasItsOwnStoreOperation(t *testing.T) {
 	_, rdb, _, cfg := setupQueue(t)
 	r := metrics.New(true)
 	s := storepkg.NewStore(etc.RedisStore{Namespace: "enqueue-metrics"}, rdb, r)
-	_, err := NewEnqueuer(cfg, rdb, s).Enqueue(context.Background(), testRequest())
+	_, err := NewEnqueuer(cfg, s).Enqueue(context.Background(), testRequest())
 	require.NoError(t, err)
 	require.EqualValues(t, 1, metricCount(t, r, "store_operations_total", "operation", "enqueue"))
 	require.Zero(t, metricCount(t, r, "store_operations_total", "operation", "create"))
@@ -48,7 +48,7 @@ func (s *slowReadStore) Get(ctx context.Context, key job.ScanJobKey) (*job.ScanJ
 func TestQueueWaitExcludesMetadataRead(t *testing.T) {
 	_, rdb, store, cfg := setupQueue(t)
 	ctx := context.Background()
-	id, err := NewEnqueuer(cfg, rdb, store).Enqueue(ctx, testRequest())
+	id, err := NewEnqueuer(cfg, store).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	r := metrics.New(true)
 	slow := &slowReadStore{Store: store}
@@ -115,7 +115,7 @@ func TestDispatchCountsOnlyAcquiredLocksAndKnownWaits(t *testing.T) {
 	w := NewWorker(etc.JobQueue{Namespace: "test", WorkerConcurrency: 1}, rdb, controller, store, r).(*streamWorker)
 	j := Job{Key: job.ScanJobKey{ID: "id", MIMEType: api.MimeTypeSecurityVulnerabilityReport}, Args: Args{ScanRequest: &harbor.ScanRequest{}}, EnqueuedAt: time.Now().Add(-time.Second)}
 	run := func(j Job) {
-		require.NoError(t, store.Create(context.Background(), job.ScanJob{Key: j.Key}))
+		require.NoError(t, store.Enqueue(context.Background(), job.ScanJob{Key: j.Key}, w.stream, []byte("fixture")))
 		b, err := json.Marshal(j)
 		require.NoError(t, err)
 		require.ErrorContains(t, w.process(context.Background(), redis.XMessage{ID: j.Key.ID, Values: map[string]interface{}{"job": string(b)}}), "interrupted scan")
@@ -135,8 +135,8 @@ func TestDispatchCountsOnlyAcquiredLocksAndKnownWaits(t *testing.T) {
 	j.EnqueuedAt = time.Now().Add(time.Hour)
 	run(j)
 	require.Equal(t, float64(1), metricCount(t, r, "queue_wait_duration_seconds", "", ""))
-	require.NoError(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "{}"}}))
-	require.NoError(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "invalid JSON"}}))
+	require.NoError(t, w.process(context.Background(), redis.XMessage{ID: "0-1", Values: map[string]interface{}{"job": "{}"}}))
+	require.NoError(t, w.process(context.Background(), redis.XMessage{ID: "0-2", Values: map[string]interface{}{"job": "invalid JSON"}}))
 	require.Equal(t, float64(2), metricCount(t, r, "job_dispatch_total", "result", "decode_error"))
 	s.Close()
 	require.Error(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": `{"Args":{"ScanRequest":{}}}`}}))
@@ -149,7 +149,7 @@ func TestEnqueueFanoutWithoutOnlineWorkers(t *testing.T) {
 	defer rdb.Close()
 	r := metrics.New(true)
 	store := storepkg.NewStore(etc.RedisStore{Namespace: "test", ScanJobTTL: time.Minute}, rdb, r)
-	e := NewEnqueuer(etc.JobQueue{Namespace: "test"}, rdb, store, r)
+	e := NewEnqueuer(etc.JobQueue{Namespace: "test"}, store, r)
 	_, err := e.Enqueue(context.Background(), harbor.ScanRequest{Capabilities: []harbor.Capability{
 		{Type: harbor.CapabilityTypeVulnerability, ProducesMIMETypes: []api.MIMEType{api.MimeTypeSecurityVulnerabilityReport}},
 		{Type: harbor.CapabilityTypeSBOM, ProducesMIMETypes: []api.MIMEType{api.MimeTypeSecuritySBOMReport}, Parameters: &harbor.CapabilityAttributes{SBOMMediaTypes: []api.MediaType{api.MediaTypeSPDX, api.MediaTypeCycloneDX}}},
@@ -159,4 +159,66 @@ func TestEnqueueFanoutWithoutOnlineWorkers(t *testing.T) {
 	require.EqualValues(t, 3, rdb.XLen(context.Background(), redisJobStream("test")).Val())
 	require.Zero(t, metricCount(t, r, "publish_no_subscribers_total", "", ""))
 	require.Zero(t, metricCount(t, r, "job_attempts_total", "", ""))
+}
+
+func gaugeValue(t *testing.T, r *metrics.Recorder, name string) (float64, bool) {
+	t.Helper()
+	families, err := r.Gatherer().Gather()
+	require.NoError(t, err)
+	for _, f := range families {
+		if f.GetName() == metrics.Prefix+name && len(f.Metric) > 0 {
+			return f.Metric[0].GetGauge().GetValue(), true
+		}
+	}
+	return 0, false
+}
+
+func TestQueueMetricsRefreshWhileScanIsRunning(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	ctx := context.Background()
+	r := metrics.New(true)
+	started := make(chan struct{})
+	w := NewWorker(cfg, rdb, scanFunc(func(ctx context.Context, _ job.ScanJobKey, _ *harbor.ScanRequest) error {
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	}), store, r)
+	w.Start(ctx)
+	t.Cleanup(w.Stop)
+	_, err := NewEnqueuer(cfg, store).Enqueue(ctx, testRequest())
+	require.NoError(t, err)
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("scan did not start")
+	}
+	_, err = NewEnqueuer(cfg, store).Enqueue(ctx, testRequest())
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		value, ok := gaugeValue(t, r, "queue_unacknowledged_jobs")
+		return ok && value == 2
+	}, 13*time.Second, 20*time.Millisecond)
+	value, ok := gaugeValue(t, r, "queue_collection_last_success_timestamp_seconds")
+	require.True(t, ok)
+	require.InDelta(t, float64(time.Now().Unix()), value, 2)
+}
+
+func TestFailedQueueCollectionDropsStaleValues(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
+	ctx := context.Background()
+	w.observeQueue(ctx)
+	last, ok := gaugeValue(t, r, "queue_collection_last_success_timestamp_seconds")
+	require.True(t, ok)
+	require.NoError(t, rdb.Close())
+	w.observeQueue(ctx)
+	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Zero(t, status)
+	after, _ := gaugeValue(t, r, "queue_collection_last_success_timestamp_seconds")
+	require.Equal(t, last, after)
+	for _, name := range []string{"queue_unacknowledged_jobs", "queue_quarantined_jobs", "queue_oldest_age_seconds"} {
+		_, ok := gaugeValue(t, r, name)
+		require.False(t, ok, name)
+	}
 }

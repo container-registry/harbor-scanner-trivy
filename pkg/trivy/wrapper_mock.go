@@ -1,6 +1,8 @@
 package trivy
 
 import (
+	"context"
+
 	"github.com/stretchr/testify/mock"
 )
 
@@ -17,7 +19,7 @@ func NewMockWrapper() *MockWrapper {
 	return &MockWrapper{}
 }
 
-func (w *MockWrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
-	args := w.Called(imageRef, opt)
+func (w *MockWrapper) Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error) {
+	args := w.Called(ctx, imageRef, opt)
 	return args.Get(0).(Report), args.Error(1)
 }

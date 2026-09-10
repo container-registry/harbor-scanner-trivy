@@ -36,8 +36,7 @@ type ImageRef struct {
 }
 
 type ScanOption struct {
-	Format  Format
-	Context context.Context
+	Format Format
 }
 
 // RegistryAuth wraps registry credentials.
@@ -55,7 +54,7 @@ type BearerAuth struct {
 }
 
 type Wrapper interface {
-	Scan(imageRef ImageRef, opt ScanOption) (Report, error)
+	Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error)
 	GetVersion() (VersionInfo, error)
 }
 
@@ -78,22 +77,22 @@ func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metri
 	}
 }
 
-func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
-	if opt.Context != nil && w.config.Timeout > 0 {
-		ctx, cancel := context.WithTimeout(opt.Context, w.config.Timeout)
+func (w *wrapper) Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error) {
+	if w.config.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, w.config.Timeout)
 		defer cancel()
-		opt.Context = ctx
 	}
-	report, usedAccessory, err := w.scan(imageRef, opt, w.useSBOMAccessory(opt))
+	report, usedAccessory, err := w.scan(ctx, imageRef, opt, w.useSBOMAccessory(opt))
 	if err == nil && usedAccessory {
 		w.metrics.Inc("sbom_accessory_events_total", "reuse_success")
 	}
-	if err != nil && usedAccessory && (opt.Context == nil || opt.Context.Err() == nil) {
+	if err != nil && usedAccessory && ctx.Err() == nil {
 		w.metrics.Inc("sbom_accessory_events_total", "fallback")
 		slog.Warn("SBOM accessory scan failed, retrying as image scan",
 			slog.String("image_ref", imageRef.Name),
 			slog.String("err", err.Error()))
-		report, _, err = w.scan(imageRef, opt, false)
+		report, _, err = w.scan(ctx, imageRef, opt, false)
 	}
 	return report, err
 }
@@ -113,11 +112,11 @@ func (w *wrapper) useSBOMAccessory(opt ScanOption) bool {
 	return true
 }
 
-func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool) (Report, bool, error) {
+func (w *wrapper) scan(ctx context.Context, imageRef ImageRef, opt ScanOption, useSBOMAccessory bool) (Report, bool, error) {
 	logger := slog.With(slog.String("image_ref", imageRef.Name))
 	logger.Debug("Started scanning")
 
-	target, err := newTarget(opt.Context, imageRef, w.config, w.ambassador, useSBOMAccessory, w.metrics)
+	target, err := newTarget(ctx, imageRef, w.config, w.ambassador, useSBOMAccessory, w.metrics)
 	if err != nil {
 		return Report{}, false, xerrors.Errorf("creating scan target: %w", err)
 	}
@@ -142,7 +141,7 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 		}
 	}()
 
-	cmd, err := w.prepareScanCmd(target, reportFile.Name(), opt)
+	cmd, err := w.prepareScanCmd(ctx, target, reportFile.Name(), opt)
 	if err != nil {
 		return Report{}, target.fromAccessory, xerrors.Errorf("preparing scan command: %w", err)
 	}
@@ -162,10 +161,11 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 			slog.String("category", string(category)),
 		)
 		return Report{}, target.fromAccessory, &ScanError{
-			Category: category,
-			ImageRef: targetName,
-			Detail:   output,
-			Cause:    &redactedError{cause: err, message: w.redactCacheCredentials(err.Error())},
+			Category:  category,
+			Retryable: category != ErrCategoryAuth && category != ErrCategoryUnscannable,
+			ImageRef:  targetName,
+			Detail:    output,
+			Cause:     &redactedError{cause: err, message: w.redactCacheCredentials(err.Error())},
 		}
 	}
 
@@ -225,7 +225,7 @@ func (w *wrapper) parseSBOM(reportFile io.Reader) (Report, error) {
 	return Report{SBOM: doc}, nil
 }
 
-func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanOption) (*exec.Cmd, error) {
+func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputFile string, opt ScanOption) (*exec.Cmd, error) {
 	args := []string{
 		string(target.kind), // subcommand
 		"--no-progress",
@@ -302,11 +302,8 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 		return nil, err
 	}
 
-	cmd := exec.Command(name, args...)
-	if opt.Context != nil {
-		cmd = exec.CommandContext(opt.Context, name, args...)
-		cmd.WaitDelay = time.Second
-	}
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = time.Second
 
 	cmd.Env = w.cacheEnv(w.ambassador.Environ())
 

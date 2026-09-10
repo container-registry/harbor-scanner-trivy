@@ -11,8 +11,8 @@ type Store interface {
 	// Enqueue atomically persists a queued job and its stream delivery.
 	Enqueue(ctx context.Context, scanJob job.ScanJob, stream string, payload []byte) error
 	Acknowledge(ctx context.Context, key job.ScanJobKey, stream, group, deliveryID string) error
-	Create(ctx context.Context, scanJob job.ScanJob) error
 	Get(ctx context.Context, scanJobKey job.ScanJobKey) (*job.ScanJob, error)
+	// Mutations require the current worker lease, carried by WithLease.
 	UpdateStatus(ctx context.Context, scanJobKey job.ScanJobKey, newStatus job.ScanJobStatus, error ...string) error
 	UpdateReport(ctx context.Context, scanJobKey job.ScanJobKey, report harbor.ScanReport) error
 }

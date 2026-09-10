@@ -21,10 +21,13 @@ const (
 
 // ScanError provides structured context about scan failures.
 type ScanError struct {
-	Category ScanErrorCategory
-	ImageRef string
-	Detail   string
-	Cause    error
+	// Retryable is an execution decision, separate from the diagnostic category.
+	// Unknown CLI failures are retried within the worker's attempt limit.
+	Retryable bool
+	Category  ScanErrorCategory
+	ImageRef  string
+	Detail    string
+	Cause     error
 }
 
 func (e *ScanError) Error() string {

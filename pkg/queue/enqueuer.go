@@ -11,7 +11,6 @@ import (
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
 
@@ -49,7 +48,7 @@ type Args struct {
 	ScanRequest *harbor.ScanRequest `json:",omitempty"`
 }
 
-func NewEnqueuer(config etc.JobQueue, rdb *redis.Client, store persistence.Store, recorders ...*metrics.Recorder) Enqueuer {
+func NewEnqueuer(config etc.JobQueue, store persistence.Store, recorders ...*metrics.Recorder) Enqueuer {
 	return &enqueuer{
 		metrics:   metrics.Optional(recorders),
 		namespace: config.Namespace,

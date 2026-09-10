@@ -2406,7 +2406,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Durable deliveries awaiting acknowledgement, including queued and in-progress work. Shared queue sampled between scans; values can lag while all workers are busy.",
+      "description": "Durable deliveries awaiting acknowledgement, including queued and in-progress work. Shared queue sampled every ten seconds, including while scans are running. Missing data can indicate collection failure.",
       "fieldConfig": {
         "defaults": {
           "color": {

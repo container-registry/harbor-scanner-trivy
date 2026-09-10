@@ -60,7 +60,7 @@ func TestRestAPI(t *testing.T) {
 
 	// Set up Redis
 	rdb, store := initRedis(t)
-	enqueuer := queue.NewEnqueuer(jobQueue, rdb, store)
+	enqueuer := queue.NewEnqueuer(jobQueue, store)
 
 	// Set up Trivy
 	wrapper, trivyConf := initTrivy(t, now)

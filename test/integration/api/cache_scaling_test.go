@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
@@ -110,7 +111,7 @@ func TestDedicatedCacheBackends(t *testing.T) {
 			}
 			ref := trivy.ImageRef{Name: image.String(), Auth: trivy.NoAuth{}, NonSSL: true}
 			coldStart := time.Now()
-			baseline, err := newPod().Scan(ref, trivy.ScanOption{Format: trivy.FormatJSON, Context: ctx})
+			baseline, err := newPod().Scan(ctx, ref, trivy.ScanOption{Format: trivy.FormatJSON})
 			require.NoError(t, err)
 			require.NotEmpty(t, baseline.Vulnerabilities)
 			coldGETs := layerGETs.Load()
@@ -129,7 +130,7 @@ func TestDedicatedCacheBackends(t *testing.T) {
 					wg.Add(1)
 					go func(i int) {
 						defer wg.Done()
-						results[i], errs[i] = pods[i].Scan(ref, trivy.ScanOption{Format: trivy.FormatJSON, Context: ctx})
+						results[i], errs[i] = pods[i].Scan(ctx, ref, trivy.ScanOption{Format: trivy.FormatJSON})
 					}(i)
 				}
 				wg.Wait()
@@ -162,7 +163,7 @@ func TestDedicatedCacheBackends(t *testing.T) {
 				require.NoError(t, rdb.PExpire(ctx, k, time.Millisecond).Err())
 			}
 			require.Eventually(t, func() bool { return rdb.Exists(ctx, cacheKeys...).Val() == 0 }, time.Second, time.Millisecond)
-			afterExpiry, err := newPod().Scan(ref, trivy.ScanOption{Format: trivy.FormatJSON, Context: ctx})
+			afterExpiry, err := newPod().Scan(ctx, ref, trivy.ScanOption{Format: trivy.FormatJSON})
 			require.NoError(t, err)
 			require.Equal(t, baseline, afterExpiry)
 			require.Greater(t, layerGETs.Load(), coldGETs)
@@ -171,14 +172,15 @@ func TestDedicatedCacheBackends(t *testing.T) {
 			// silently selecting local storage or accepting incomplete findings.
 			require.NoError(t, rdb.ConfigSet(ctx, "maxmemory-policy", "allkeys-lru").Err())
 			require.NoError(t, rdb.ConfigSet(ctx, "maxmemory", "1").Err())
-			_, err = newPod().Scan(ref, trivy.ScanOption{Format: trivy.FormatJSON, Context: ctx})
+			_, err = newPod().Scan(ctx, ref, trivy.ScanOption{Format: trivy.FormatJSON})
 			var cacheErr *trivy.ScanError
 			require.ErrorAs(t, err, &cacheErr)
-			require.Contains(t, []trivy.ScanErrorCategory{trivy.ErrCategoryCache, trivy.ErrCategoryTrivyExec}, cacheErr.Category)
+			require.True(t, cacheErr.Retryable, "cache pressure must leave accepted jobs recoverable")
 			require.NoError(t, rdb.ConfigSet(ctx, "maxmemory", "0").Err())
-			afterRecovery, err := newPod().Scan(ref, trivy.ScanOption{Format: trivy.FormatJSON, Context: ctx})
+			afterRecovery, err := newPod().Scan(ctx, ref, trivy.ScanOption{Format: trivy.FormatJSON})
 			require.NoError(t, err)
 			require.Equal(t, baseline, afterRecovery)
+			testAPICacheRecovery(t, rdb, newPod, ref, baseline)
 			testStreamBackend(t, rdb)
 			testAPIWorkers(t, rdb, newPod, ref, baseline)
 		})
@@ -206,7 +208,7 @@ func testAPIWorkers(t *testing.T, rdb *redis.Client, newPod func() trivy.Wrapper
 				worker.Start(ctx)
 				t.Cleanup(worker.Stop)
 			}
-			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, rdb, s), s, w))
+			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, s), s, w))
 			t.Cleanup(server.Close)
 			client := server.Client()
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -259,7 +261,7 @@ func testStreamBackend(t *testing.T, rdb *redis.Client) {
 	cfg := etc.JobQueue{Namespace: "test:queue", WorkerConcurrency: 1}
 	var keys []job.ScanJobKey
 	for range 8 {
-		id, err := queue.NewEnqueuer(cfg, rdb, s).Enqueue(ctx, harbor.ScanRequest{Capabilities: []harbor.Capability{{Type: harbor.CapabilityTypeVulnerability, ProducesMIMETypes: []adapterapi.MIMEType{adapterapi.MimeTypeSecurityVulnerabilityReport}}}})
+		id, err := queue.NewEnqueuer(cfg, s).Enqueue(ctx, harbor.ScanRequest{Capabilities: []harbor.Capability{{Type: harbor.CapabilityTypeVulnerability, ProducesMIMETypes: []adapterapi.MIMEType{adapterapi.MimeTypeSecurityVulnerabilityReport}}}})
 		require.NoError(t, err)
 		keys = append(keys, job.ScanJobKey{ID: id, MIMEType: adapterapi.MimeTypeSecurityVulnerabilityReport})
 	}
@@ -291,4 +293,96 @@ func cacheCertificates(t *testing.T) (string, string) {
 	require.NoError(t, os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600))
 	require.NoError(t, os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}), 0o600))
 	return certPath, keyPath
+}
+
+// Observe the actual CLI error without changing the controller's retry behavior.
+type observedWrapper struct {
+	trivy.Wrapper
+	failures chan error
+}
+
+func (w observedWrapper) Scan(ctx context.Context, ref trivy.ImageRef, opt trivy.ScanOption) (trivy.Report, error) {
+	report, err := w.Wrapper.Scan(ctx, ref, opt)
+	if err != nil {
+		select {
+		case w.failures <- err:
+		default:
+		}
+	}
+	return report, err
+}
+
+func testAPICacheRecovery(t *testing.T, cache *redis.Client, newPod func() trivy.Wrapper, ref trivy.ImageRef, baseline trivy.Report) {
+	t.Helper()
+	for _, fault := range []struct{ name, setting, broken, restored string }{
+		{"memory-pressure", "maxmemory", "1", "0"},
+		{"connection-outage", "tls-port", "6380", "6379"},
+	} {
+		t.Run("http-recovery-"+fault.name, func(t *testing.T) {
+			ctx := context.Background()
+			// Keep job storage available while the separate analysis cache fails.
+			backend := miniredis.RunT(t)
+			jobs := redis.NewClient(&redis.Options{Addr: backend.Addr()})
+			t.Cleanup(func() { _ = jobs.Close() })
+			store := storedb.NewStore(etc.RedisStore{Namespace: "recovery:data", ScanJobTTL: time.Minute}, jobs)
+			cfg := etc.JobQueue{Namespace: "recovery:queue", WorkerConcurrency: 1}
+			wrapper := observedWrapper{Wrapper: newPod(), failures: make(chan error, 3)}
+			transformer := scan.NewTransformer(&scan.SystemClock{})
+			worker := queue.NewWorker(cfg, jobs, scan.NewController(store, wrapper, transformer), store)
+			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, store), store, wrapper))
+			t.Cleanup(server.Close)
+			client := server.Client()
+			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+			image, err := name.NewDigest(ref.Name)
+			require.NoError(t, err)
+			request := harbor.ScanRequest{Registry: harbor.Registry{URL: "http://" + image.RegistryStr()}, Artifact: harbor.Artifact{Repository: image.RepositoryStr(), Digest: image.DigestStr()}}
+			payload, err := json.Marshal(request)
+			require.NoError(t, err)
+			// Redis retains established control connections when its listen port changes.
+			control := redis.NewClient(cache.Options())
+			t.Cleanup(func() { _ = control.Close() })
+			require.NoError(t, control.ConfigSet(ctx, fault.setting, fault.broken).Err())
+			defer func() { require.NoError(t, control.ConfigSet(ctx, fault.setting, fault.restored).Err()) }()
+			worker.Start(ctx)
+			t.Cleanup(worker.Stop)
+			response, err := client.Post(server.URL+"/api/v1/scan", "application/json", bytes.NewReader(payload))
+			require.NoError(t, err)
+			require.Equal(t, http.StatusAccepted, response.StatusCode)
+			var accepted harbor.ScanResponse
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&accepted))
+			require.NoError(t, response.Body.Close())
+			select {
+			case err := <-wrapper.failures:
+				var scanErr *trivy.ScanError
+				require.ErrorAs(t, err, &scanErr)
+				require.True(t, scanErr.Retryable, "%v", scanErr)
+			case <-time.After(30 * time.Second):
+				t.Fatal("cache outage did not reach the CLI")
+			}
+			key := job.ScanJobKey{ID: accepted.ID, MIMEType: adapterapi.MimeTypeSecurityVulnerabilityReport}
+			state, err := store.Get(ctx, key)
+			require.NoError(t, err)
+			require.Equal(t, job.Pending, state.Status)
+			require.NoError(t, control.ConfigSet(ctx, fault.setting, fault.restored).Err())
+			var report harbor.ScanReport
+			require.Eventually(t, func() bool {
+				response, err := client.Get(server.URL + "/api/v1/scan/" + accepted.ID + "/report")
+				if err != nil {
+					return false
+				}
+				defer response.Body.Close()
+				return response.StatusCode == http.StatusOK && json.NewDecoder(response.Body).Decode(&report) == nil
+			}, 75*time.Second, 100*time.Millisecond)
+			expected := transformer.Transform("", request, baseline)
+			expectedJSON, err := json.Marshal(expected.Vulnerabilities)
+			require.NoError(t, err)
+			actualJSON, err := json.Marshal(report.Vulnerabilities)
+			require.NoError(t, err)
+			require.JSONEq(t, string(expectedJSON), string(actualJSON))
+			require.Equal(t, expected.Severity, report.Severity)
+			state, err = store.Get(ctx, key)
+			require.NoError(t, err)
+			require.Equal(t, 2, state.Attempts, "the same accepted job must recover without resubmission")
+		})
+	}
 }

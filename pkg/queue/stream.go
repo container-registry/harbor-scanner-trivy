@@ -77,8 +77,9 @@ func NewWorker(config etc.JobQueue, rdb *redis.Client, controller scan.Controlle
 
 func (w *streamWorker) Start(ctx context.Context) {
 	ctx, w.cancel = context.WithCancel(ctx)
-	w.wg.Add(1)
+	w.wg.Add(2)
 	go func() { defer w.wg.Done(); w.run(ctx) }()
+	go func() { defer w.wg.Done(); w.monitorQueue(ctx) }()
 }
 
 // Stop cancels active work and waits for it to exit. Unacknowledged deliveries
@@ -110,7 +111,6 @@ func (w *streamWorker) run(ctx context.Context) {
 	var observed time.Time
 	for ctx.Err() == nil {
 		if time.Since(observed) >= 10*time.Second {
-			w.observeQueue(ctx)
 			_ = cleanConsumers.Run(ctx, w.rdb, []string{w.stream}, workerGroup, "", (2 * w.leaseDuration).Milliseconds()).Err()
 			observed = time.Now()
 		}

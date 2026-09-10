@@ -205,7 +205,7 @@ frequency does not change how often Prometheus collects samples.
 - Scanning and workers: completed execution attempts, dispatch decisions,
   concurrency, failure categories, CLI exits and SBOM reuse decisions. Retries
   count as additional attempts. Unacknowledged deliveries include queued and
-  in-progress work; the shared queue is sampled between scans and aggregated with
+  in-progress work; the shared queue is sampled every ten seconds independently of scans and aggregated with
   `max`, so busy workers can leave an older observation. CLI duration covers one
   child process; worker duration also includes report processing and persistence.
   SBOM accessory reuse is separate from the Trivy analysis-cache hit rate.

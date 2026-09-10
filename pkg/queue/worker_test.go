@@ -45,7 +45,7 @@ func TestWorkersRunDifferentJobsConcurrently(t *testing.T) {
 		t.Cleanup(w.Stop)
 	}
 	for range 2 {
-		_, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+		_, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 		require.NoError(t, err)
 	}
 	ids := make(map[string]bool)
@@ -77,7 +77,7 @@ func TestCancelledWorkerLeavesJobForRecovery(t *testing.T) {
 	w1.(*streamWorker).leaseDuration = 150 * time.Millisecond
 	w1.Start(ctx)
 	t.Cleanup(w1.Stop)
-	id, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+	id, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	select {
 	case <-started:
@@ -129,7 +129,7 @@ func TestLeaseRenewalPreventsDuplicateLongScan(t *testing.T) {
 		w.Start(ctx)
 		t.Cleanup(w.Stop)
 	}
-	_, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+	_, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	select {
 	case <-started:
@@ -146,7 +146,7 @@ func TestLeaseRenewalPreventsDuplicateLongScan(t *testing.T) {
 func TestLostLeaseFencesJobWrites(t *testing.T) {
 	_, rdb, s, cfg := setupQueue(t)
 	ctx := context.Background()
-	id, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+	id, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	key := job.ScanJobKey{ID: id, MIMEType: api.MimeTypeSecurityVulnerabilityReport}
 	require.NoError(t, rdb.Set(ctx, "lease", "new-owner", time.Minute).Err())
@@ -161,10 +161,11 @@ func TestLostLeaseFencesJobWrites(t *testing.T) {
 func TestCompletedJobSurvivesUntilAcknowledgementWithoutRescan(t *testing.T) {
 	mr, rdb, s, cfg := setupQueue(t)
 	ctx := context.Background()
-	id, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+	id, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	key := job.ScanJobKey{ID: id, MIMEType: api.MimeTypeSecurityVulnerabilityReport}
-	require.NoError(t, s.UpdateStatus(ctx, key, job.Finished))
+	require.NoError(t, rdb.Set(ctx, "completed-lease", "owner", time.Minute).Err())
+	require.NoError(t, s.UpdateStatus(persistence.WithLease(ctx, "completed-lease", "owner"), key, job.Finished))
 	mr.FastForward(time.Hour)
 	var calls atomic.Int32
 	w := NewWorker(cfg, rdb, scanFunc(func(context.Context, job.ScanJobKey, *harbor.ScanRequest) error {
@@ -203,7 +204,7 @@ func testRequest() harbor.ScanRequest {
 func TestAcceptedJobSurvivesNoWorkers(t *testing.T) {
 	mr, rdb, s, cfg := setupQueue(t)
 	ctx := context.Background()
-	id, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+	id, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	mr.FastForward(time.Hour)
 	key := job.ScanJobKey{ID: id, MIMEType: api.MimeTypeSecurityVulnerabilityReport}
@@ -230,7 +231,7 @@ func TestAcceptedJobSurvivesNoWorkers(t *testing.T) {
 func TestRepeatedInterruptionsReachVisibleRetryLimit(t *testing.T) {
 	_, rdb, s, cfg := setupQueue(t)
 	ctx := context.Background()
-	id, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())
+	id, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
 	key := job.ScanJobKey{ID: id, MIMEType: api.MimeTypeSecurityVulnerabilityReport}
 	var calls atomic.Int32
@@ -254,4 +255,24 @@ func TestRepeatedInterruptionsReachVisibleRetryLimit(t *testing.T) {
 	consumers, err := rdb.XInfoConsumers(ctx, redisJobStream(cfg.Namespace), workerGroup).Result()
 	require.NoError(t, err)
 	require.Empty(t, consumers, "a stopped consumer with no pending work is removed")
+}
+
+func TestJobWritesRequireCurrentOwnership(t *testing.T) {
+	mr, rdb, s, cfg := setupQueue(t)
+	ctx := context.Background()
+	id, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
+	require.NoError(t, err)
+	key := job.ScanJobKey{ID: id, MIMEType: api.MimeTypeSecurityVulnerabilityReport}
+	require.ErrorContains(t, s.UpdateStatus(ctx, key, job.Pending), "requires ownership")
+	require.ErrorContains(t, s.UpdateReport(ctx, key, harbor.ScanReport{}), "requires ownership")
+	require.NoError(t, rdb.Set(ctx, "test-owner", "token", time.Minute).Err())
+	owned := persistence.WithLease(ctx, "test-owner", "token")
+	require.NoError(t, s.UpdateStatus(owned, key, job.Pending))
+	mr.FastForward(time.Minute)
+	require.ErrorContains(t, s.UpdateStatus(owned, key, job.Finished), "ownership lost")
+	require.ErrorContains(t, s.UpdateReport(owned, key, harbor.ScanReport{}), "ownership lost")
+	state, err := s.Get(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, job.Pending, state.Status)
+	require.Equal(t, 1, state.Attempts)
 }

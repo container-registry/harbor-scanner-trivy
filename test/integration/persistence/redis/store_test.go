@@ -17,8 +17,10 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence/redis"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/redisx"
+	rdb "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	tc "github.com/testcontainers/testcontainers-go"
@@ -63,7 +65,7 @@ func TestEnqueueDoesNotLeaveDeliveryWhenMetadataWriteIsRejected(t *testing.T) {
 	state, err = store.Get(ctx, key)
 	require.NoError(t, err)
 	require.NotNil(t, state)
-	require.True(t, state.Durable)
+	require.Equal(t, job.Queued, state.Status)
 }
 
 // TestStore is an integration test for the Redis persistence store.
@@ -75,7 +77,7 @@ func TestStore(t *testing.T) {
 	ctx := context.Background()
 	redisC, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
-			Image:        "redis:5.0.5",
+			Image:        "redis:7.4",
 			ExposedPorts: []string{"6379/tcp"},
 			WaitingFor:   wait.ForLog("Ready to accept connections"),
 		},
@@ -106,11 +108,7 @@ func TestStore(t *testing.T) {
 			MIMEType: api.MimeTypeSecurityVulnerabilityReport,
 		}
 
-		err := store.Create(ctx, job.ScanJob{
-			Key:    scanJobKey,
-			Status: job.Queued,
-		})
-		require.NoError(t, err, "saving scan job should not fail")
+		ctx := enqueueJob(t, store, pool, job.ScanJob{Key: scanJobKey, Status: job.Queued})
 
 		j, err := store.Get(ctx, scanJobKey)
 		require.NoError(t, err, "getting scan job should not fail")
@@ -125,8 +123,9 @@ func TestStore(t *testing.T) {
 		j, err = store.Get(ctx, scanJobKey)
 		require.NoError(t, err, "getting scan job should not fail")
 		assert.Equal(t, &job.ScanJob{
-			Key:    scanJobKey,
-			Status: job.Pending,
+			Key:      scanJobKey,
+			Status:   job.Pending,
+			Attempts: 1,
 		}, j)
 
 		scanReport := harbor.ScanReport{
@@ -149,6 +148,7 @@ func TestStore(t *testing.T) {
 		err = store.UpdateStatus(ctx, scanJobKey, job.Finished)
 		require.NoError(t, err)
 
+		acknowledgeJob(t, store, pool, ctx, scanJobKey)
 		time.Sleep(parseDuration(t, "12s"))
 
 		j, err = store.Get(ctx, scanJobKey)
@@ -168,9 +168,8 @@ func TestStore(t *testing.T) {
 			SBOM:      generateSPDXDocument(t, 2_000_000),
 		}
 
-		err := store.Create(ctx, job.ScanJob{Key: scanJobKey, Status: job.Queued})
-		require.NoError(t, err)
-		err = store.UpdateReport(ctx, scanJobKey, report)
+		ctx := enqueueJob(t, store, pool, job.ScanJob{Key: scanJobKey, Status: job.Queued})
+		err := store.UpdateReport(ctx, scanJobKey, report)
 		require.NoError(t, err)
 
 		rawJSON, err := json.Marshal(report)
@@ -201,9 +200,8 @@ func TestStore(t *testing.T) {
 		jobKey := fmt.Sprintf("%s:scan-job:%s", config.Namespace, scanJobKey.String())
 		reportKey := fmt.Sprintf("%s:scan-report:%s", config.Namespace, scanJobKey.String())
 
-		err := store.Create(ctx, job.ScanJob{Key: scanJobKey, Status: job.Pending})
-		require.NoError(t, err)
-		err = store.UpdateReport(ctx, scanJobKey, harbor.ScanReport{
+		ctx := enqueueJob(t, store, pool, job.ScanJob{Key: scanJobKey, Status: job.Queued})
+		err := store.UpdateReport(ctx, scanJobKey, harbor.ScanReport{
 			MediaType: api.MediaTypeSPDX,
 			SBOM:      generateSPDXDocument(t, 2_000_000),
 		})
@@ -212,8 +210,7 @@ func TestStore(t *testing.T) {
 		reportBytesBefore, err := pool.Get(ctx, reportKey).Result()
 		require.NoError(t, err)
 
-		// Shorten both TTLs so the assertions below prove UpdateStatus re-arms
-		// them; freshly written keys would sit near the full TTL either way.
+		// Even an accidentally shortened lifetime must not expire pending work.
 		require.NoError(t, pool.Expire(ctx, jobKey, parseDuration(t, "3s")).Err())
 		require.NoError(t, pool.Expire(ctx, reportKey, parseDuration(t, "3s")).Err())
 
@@ -232,8 +229,8 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		reportTTL, err := pool.TTL(ctx, reportKey).Result()
 		require.NoError(t, err)
-		assert.Greater(t, jobTTL.Seconds(), 5.0, "job key TTL should be re-armed to the full ScanJobTTL")
-		assert.Greater(t, reportTTL.Seconds(), 5.0, "report key TTL should be re-armed to the full ScanJobTTL")
+		assert.Equal(t, time.Duration(-1), jobTTL, "job must persist until acknowledgement")
+		assert.Equal(t, time.Duration(-1), reportTTL, "report must persist until acknowledgement")
 		assert.InDelta(t, jobTTL.Seconds(), reportTTL.Seconds(), 1, "both keys should carry the same TTL")
 
 		j, err := store.Get(ctx, scanJobKey)
@@ -265,18 +262,9 @@ func TestStore(t *testing.T) {
 		j, err := store.Get(ctx, scanJobKey)
 		require.NoError(t, err, "legacy plain-JSON value should still be readable")
 		assert.Equal(t, &legacyJob, j)
-
-		err = store.UpdateStatus(ctx, scanJobKey, job.Failed, "some error")
-		require.NoError(t, err, "updating a legacy value should not fail")
-
-		j, err = store.Get(ctx, scanJobKey)
-		require.NoError(t, err)
-		require.NotNil(t, j)
-		assert.Equal(t, job.Failed, j.Status)
-		assert.Equal(t, legacyJob.Report, j.Report, "inline pre-split report must survive a status update")
 	})
 
-	t.Run("UpdateReport on a legacy combined value wins over the inline report", func(t *testing.T) {
+	t.Run("A separate legacy report takes precedence over the inline report", func(t *testing.T) {
 		scanJobKey := job.ScanJobKey{
 			ID:       "legacy-rescan",
 			MIMEType: api.MimeTypeSecurityVulnerabilityReport,
@@ -298,7 +286,9 @@ func TestStore(t *testing.T) {
 			Severity:        harbor.SevCritical,
 			Vulnerabilities: []harbor.VulnerabilityItem{{ID: "CVE-2026-9999"}},
 		}
-		require.NoError(t, store.UpdateReport(ctx, scanJobKey, newReport))
+		reportJSON, err := json.Marshal(newReport)
+		require.NoError(t, err)
+		require.NoError(t, pool.Set(ctx, fmt.Sprintf("%s:scan-report:%s", config.Namespace, scanJobKey.String()), reportJSON, config.ScanJobTTL).Err())
 
 		j, err := store.Get(ctx, scanJobKey)
 		require.NoError(t, err)
@@ -343,9 +333,10 @@ func TestStore(t *testing.T) {
 		reportKey := fmt.Sprintf("harbor.scanner.trivy:store-nottl:scan-report:%s", scanJobKey.String())
 		t.Cleanup(func() { pool.Del(ctx, jobKey, reportKey) })
 
-		require.NoError(t, noTTLStore.Create(ctx, job.ScanJob{Key: scanJobKey, Status: job.Queued}))
+		ctx := enqueueJob(t, noTTLStore, pool, job.ScanJob{Key: scanJobKey, Status: job.Queued})
 		require.NoError(t, noTTLStore.UpdateReport(ctx, scanJobKey, harbor.ScanReport{Severity: harbor.SevHigh}))
 		require.NoError(t, noTTLStore.UpdateStatus(ctx, scanJobKey, job.Finished))
+		acknowledgeJob(t, noTTLStore, pool, ctx, scanJobKey)
 
 		for _, key := range []string{jobKey, reportKey} {
 			ttl, err := pool.TTL(ctx, key).Result()
@@ -434,4 +425,25 @@ func parseDuration(t *testing.T, s string) time.Duration {
 	d, err := time.ParseDuration(s)
 	require.NoError(t, err, "should parse duration %s", s)
 	return d
+}
+
+func enqueueJob(t *testing.T, store persistence.Store, pool *rdb.Client, state job.ScanJob) context.Context {
+	t.Helper()
+	ctx := context.Background()
+	stream := "fixture:" + state.Key.String()
+	require.NoError(t, pool.XGroupCreateMkStream(ctx, stream, "fixture", "0").Err())
+	require.NoError(t, store.Enqueue(ctx, state, stream, []byte("fixture")))
+	require.NoError(t, pool.XReadGroup(ctx, &rdb.XReadGroupArgs{Group: "fixture", Consumer: "fixture", Streams: []string{stream, ">"}, Count: 1}).Err())
+	lease := stream + ":lease"
+	require.NoError(t, pool.Set(ctx, lease, "owner", time.Minute).Err())
+	return persistence.WithLease(ctx, lease, "owner")
+}
+
+func acknowledgeJob(t *testing.T, store persistence.Store, pool *rdb.Client, ctx context.Context, key job.ScanJobKey) {
+	t.Helper()
+	stream := "fixture:" + key.String()
+	entries, err := pool.XRange(ctx, stream, "-", "+").Result()
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.NoError(t, store.Acknowledge(ctx, key, stream, "fixture", entries[0].ID))
 }

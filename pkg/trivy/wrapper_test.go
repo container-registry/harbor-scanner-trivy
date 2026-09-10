@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func TestCacheConfigurationReachesTrivyWithoutCredentialsInArgs(t *testing.T) {
 	ambassador.On("Environ").Return([]string{"TRIVY_CACHE_BACKEND=fs", "TRIVY_CACHE_TTL=0", "KEEP=yes"})
 	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
 	w := &wrapper{config: etc.Trivy{CacheBackend: "rediss://user:private@cache:6379/0", CacheTTL: 48 * time.Hour}, ambassador: ambassador}
-	cmd, err := w.prepareScanCmd(ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
 	require.NoError(t, err)
 	require.Contains(t, cmd.Env, "TRIVY_CACHE_BACKEND=redis://user:private@cache:6379/0")
 	require.Contains(t, cmd.Env, "TRIVY_REDIS_TLS=true")
@@ -53,7 +54,7 @@ func TestScanErrorPreservesCauseAndClassificationAfterRedaction(t *testing.T) {
 			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 			ambassador.On("RunCmd", mock.Anything).Return([]byte("redis cache unavailable"), fmt.Errorf("cache: %w", cause))
 			w := NewWrapper(etc.Trivy{CacheBackend: "redis://:cache@redis:6379/0", CacheTTL: time.Hour}, ambassador)
-			_, err = w.Scan(ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+			_, err = w.Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 			var scanErr *ScanError
 			require.ErrorAs(t, err, &scanErr)
 			require.ErrorIs(t, err, cause)
@@ -78,7 +79,7 @@ func TestScanCommandStopsWhenWorkerContextIsCancelled(t *testing.T) {
 	w := &wrapper{ambassador: ambassador}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	cmd, err := w.prepareScanCmd(ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Context: ctx})
+	cmd, err := w.prepareScanCmd(ctx, ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{})
 	require.NoError(t, err)
 	require.NoError(t, cmd.Start())
 	done := make(chan error, 1)
@@ -213,7 +214,7 @@ func TestWrapper_Scan(t *testing.T) {
 		require.NoError(t, os.WriteFile(reportPath, []byte(expectedReportJSON), 0o644))
 		ambassador.On("TempFile", reportsDir, mock.Anything).Return(os.Open(reportPath))
 
-		ambassador.On("RunCmd", &exec.Cmd{
+		ambassador.On("RunCmd", matchScanCommand(&exec.Cmd{
 			Path: "/usr/local/bin/trivy",
 			Env: []string{
 				"HTTP_PROXY=http://someproxy:7777",
@@ -252,7 +253,7 @@ func TestWrapper_Scan(t *testing.T) {
 				"--insecure",
 				"alpine:3.10.2",
 			},
-		},
+		}),
 		).Return([]byte{}, nil)
 
 		imageRef := ImageRef{
@@ -264,7 +265,7 @@ func TestWrapper_Scan(t *testing.T) {
 			NonSSL: true,
 		}
 
-		got, err := NewWrapper(config, ambassador).Scan(imageRef, ScanOption{Format: FormatJSON})
+		got, err := NewWrapper(config, ambassador).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
 		require.NoError(t, err)
 		require.Equal(t, expectedReport, got)
 
@@ -304,7 +305,7 @@ func TestWrapper_Scan(t *testing.T) {
 		sbomPath := filepath.Join(cacheDir, "sbom.json")
 		ambassador.On("TempFile", cacheDir, mock.Anything).Return(os.Create(sbomPath))
 
-		ambassador.On("RunCmd", &exec.Cmd{
+		ambassador.On("RunCmd", matchScanCommand(&exec.Cmd{
 			Path: "/usr/local/bin/trivy",
 			Env: []string{
 				"HTTP_PROXY=http://someproxy:7777",
@@ -329,7 +330,7 @@ func TestWrapper_Scan(t *testing.T) {
 				"--skip-java-db-update",
 				sbomPath,
 			},
-		},
+		}),
 		).Return([]byte{}, nil)
 
 		imageRef := ImageRef{
@@ -337,7 +338,7 @@ func TestWrapper_Scan(t *testing.T) {
 			Auth: NoAuth{},
 		}
 
-		got, err := NewWrapper(config, ambassador).Scan(imageRef, ScanOption{Format: FormatJSON})
+		got, err := NewWrapper(config, ambassador).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
 		require.NoError(t, err)
 		require.Equal(t, expectedReport, got)
 
@@ -401,7 +402,7 @@ func TestMalformedReportHasReportParseCategory(t *testing.T) {
 	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, nil)
 	wrapper := NewWrapper(etc.Trivy{}, ambassador)
-	_, err = wrapper.Scan(ImageRef{Name: "alpine:latest", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	_, err = wrapper.Scan(context.Background(), ImageRef{Name: "alpine:latest", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 	var scanErr *ScanError
 	require.ErrorAs(t, err, &scanErr)
 	require.Equal(t, ErrCategoryReportParse, scanErr.Category)
@@ -410,4 +411,45 @@ func TestMalformedReportHasReportParseCategory(t *testing.T) {
 	require.Contains(t, scanErr.Detail, "report json decode error")
 	require.Contains(t, scanErr.Detail, syntaxErr.Error())
 	ambassador.AssertExpectations(t)
+}
+
+// Only compare the subprocess contract, not exec.Cmd's private context fields.
+func matchScanCommand(want *exec.Cmd) interface{} {
+	return mock.MatchedBy(func(got *exec.Cmd) bool {
+		return got.Path == want.Path && reflect.DeepEqual(got.Args, want.Args) &&
+			reflect.DeepEqual(got.Env, want.Env) && got.Cancel != nil && got.WaitDelay == time.Second
+	})
+}
+
+func TestExecutionRetryPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		output    string
+		category  ScanErrorCategory
+		retryable bool
+	}{
+		{"failed to write to cache: OOM command not allowed when used memory > 'maxmemory'", ErrCategoryTrivyExec, true},
+		{"dial tcp: connection refused", ErrCategoryNetwork, true},
+		{"new diagnostic from a future Trivy release", ErrCategoryTrivyExec, true},
+		{"unauthorized: authentication required", ErrCategoryAuth, false},
+		{"failed to extract the archive", ErrCategoryUnscannable, false},
+	} {
+		t.Run(tc.output, func(t *testing.T) {
+			ambassador := ext.NewMockAmbassador()
+			ambassador.On("Environ").Return([]string{})
+			ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+			img := &fake.FakeImage{}
+			img.ManifestReturns(&v1.Manifest{}, nil)
+			ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+			report, err := os.CreateTemp(t.TempDir(), "report")
+			require.NoError(t, err)
+			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+			ambassador.On("RunCmd", mock.Anything).Return([]byte(tc.output), &exec.ExitError{})
+			_, err = NewWrapper(etc.Trivy{}, ambassador).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+			var failure *ScanError
+			require.ErrorAs(t, err, &failure)
+			require.Equal(t, tc.category, failure.Category)
+			require.Equal(t, tc.retryable, failure.Retryable)
+			ambassador.AssertExpectations(t)
+		})
+	}
 }

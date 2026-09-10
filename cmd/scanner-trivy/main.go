@@ -80,7 +80,7 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, recorder)
 	store := redis.NewStore(config.RedisStore, rdb, recorder)
 	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}), recorder)
-	enqueuer := queue.NewEnqueuer(config.JobQueue, rdb, store, recorder)
+	enqueuer := queue.NewEnqueuer(config.JobQueue, store, recorder)
 	worker := queue.NewWorker(config.JobQueue, rdb, controller, store, recorder)
 
 	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, recorder)

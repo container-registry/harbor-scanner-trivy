@@ -45,14 +45,12 @@ func (s *ScanJobKey) String() string {
 }
 
 type ScanJob struct {
-	FinishedAt time.Time `json:"finished_at,omitzero"`
-	Attempts   int       `json:"attempts,omitempty"`
-	// Durable jobs retain their metadata until acknowledgement, independent of backlog.
-	Durable bool              `json:"durable,omitempty"`
-	Key     ScanJobKey        `json:"key"` // Must be unique
-	Status  ScanJobStatus     `json:"status"`
-	Error   string            `json:"error"`
-	Report  harbor.ScanReport `json:"report"`
+	FinishedAt time.Time         `json:"finished_at,omitzero"`
+	Attempts   int               `json:"attempts,omitempty"`
+	Key        ScanJobKey        `json:"key"` // Must be unique
+	Status     ScanJobStatus     `json:"status"`
+	Error      string            `json:"error"`
+	Report     harbor.ScanReport `json:"report"`
 }
 
 func (s *ScanJob) ID() string {

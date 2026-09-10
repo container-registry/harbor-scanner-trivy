@@ -24,11 +24,6 @@ func (s *Store) Acknowledge(ctx context.Context, key job.ScanJobKey, stream, gro
 	return s.Called(ctx, key, stream, group, deliveryID).Error(0)
 }
 
-func (s *Store) Create(ctx context.Context, scanJob job.ScanJob) error {
-	args := s.Called(ctx, scanJob)
-	return args.Error(0)
-}
-
 func (s *Store) Get(ctx context.Context, scanJobKey job.ScanJobKey) (*job.ScanJob, error) {
 	args := s.Called(ctx, scanJobKey)
 	return args.Get(0).(*job.ScanJob), args.Error(1)
