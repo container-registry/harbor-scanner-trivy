@@ -73,9 +73,9 @@ func TestBoundedCacheCollection(t *testing.T) {
 		require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0o700))
 		require.NoError(t, os.WriteFile(filepath.Join(root, dir, "data"), []byte("12345"), 0o600))
 	}
-	r.collectCache(context.Background(), root, 20)
+	r.collectCache(context.Background(), root, 20, "filesystem")
 	require.Equal(t, float64(5), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("analysis")))
-	r.collectCache(context.Background(), root, 1)
+	r.collectCache(context.Background(), root, 1, "filesystem")
 	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
 	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 	ctx, cancel := context.WithCancel(context.Background())
@@ -86,6 +86,54 @@ func TestBoundedCacheCollection(t *testing.T) {
 	require.NoError(t, os.Symlink(root, filepath.Join(root, "fanal", "loop")))
 	_, err = directoryBytes(context.Background(), root, &n)
 	require.ErrorContains(t, err, "unsupported cache entry")
+}
+
+func TestNonFilesystemCacheOmitsFanal(t *testing.T) {
+	for _, backend := range []string{"redis", "memory", "unknown"} {
+		t.Run(backend, func(t *testing.T) {
+			r := New(true)
+			root := t.TempDir()
+			for _, dir := range []string{"db", "java-db"} {
+				require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0o700))
+				require.NoError(t, os.WriteFile(filepath.Join(root, dir, "data"), []byte("12345"), 0o600))
+			}
+			for _, staleFiles := range []bool{false, true} {
+				if staleFiles {
+					// An unsupported leftover must neither fail collection nor use its budget.
+					require.NoError(t, os.Symlink(root, filepath.Join(root, "fanal")))
+				}
+				r.Set("cache_size_bytes", 999, "analysis")
+				r.collectCache(context.Background(), root, 4, backend)
+				require.Equal(t, 2, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+				for _, kind := range []string{"vulnerability_db", "java_db"} {
+					require.Equal(t, float64(5), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
+				}
+				require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
+			}
+		})
+	}
+}
+
+func TestAnalysisCacheBackendInfo(t *testing.T) {
+	for configured, want := range map[string]string{
+		"": "filesystem", "fs": "filesystem", "memory": "memory",
+		"redis://user:secret@cache:6379/1":  "redis",
+		"rediss://user:secret@cache:6379/1": "redis", "invalid": "unknown",
+	} {
+		t.Run(configured, func(t *testing.T) {
+			r := New(true)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			r.Start(ctx, etc.Config{Trivy: etc.Trivy{CacheBackend: configured}}, "test")()
+			require.Equal(t, 1, testutil.CollectAndCount(r.gauges["analysis_cache_backend_info"]))
+			require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["analysis_cache_backend_info"].WithLabelValues(want)))
+			families, err := r.Gatherer().Gather()
+			require.NoError(t, err)
+			for _, family := range families {
+				require.NotContains(t, family.String(), "secret")
+			}
+		})
+	}
 }
 
 func TestSubprocessFailureAndUnavailableUsage(t *testing.T) {

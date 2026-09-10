@@ -74,9 +74,10 @@ Every suffix below has prefix **`harbor_scanner_trivy_`**. Histograms export
 | `db_next_update_timestamp_seconds` | gauge | database | Advertised database next update timestamp. |
 | `db_downloaded_timestamp_seconds` | gauge | database | Recorded local download timestamp, not download attempts. |
 | `db_updates_enabled` | gauge | database | Effective automatic database update policy. |
-| `metadata_collection_success` | gauge | — | Whether Trivy version and local vulnerability/Java metadata checks succeeded, including valid database absence. |
-| `metadata_last_success_timestamp_seconds` | gauge | — | Last successful metadata refresh. |
-| `cache_size_bytes` | gauge | kind | Logical regular-file bytes for the verified local cache layout. |
+| `analysis_cache_backend_info` | gauge | backend | Configured analysis-cache backend: `filesystem`, `redis`, `memory`, or `unknown`. Value is 1; no server URL or credentials are exposed. |
+| `metadata_collection_success` | gauge | — | Whether Trivy version and local vulnerability/Java metadata checks succeeded, including valid database absence. Does not test database integrity. |
+| `metadata_last_success_timestamp_seconds` | gauge | — | Last successful monitoring refresh of vulnerability/Java metadata; not database build or download time. |
+| `cache_size_bytes` | gauge | kind | Logical regular-file bytes for the verified local cache layout. `kind="analysis"` is emitted only for the filesystem backend; DB and Java sizes remain local for every backend. |
 | `storage_capacity_bytes` | gauge | area | Filesystem capacity at the configured path; areas may share a filesystem. |
 | `storage_available_bytes` | gauge | area | Filesystem bytes available to the scanner at the configured path. |
 | `storage_inodes_available` | gauge | area | Available filesystem inodes where supported. |
