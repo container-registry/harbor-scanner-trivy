@@ -35,6 +35,7 @@ tests:
   - it: allows explicitly disabling the default hook
     set:
       lifecycle.preStop: null
+      terminationGracePeriodSeconds: 5
     asserts:
       - notExists:
           path: spec.template.spec.containers[0].lifecycle.preStop

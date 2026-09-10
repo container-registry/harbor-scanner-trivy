@@ -212,7 +212,8 @@ class DashboardTest(unittest.TestCase):
         panels = {panel["id"]: panel for panel in all_panels()}
         for pid, width in ((35, 6), (36, 18), (60, 6), (91, 24)):
             self.assertEqual((panels[pid]["gridPos"]["w"], panels[pid]["gridPos"]["h"]), (width, 7))
-        self.assertEqual(panels[35]["gridPos"]["x"], 0)
+            if pid in (35, 60, 91):
+                self.assertEqual(panels[pid]["gridPos"]["x"], 0)
         for ids in ((94, 95), (85, 88)):
             positions = [panels[pid]["gridPos"] for pid in ids]
             self.assertEqual(len({p["y"] for p in positions}), 1)

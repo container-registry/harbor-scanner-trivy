@@ -260,7 +260,7 @@ ignored.
 
 {{/*
 The container's final `env` list: the chart's own entries minus anything
-claimed by config/secret, then extraEnv appended.
+claimed by config/secret/extraEnv, then extraEnv appended.
 
 Precedence, lowest to highest:
   chart defaults  <  config / secret (envFrom)  <  extraEnv
@@ -268,6 +268,7 @@ extraEnv wins over the passthrough for free, because it lands in `env`.
 */}}
 {{- define "harbor-scanner-trivy.env" -}}
 {{- $claimed := include "harbor-scanner-trivy.claimedEnvNames" . | fromYamlArray -}}
+{{- range .Values.extraEnv -}}{{- $claimed = append $claimed .name -}}{{- end -}}
 {{- $env := list -}}
 {{- range (include "harbor-scanner-trivy.chartEnv" . | fromYamlArray) -}}
 {{- if not (has .name $claimed) -}}

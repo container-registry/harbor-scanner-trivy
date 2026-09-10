@@ -368,6 +368,8 @@ api:
 valkey:
   # -- Deploy a dedicated cache and automatically select it when trivy.cacheBackend
   # is fs. Disabled by default so existing external-cache deployments are preserved.
+  # With networkPolicy.egressEnabled, explicitly allow egress to the cache pods
+  # and DNS; enabling this subchart does not add NetworkPolicy rules.
   enabled: false
   # -- Resource name overrides pass through to the upstream chart. Empty names
   # are release-scoped, avoiding Harbor's operational Valkey service.
@@ -403,6 +405,7 @@ valkey:
       memory: 64Mi
   # -- Upstream ACL configuration. With auth enabled, supply the adapter's full
   # credential-bearing URL through a Secret override; see example/dedicated-cache.
+  # Use TLS to encrypt credentials and cache traffic outside a trusted network.
   auth:
     enabled: false
   # -- Upstream TLS configuration. Also configure the adapter's cache CA/client
@@ -584,7 +587,7 @@ sidecars: []
 # keeps HTTP serving for 10 seconds before SIGTERM while Kubernetes removes the
 # terminating endpoint. Custom `preStop` hooks replace this default; use
 # `preStop: null` to disable it. Leave enough termination grace for both the hook
-# and scan cancellation.
+# and scan cancellation. The default hook requires terminationGracePeriodSeconds > 10.
 lifecycle: {}
 
 # -- Deep-merged into the StatefulSet `.spec`, for fields the chart does not

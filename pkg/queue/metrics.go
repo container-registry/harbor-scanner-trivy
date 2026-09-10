@@ -10,6 +10,9 @@ import (
 // Sample between scans to avoid another background Redis connection per pod.
 // A busy pod's sample can be as old as its current scan timeout.
 func (w *streamWorker) observeQueue(ctx context.Context) {
+	if count, err := w.rdb.HLen(ctx, w.stream+":quarantine").Result(); err == nil {
+		w.metrics.Set("queue_quarantined_jobs", float64(count))
+	}
 	if depth, err := w.rdb.XLen(ctx, w.stream).Result(); err == nil {
 		w.metrics.Set("queue_unacknowledged_jobs", float64(depth))
 	}

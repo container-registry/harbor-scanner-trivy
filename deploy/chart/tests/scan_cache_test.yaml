@@ -18,6 +18,11 @@ tests:
               name: analysis-cache
               key: url
     asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: "fs"
       - contains:
           path: spec.template.spec.containers[0].env
           content:

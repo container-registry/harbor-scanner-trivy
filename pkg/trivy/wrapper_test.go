@@ -3,6 +3,7 @@ package trivy
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,6 +37,35 @@ func TestCacheConfigurationReachesTrivyWithoutCredentialsInArgs(t *testing.T) {
 	require.Contains(t, cmd.Env, "KEEP=yes")
 	require.NotContains(t, strings.Join(cmd.Args, " "), "private")
 	require.NotContains(t, w.redactCacheCredentials("dial rediss://user:private@cache:6379/0 failed: private"), "private")
+}
+
+func TestScanErrorPreservesCauseAndClassificationAfterRedaction(t *testing.T) {
+	for _, cause := range []error{context.Canceled, &exec.ExitError{}} {
+		t.Run(fmt.Sprintf("%T", cause), func(t *testing.T) {
+			ambassador := ext.NewMockAmbassador()
+			ambassador.On("Environ").Return([]string{})
+			ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+			fakeImage := &fake.FakeImage{}
+			fakeImage.ManifestReturns(&v1.Manifest{}, nil)
+			ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(fakeImage, nil)
+			report, err := os.CreateTemp(t.TempDir(), "report")
+			require.NoError(t, err)
+			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+			ambassador.On("RunCmd", mock.Anything).Return([]byte("redis cache unavailable"), fmt.Errorf("cache: %w", cause))
+			w := NewWrapper(etc.Trivy{CacheBackend: "redis://:cache@redis:6379/0", CacheTTL: time.Hour}, ambassador)
+			_, err = w.Scan(ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+			var scanErr *ScanError
+			require.ErrorAs(t, err, &scanErr)
+			require.ErrorIs(t, err, cause)
+			if _, ok := cause.(*exec.ExitError); ok {
+				var exitErr *exec.ExitError
+				require.ErrorAs(t, err, &exitErr)
+			}
+			require.Equal(t, ErrCategoryCache, scanErr.Category)
+			require.NotContains(t, scanErr.Detail, "cache")
+			require.NotContains(t, scanErr.Cause.Error(), "cache")
+		})
+	}
 }
 
 func TestScanCommandStopsWhenWorkerContextIsCancelled(t *testing.T) {

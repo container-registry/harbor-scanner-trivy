@@ -49,6 +49,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `scan_retries_total` | counter | — | Attempts after interrupted execution or cache failure. |
 | `lease_losses_total` | counter | — | Failed lease renewal or lost ownership. |
 | `queue_unacknowledged_jobs` | gauge | — | Shared stream length including pending jobs; use max across pods. |
+| `queue_quarantined_jobs` | gauge | — | Malformed deliveries retained outside the active queue for inspection; use max across pods. Any nonzero value needs investigation. |
 | `queue_oldest_age_seconds` | gauge | — | Age of oldest unacknowledged delivery, sampled between scans. |
 | `job_attempts_total` | counter | capability, format, outcome | Observed attempts, including retryable failures; not unique artifacts or terminal jobs. |
 | `job_failures_total` | counter | stage, category | Primary failures of controller executions. |
@@ -64,7 +65,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `sbom_accessory_events_total` | counter | event | SBOM accessory lookup and fallback events (multiple per job). |
 | `report_size_bytes` | histogram | capability, format, encoding | Matched raw and compressed report sizes on applied writes. |
 | `store_bytes_written_total` | counter | record, encoding | Applied payload bytes; raw is uncompressed equivalent, not resident memory. |
-| `store_operations_total` | counter | operation, outcome | Logical adapter store operations and outcomes. |
+| `store_operations_total` | counter | operation, outcome | Logical adapter store operations and outcomes. Durable `enqueue` and `acknowledge` are separate from legacy `create`. |
 | `store_operation_duration_seconds` | histogram | operation | Logical adapter store operation duration including failures. |
 | `report_fetch_total` | counter | result | Report poll outcomes; not_found does not prove expiry. |
 | `report_fetch_age_seconds` | histogram | capability, format | Age of successfully fetched report since recorded completion, not remaining TTL. |

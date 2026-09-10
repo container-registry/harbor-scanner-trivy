@@ -16,10 +16,60 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
 	storepkg "github.com/container-registry/harbor-scanner-trivy/pkg/persistence/redis"
 )
 
 type countingController struct{ count int }
+
+func TestDurableEnqueueHasItsOwnStoreOperation(t *testing.T) {
+	_, rdb, _, cfg := setupQueue(t)
+	r := metrics.New(true)
+	s := storepkg.NewStore(etc.RedisStore{Namespace: "enqueue-metrics"}, rdb, r)
+	_, err := NewEnqueuer(cfg, rdb, s).Enqueue(context.Background(), testRequest())
+	require.NoError(t, err)
+	require.EqualValues(t, 1, metricCount(t, r, "store_operations_total", "operation", "enqueue"))
+	require.Zero(t, metricCount(t, r, "store_operations_total", "operation", "create"))
+}
+
+type slowReadStore struct {
+	persistence.Store
+	readDuration time.Duration
+}
+
+func (s *slowReadStore) Get(ctx context.Context, key job.ScanJobKey) (*job.ScanJob, error) {
+	start := time.Now()
+	time.Sleep(200 * time.Millisecond)
+	state, err := s.Store.Get(ctx, key)
+	s.readDuration = time.Since(start)
+	return state, err
+}
+
+func TestQueueWaitExcludesMetadataRead(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	ctx := context.Background()
+	id, err := NewEnqueuer(cfg, rdb, store).Enqueue(ctx, testRequest())
+	require.NoError(t, err)
+	r := metrics.New(true)
+	slow := &slowReadStore{Store: store}
+	w := NewWorker(cfg, rdb, &countingController{}, slow, r).(*streamWorker)
+	delivery := Job{Key: job.ScanJobKey{ID: id, MIMEType: api.MimeTypeSecurityVulnerabilityReport}, Args: Args{ScanRequest: &harbor.ScanRequest{}}, EnqueuedAt: time.Now()}
+	payload, err := json.Marshal(delivery)
+	require.NoError(t, err)
+	require.ErrorContains(t, w.process(ctx, redis.XMessage{ID: "test", Values: map[string]interface{}{"job": string(payload)}}), "interrupted scan")
+	elapsed := time.Since(delivery.EnqueuedAt)
+	families, err := r.Gatherer().Gather()
+	require.NoError(t, err)
+	for _, f := range families {
+		if f.GetName() == metrics.Prefix+"queue_wait_duration_seconds" {
+			h := f.Metric[0].GetHistogram()
+			require.EqualValues(t, 1, h.GetSampleCount())
+			require.Less(t, h.GetSampleSum(), (elapsed - slow.readDuration + 50*time.Millisecond).Seconds())
+			return
+		}
+	}
+	t.Fatal("queue wait was not observed")
+}
 
 func (c *countingController) Scan(context.Context, job.ScanJobKey, *harbor.ScanRequest) error {
 	c.count++
@@ -85,8 +135,8 @@ func TestDispatchCountsOnlyAcquiredLocksAndKnownWaits(t *testing.T) {
 	j.EnqueuedAt = time.Now().Add(time.Hour)
 	run(j)
 	require.Equal(t, float64(1), metricCount(t, r, "queue_wait_duration_seconds", "", ""))
-	require.Error(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "{}"}}))
-	require.Error(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "invalid JSON"}}))
+	require.NoError(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "{}"}}))
+	require.NoError(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": "invalid JSON"}}))
 	require.Equal(t, float64(2), metricCount(t, r, "job_dispatch_total", "result", "decode_error"))
 	s.Close()
 	require.Error(t, w.process(context.Background(), redis.XMessage{Values: map[string]interface{}{"job": `{"Args":{"ScanRequest":{}}}`}}))

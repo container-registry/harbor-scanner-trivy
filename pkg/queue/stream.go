@@ -165,7 +165,7 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 	payload, ok := msg.Values["job"].(string)
 	if !ok || json.Unmarshal([]byte(payload), &delivery) != nil || delivery.Args.ScanRequest == nil {
 		w.metrics.Inc("job_dispatch_total", "decode_error")
-		return fmt.Errorf("invalid scan delivery %s", msg.ID)
+		return w.quarantine(parent, msg)
 	}
 	lockKey := w.stream + ":lease:" + msg.ID
 	token := makeIdentifier()
@@ -178,6 +178,7 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 		w.metrics.Inc("job_dispatch_total", "lock_busy")
 		return nil
 	}
+	claimedAt := time.Now()
 	w.metrics.Inc("job_dispatch_total", "lock_acquired")
 	ctx, cancel := context.WithCancel(persistence.WithLease(parent, lockKey, token))
 	done := make(chan struct{})
@@ -227,7 +228,7 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 		}
 		if state.Attempts > 0 {
 			w.metrics.Inc("scan_retries_total")
-		} else if age := time.Since(delivery.EnqueuedAt); !delivery.EnqueuedAt.IsZero() && age >= 0 {
+		} else if age := claimedAt.Sub(delivery.EnqueuedAt); !delivery.EnqueuedAt.IsZero() && age >= 0 {
 			capability, _ := metrics.JobLabels(delivery.Key)
 			w.metrics.Observe("queue_wait_duration_seconds", age.Seconds(), capability)
 		}

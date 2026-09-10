@@ -2,7 +2,7 @@
 
 This analysis was prepared on 2026-09-09 from adapter commit `9891e7a`, which pins Trivy `0.74.0`. It covers source behavior; production workload and Redis capacity benchmarks were outside the investigation.
 
-The adapter has since moved to one worker per pod and durable Redis Streams, and now forwards its cache settings to Trivy. The configuration gaps and Pub/Sub behavior below apply to the inspected commit. For current deployment settings and validation results, use the [scaling guide](SCALING.md). Current releases use `SCANNER_TRIVY_CACHE_*` in place of the native `TRIVY_*` overrides discussed here.
+The adapter has since moved to one worker per pod and durable Redis Streams, and now forwards its cache settings to Trivy. All baseline limitations below, including Pub/Sub delivery, fixed claims, job/report expiry during work, and subprocess shutdown, apply to the inspected commit. The current implementation provides renewable ownership, interrupted-job recovery, and cancellable scans. For current deployment settings and validation results, use the [scaling guide](SCALING.md). Current releases use `SCANNER_TRIVY_CACHE_*` in place of the native `TRIVY_*` overrides discussed here.
 
 At that commit, the adapter could start multiple workers, but its filesystem scan cache prevented them from reliably scanning images against the same cache directory. Redis removes that shared-file lock and allows workers across pods to reuse analysis. Redis memory will not equal the size of `fanal.db`: retention, database overhead, and replication determine the difference.
 

@@ -64,3 +64,17 @@ tests:
               secretKeyRef:
                 name: cache-auth
                 key: url
+
+  - it: accepts a chart-managed Secret as the authenticated backend source
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      valkey.auth.usersExistingSecret: cache-auth
+      valkey.auth.aclUsers.default.permissions: "~* &* +@all"
+      secret.SCANNER_TRIVY_CACHE_BACKEND: redis://:fixture@cache:6379/0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: redis://RELEASE-NAME-valkey:6379/0

@@ -26,6 +26,9 @@ import (
 )
 
 func TestEnqueueDoesNotLeaveDeliveryWhenMetadataWriteIsRejected(t *testing.T) {
+	if testing.Short() {
+		t.Skip("An integration test")
+	}
 	ctx := context.Background()
 	server, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{

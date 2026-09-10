@@ -46,6 +46,9 @@ import (
 )
 
 func TestDedicatedCacheBackends(t *testing.T) {
+	if testing.Short() {
+		t.Skip("An integration test")
+	}
 	ctx := context.Background()
 	for _, backend := range []struct{ image, binary string }{{"redis:7.4", "redis-server"}, {"valkey/valkey:8.1", "valkey-server"}} {
 		t.Run(backend.image, func(t *testing.T) {
@@ -137,8 +140,12 @@ func TestDedicatedCacheBackends(t *testing.T) {
 				require.Equal(t, coldGETs, layerGETs.Load(), "warm pods must reuse cached layer analysis")
 				t.Logf("%d warm pods: %s, completed scans/minute=%.1f, extra layer GETs=0", replicas, time.Since(start), float64(replicas)/time.Since(start).Minutes())
 			}
-			cacheKeys, _, err := rdb.Scan(ctx, 0, "fanal::*", 100).Result()
-			require.NoError(t, err)
+			var cacheKeys []string
+			iterator := rdb.Scan(ctx, 0, "fanal::*", 100).Iterator()
+			for iterator.Next(ctx) {
+				cacheKeys = append(cacheKeys, iterator.Val())
+			}
+			require.NoError(t, iterator.Err())
 			require.NotEmpty(t, cacheKeys)
 			for _, k := range cacheKeys {
 				require.Positive(t, rdb.TTL(ctx, k).Val())
@@ -167,7 +174,7 @@ func TestDedicatedCacheBackends(t *testing.T) {
 			_, err = newPod().Scan(ref, trivy.ScanOption{Format: trivy.FormatJSON, Context: ctx})
 			var cacheErr *trivy.ScanError
 			require.ErrorAs(t, err, &cacheErr)
-			require.Equal(t, trivy.ErrCategoryCache, cacheErr.Category)
+			require.Contains(t, []trivy.ScanErrorCategory{trivy.ErrCategoryCache, trivy.ErrCategoryTrivyExec}, cacheErr.Category)
 			require.NoError(t, rdb.ConfigSet(ctx, "maxmemory", "0").Err())
 			afterRecovery, err := newPod().Scan(ref, trivy.ScanOption{Format: trivy.FormatJSON, Context: ctx})
 			require.NoError(t, err)

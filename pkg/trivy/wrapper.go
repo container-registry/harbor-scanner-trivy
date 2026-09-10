@@ -152,8 +152,9 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 
 	stdout, err := w.metrics.Run(string(target.kind), cmd, w.ambassador.RunCmd)
 	if err != nil {
+		// Classify before redaction: a short password may also occur in an error keyword.
+		category := classifyTrivyError(string(stdout))
 		output := w.redactCacheCredentials(string(stdout))
-		category := classifyTrivyError(output)
 		targetName, _ := target.Name()
 		logger.Error("Running trivy failed",
 			slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
@@ -164,7 +165,7 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 			Category: category,
 			ImageRef: targetName,
 			Detail:   output,
-			Cause:    fmt.Errorf("%s", w.redactCacheCredentials(err.Error())),
+			Cause:    &redactedError{cause: err, message: w.redactCacheCredentials(err.Error())},
 		}
 	}
 
@@ -328,6 +329,15 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 
 	return cmd, nil
 }
+
+// Keep errors.Is/As useful without exposing credentials in formatted errors.
+type redactedError struct {
+	cause   error
+	message string
+}
+
+func (e *redactedError) Error() string { return e.message }
+func (e *redactedError) Unwrap() error { return e.cause }
 
 func (w *wrapper) redactCacheCredentials(text string) string {
 	u, err := url.Parse(w.config.CacheBackend)

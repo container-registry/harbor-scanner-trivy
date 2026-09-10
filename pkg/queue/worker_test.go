@@ -200,7 +200,7 @@ func testRequest() harbor.ScanRequest {
 	}}}
 }
 
-func TestAcceptedJobSurvivesNoWorkersAndReportTTL(t *testing.T) {
+func TestAcceptedJobSurvivesNoWorkers(t *testing.T) {
 	mr, rdb, s, cfg := setupQueue(t)
 	ctx := context.Background()
 	id, err := NewEnqueuer(cfg, rdb, s).Enqueue(ctx, testRequest())

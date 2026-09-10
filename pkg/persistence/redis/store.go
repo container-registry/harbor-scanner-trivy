@@ -80,7 +80,7 @@ var (
 
 func (s *store) Enqueue(ctx context.Context, scanJob job.ScanJob, stream string, payload []byte) (err error) {
 	result := "success"
-	defer s.operation("create", &err, &result)()
+	defer s.operation("enqueue", &err, &result)()
 	scanJob.Durable = true
 	value, rawSize, err := marshalSized(scanJob)
 	if err != nil {
