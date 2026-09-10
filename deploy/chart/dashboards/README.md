@@ -60,10 +60,35 @@ an external Redis server, independently of the adapter image version.
 In the Trivy dashboard, **Analysis cache (optional)** selects the exporter for the
 shared analysis cache. Three summary cards show memory/maxmemory, key hit rate,
 and evictions, with links preserving the selected installation and time range.
-The dedicated Valkey cache stores reusable image/layer analysis; **job/report
-Redis is separate**. The adapter's Redis client-pool metrics describe job/report
-connections, not Trivy CLI cache connections. PostgreSQL belongs to Harbor; the
+### What lives in each instance
+
+With the dedicated analysis cache enabled, each registry uses two separate
+Redis/Valkey instances. All scanner pods share both; they store different data.
+
+| Instance | What it stores | Dashboard row |
+| --- | --- | --- |
+| Existing Harbor Redis/Valkey | Adapter job queue, delivery leases, job state, and scan reports awaiting retrieval by Harbor | Redis job/report client pool |
+| Dedicated scanner Redis/Valkey | Reusable image/layer analysis, replacing the local `fanal.db` analysis cache | Redis / Valkey analysis cache |
+
+In the reference deployment, all three scanner pods use logical **DB 5** on
+Harbor's Valkey for jobs/reports and share a separate scanner Valkey for analysis.
+DB 5 is a deployment choice, not a required or default database number.
+
+The bundled cache defaults to **512 MiB maxmemory**, **allkeys-lru** eviction and
+a **7-day cache TTL** (`trivy.cacheTTL: 168h`), matching that deployment. TTL is
+set on writes; reads do not extend it. Evicted analysis can be recomputed.
+Keeping this cache on a separate instance prevents its eviction policy from
+removing pending jobs or scan reports. Another logical DB on Harbor's instance
+would share the same memory limit and eviction policy. Configure these values
+for your workload; the memory panel shows the selected server's actual limit.
+
+The vulnerability database and Java package index still live on each scanner
+pod's own PVC. Redis analysis caching does not replace these local databases.
+The adapter's Redis client-pool metrics cover job/report connections; they do
+not measure Trivy CLI cache connections. PostgreSQL belongs to Harbor; the
 adapter does not access it directly.
+
+### Reading the cache panels
 
 Memory usage turns orange at 80% and red at 95% of `maxmemory`; this is not the
 container memory limit. A zero configured limit displays **No maxmemory**. Cache

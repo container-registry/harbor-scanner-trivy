@@ -3764,7 +3764,7 @@
       "id": 56,
       "type": "stat",
       "title": "Analysis cache memory / limit",
-      "description": "Memory used by the selected analysis-cache Redis/Valkey, relative to maxmemory. Job/report Redis and its client pool are separate.",
+      "description": "Memory used by the dedicated Redis/Valkey analysis cache as a percentage of maxmemory. All scanner pods share reusable image/layer analysis here, replacing fanal.db. Evicted analysis can be recomputed. Jobs and reports use a separate instance; vulnerability and Java databases remain on each pod’s local volume.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -4042,7 +4042,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Redis client pool connections per replica; total includes idle. Assess pool pressure alongside connection waits and timeouts.",
+      "description": "Adapter connections to the job/report Redis/Valkey, usually Harbor’s existing instance. All scanner pods share its queue, delivery leases, job state and scan reports. The dedicated analysis cache uses separate connections. Total includes idle connections; compare with pool waits and timeouts.",
       "fieldConfig": {
         "defaults": {
           "color": {
