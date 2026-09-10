@@ -77,4 +77,9 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SCANNER_TRIVY_CACHE_BACKEND
-            value: redis://RELEASE-NAME-valkey:6379/0
+            value: redis://scanner-valkey:6379/0
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: scanner-harbor-scanner-trivy-env

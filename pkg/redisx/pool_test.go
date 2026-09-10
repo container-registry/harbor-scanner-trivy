@@ -136,7 +136,7 @@ func TestRedisCommandHonorsCallerDeadline(t *testing.T) {
 	go func() { done <- client.Ping(ctx).Err() }()
 	select {
 	case err := <-done:
-		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("Redis ignored the caller deadline")
 	}

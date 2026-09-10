@@ -9,6 +9,9 @@ import (
 
 // Collection runs independently of scans using the shared Redis client.
 func (w *streamWorker) monitorQueue(ctx context.Context) {
+	if w.metrics == nil {
+		return
+	}
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {

@@ -96,7 +96,7 @@ databases still need isolation. Redis TTL must be positive.
 {{- if eq $cacheBackend "memory" }}
 {{- fail "valkey.enabled cannot be combined with trivy.cacheBackend=memory; disable the subchart for an in-process cache." }}
 {{- end }}
-{{- if and .Values.valkey.auth.enabled (eq .Values.trivy.cacheBackend "fs") }}
+{{- if .Values.valkey.auth.enabled }}
 {{- if ne (get $sources "SCANNER_TRIVY_CACHE_BACKEND") "secret" }}
 {{- fail "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)." }}
 {{- end }}

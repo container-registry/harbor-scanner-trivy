@@ -2,8 +2,8 @@
 #
 # Every task here runs identically in CI (.github/workflows/chart-ci.yml), which
 # installs the same tool versions from versions.env. Tool tasks prefer a local
-# binary and fall back to Docker so the gate is runnable without installing
-# anything; `task helm:ci` runs the whole thing.
+# binary and selected tools fall back to Docker. The full gate still requires
+# local Helm, Python and the declared tool prerequisites; `task helm:ci` runs it.
 ---
 version: '3'
 
@@ -19,7 +19,14 @@ tasks:
   dependencies:
     desc: "Fetch the locked Valkey subchart used by Harbor-next"
     run: once
-    cmd: helm dependency build {{.CHART_DIR}} --skip-refresh
+    cmd: |
+      if command -v helm >/dev/null 2>&1; then
+        helm dependency build {{.CHART_DIR}} --skip-refresh
+      else
+        docker run --rm -v "$(pwd)":/workdir -w /workdir \
+          quay.io/helmpack/chart-testing:v{{.CT_VERSION}} \
+          helm dependency build {{.CHART_DIR}} --skip-refresh
+      fi
 
   # ============================================================================
   # Individual checks

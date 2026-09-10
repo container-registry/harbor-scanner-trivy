@@ -1,12 +1,17 @@
 package trivy
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/fake"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -229,5 +234,45 @@ func TestScanError(t *testing.T) {
 		assert.Contains(t, err.Error(), "[unscannable_layer]")
 		assert.Contains(t, err.Error(), "cosign")
 		assert.Nil(t, errors.Unwrap(err))
+	})
+}
+
+func TestRegistryRetrievalRetryPolicy(t *testing.T) {
+	for _, stage := range []string{"image", "manifest"} {
+		for _, tc := range []struct {
+			name  string
+			cause error
+			retry bool
+		}{
+			{"connection refused", errors.New("dial tcp: connection refused"), true},
+			{"timeout", context.DeadlineExceeded, true},
+			{"registry unavailable", errors.New("503 Service Unavailable"), true},
+			{"unauthorized", errors.New("401 Unauthorized"), false},
+			{"forbidden", errors.New("403 Forbidden"), false},
+		} {
+			t.Run(stage+"/"+tc.name, func(t *testing.T) {
+				ambassador := ext.NewMockAmbassador()
+				img := &fake.FakeImage{}
+				var remoteErr error
+				if stage == "image" {
+					remoteErr = tc.cause
+				} else {
+					img.ManifestReturns(nil, tc.cause)
+				}
+				ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, remoteErr).Once()
+				_, err := newTarget(context.Background(), ImageRef{Name: "alpine:latest", Auth: NoAuth{}}, etc.Trivy{}, ambassador, false)
+				var scanErr *ScanError
+				require.ErrorAs(t, err, &scanErr)
+				require.ErrorIs(t, err, tc.cause)
+				require.Equal(t, tc.retry, scanErr.Retryable)
+				ambassador.AssertExpectations(t)
+			})
+		}
+	}
+	t.Run("invalid reference", func(t *testing.T) {
+		_, err := newTarget(context.Background(), ImageRef{Name: "invalid reference", Auth: NoAuth{}}, etc.Trivy{}, ext.NewMockAmbassador(), false)
+		var scanErr *ScanError
+		require.ErrorAs(t, err, &scanErr)
+		require.False(t, scanErr.Retryable)
 	})
 }

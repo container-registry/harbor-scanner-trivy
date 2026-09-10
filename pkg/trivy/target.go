@@ -103,11 +103,13 @@ func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassa
 
 	img, err := ambassador.RemoteImage(ref, authOpt, trOpt, ctxOpt)
 	if err != nil {
+		category := classifyRemoteError(err)
 		return ScanTarget{}, &ScanError{
-			Category: classifyRemoteError(err),
-			ImageRef: imageRef.Name,
-			Detail:   "fetching image from registry",
-			Cause:    err,
+			Category:  category,
+			Retryable: category != ErrCategoryAuth,
+			ImageRef:  imageRef.Name,
+			Detail:    "fetching image from registry",
+			Cause:     err,
 		}
 	}
 
@@ -119,10 +121,11 @@ func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassa
 	m, err := target.img.Manifest()
 	if err != nil {
 		return ScanTarget{}, &ScanError{
-			Category: ErrCategoryManifest,
-			ImageRef: imageRef.Name,
-			Detail:   "getting image manifest",
-			Cause:    err,
+			Category:  ErrCategoryManifest,
+			Retryable: classifyRemoteError(err) != ErrCategoryAuth,
+			ImageRef:  imageRef.Name,
+			Detail:    "getting image manifest",
+			Cause:     err,
 		}
 	}
 

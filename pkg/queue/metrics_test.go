@@ -222,3 +222,8 @@ func TestFailedQueueCollectionDropsStaleValues(t *testing.T) {
 		require.False(t, ok, name)
 	}
 }
+
+func TestDisabledMetricsDoNotReadRedis(t *testing.T) {
+	worker := &streamWorker{} // No recorder or Redis client: any Redis read would panic.
+	worker.monitorQueue(context.Background())
+}

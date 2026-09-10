@@ -316,3 +316,15 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "Redis scan cache TLS requires CA, certificate, and key together."
+
+  - it: rejects an explicit backend without Secret credentials when bundled authentication is enabled
+    templates: [validate-values.yaml]
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      valkey.auth.usersExistingSecret: cache-auth
+      valkey.auth.aclUsers.default.permissions: "~* &* +@all"
+      trivy.cacheBackend: redis://scanner-valkey:6379/0
+    asserts:
+      - failedTemplate:
+          errorMessage: "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)."

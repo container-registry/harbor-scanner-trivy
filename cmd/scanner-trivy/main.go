@@ -89,23 +89,18 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 		return fmt.Errorf("new api server: %w", err)
 	}
 
-	shutdownComplete := make(chan struct{})
-	go func() {
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
-		captured := <-sigint
-		slog.Debug("Trapped os signal", slog.String("signal", captured.String()))
+	signalCtx, stopSignals := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
+	worker.Start(signalCtx)
+	defer worker.Stop()
 
+	serverDone := make(chan error, 1)
+	go func() { serverDone <- apiServer.ListenAndServe() }()
+	select {
+	case err := <-serverDone:
+		return err
+	case <-signalCtx.Done():
 		apiServer.Shutdown()
-		worker.Stop()
-		_ = rdb.Close()
-
-		close(shutdownComplete)
-	}()
-
-	worker.Start(ctx)
-	apiServer.ListenAndServe()
-
-	<-shutdownComplete
-	return nil
+		return <-serverDone
+	}
 }

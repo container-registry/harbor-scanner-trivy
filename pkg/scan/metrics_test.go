@@ -133,8 +133,12 @@ func TestMetricsTrackProcessingOutcomeNotStatusWriteOrPolling(t *testing.T) {
 			require.Equal(t, float64(10), countMetric(t, r, "http_requests_total", map[string]string{"route": "unmatched"}))
 			if mode == "success" {
 				require.NoError(t, rdb.XGroupCreate(ctx, "fixture-stream", "fixture", "0").Err())
-				delivery := rdb.XRange(ctx, "fixture-stream", "-", "+").Val()[0]
+				deliveries, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{Group: "fixture", Consumer: "fixture", Streams: []string{"fixture-stream", ">"}, Count: 1}).Result()
+				require.NoError(t, err)
+				delivery := deliveries[0].Messages[0]
+				require.EqualValues(t, 1, rdb.XPending(ctx, "fixture-stream", "fixture").Val().Count)
 				require.NoError(t, store.Acknowledge(ctx, key, "fixture-stream", "fixture", delivery.ID))
+				require.Zero(t, rdb.XPending(ctx, "fixture-stream", "fixture").Val().Count)
 				server.FastForward(2 * time.Minute)
 				res := httptest.NewRecorder()
 				handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/scan/private-id/report", nil))

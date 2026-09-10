@@ -297,3 +297,22 @@ func TestController_ToRegistryAuth(t *testing.T) {
 		})
 	}
 }
+
+func TestRetryableRegistryFailureLeavesScanRecoverable(t *testing.T) {
+	for _, category := range []trivy.ScanErrorCategory{trivy.ErrCategoryImageFetch, trivy.ErrCategoryManifest} {
+		t.Run(string(category), func(t *testing.T) {
+			ctx := context.Background()
+			key := job.ScanJobKey{ID: "retry-registry", MIMEType: api.MimeTypeSecurityVulnerabilityReport}
+			store := mock.NewStore()
+			wrapper := trivy.NewMockWrapper()
+			transformer := mock.NewTransformer()
+			failure := &trivy.ScanError{Category: category, Retryable: true, Detail: "temporary registry failure"}
+			store.On("UpdateStatus", ctx, key, job.Pending, []string(nil)).Return(nil).Once()
+			wrapper.On("Scan", testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(trivy.Report{}, failure).Once()
+			req := &harbor.ScanRequest{Registry: harbor.Registry{URL: "https://registry.example.com"}, Artifact: harbor.Artifact{Repository: "alpine", Digest: "sha256:123"}}
+			require.ErrorIs(t, NewController(store, wrapper, transformer).Scan(ctx, key, req), failure)
+			store.AssertExpectations(t)
+			wrapper.AssertExpectations(t)
+		})
+	}
+}
