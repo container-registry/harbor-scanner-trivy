@@ -11,7 +11,8 @@ organization: all scanner releases use the same dashboard UIDs.
 Use an adapter image containing the operational metrics implementation from
 [PR #98](https://github.com/container-registry/harbor-scanner-trivy/pull/98).
 Older images, including v0.40.1, expose Go/process metrics but cannot populate the
-new scanner panels. Until that implementation is released, explicitly select an
+new scanner panels. Backend-aware cache filtering and durable queue panels require
+an image containing [PR #106](https://github.com/container-registry/harbor-scanner-trivy/pull/106). Until that implementation is released, explicitly select an
 image built from that branch with `image.tag` (or `image.digest`).
 
 ```yaml
@@ -119,7 +120,7 @@ per replica. Missing vulnerability data is red; an absent Java index is neutral.
 Unavailable metrics or failed scrapes produce **Unknown**, not a healthy state.
 Collection health and OOM termination history retain named states.
 Status timelines sit in the left column; metadata collection uses a quarter of
-the row width and matches the neighboring snapshot-age panel's height. Each database
+the row width and matches the neighboring metadata-refresh-age panel's height. Each database
 row places all five cards side by side at the standard panel height: availability, update policy, content age,
 last database download, and next update check. Green means healthy or present,
 blue means enabled, red marks failures, and gray marks neutral or unknown states.
@@ -139,7 +140,7 @@ The original content-age graphs remain available through **View history**.
 **Next update check** shows time until the installed metadata's update threshold,
 **Eligible now**, or **Updates disabled**. It does not schedule a download.
 **Last database download** shows the age of the local download separately from
-the content's build age. **Storage metrics collection** lists each collector's
+the content's build age. **Disk metric collection** lists each collector's
 latest result and time since its last success. An unknown optional cache-size
 collector may be disabled; missing telemetry alone cannot establish that.
 
@@ -158,10 +159,19 @@ frequency does not change how often Prometheus collects samples.
   Pod resource charts include sidecars and require kubelet/cAdvisor and
   kube-state-metrics. They join discovered scanner pods; unrelated pods are excluded.
   Child RSS is sampled when a child exits and is not current process memory.
-- **Scanning and workers:** adapter dispatch, wait, execution time, concurrency,
-  failure categories, CLI termination reasons, and SBOM reuse/fallback.
-  Redis Pub/Sub has no durable adapter queue depth. Harbor scheduling happens
-  before the adapter receives a request and is a separate measurement.
+- **Scan pipeline:** the three panels follow Harbor queue → adapter queue → active
+  worker. Harbor shows the current age of its next queued IMAGE_SCAN task; adapter
+  wait is p95 among tasks that first started in the recent window; worker age is
+  elapsed time of the oldest currently executing task per replica. These measure
+  different populations and cannot be added into an end-to-end duration. Harbor
+  context can include other scanner registrations in the same installation.
+- **Scanning and workers:** completed execution attempts, dispatch decisions,
+  concurrency, failure categories, CLI exits and SBOM reuse decisions. Retries
+  count as additional attempts. Unacknowledged deliveries include queued and
+  in-progress work; the shared queue is sampled between scans and aggregated with
+  `max`, so busy workers can leave an older observation. CLI duration covers one
+  child process; worker duration also includes report processing and persistence.
+  SBOM accessory reuse is separate from the Trivy analysis-cache hit rate.
 - **Vulnerability database / Java package index:** separate expanded rows show
   downloaded database presence, age, next update,
   configured update policy, and metadata collection health. Missing Java DB can
@@ -171,11 +181,22 @@ frequency does not change how often Prometheus collects samples.
   not its download timestamp. Next update is metadata used in update eligibility
   checks, not a promise that a background download will happen at that time.
   Each row filters queries to its own database and keeps replicas separate.
-  **Database monitoring health** shows the shared metadata collector once.
-  The local **Analysis cache (BoltDB)** stores reusable scan analysis and appears
-  under Cache and storage. BoltDB is a storage engine, not a description of a
-  database's contents; Trivy also uses it for the vulnerability database.
-- **Cache and storage:** filesystem space/inodes and optional local cache sizes.
+  **Monitoring diagnostics** is collapsed and shows whether the adapter could
+  check DB/Java metadata and how long since the last successful check. A missing
+  database can be a valid observation. These panels describe monitoring freshness,
+  not BoltDB integrity, scan success, database build age or download age.
+- **Redis / Valkey analysis cache:** dedicated server-memory, hit-rate and eviction
+  cards link to the Valkey dashboard. **Redis job/report client pool** has a separate
+  row: it measures adapter connections, not Trivy CLI cache connections.
+- **Filesystem analysis cache:** collapsed and shown only when
+  `analysis_cache_backend_info{backend="filesystem"}` reports the active backend
+  at the selected range's end. Redis, memory, and older adapters without this
+  metric show no fanal size, including leftover files from a previous backend.
+  The collector skips fanal entirely for non-filesystem backends.
+- **Local disk — databases and reports:** filesystem space/inodes and optional DB
+  file sizes. Vulnerability databases, Java indexes and temporary reports still
+  need local disk with Redis analysis caching. BoltDB names a storage engine;
+  fanal scan analysis and the vulnerability database have different purposes.
   Enable `cacheSizeEnabled` for bounded directory walks. Failed or incomplete
   collections omit sizes instead of publishing partial totals. Filesystem capacity
   belongs to the mount and can include other users of that filesystem. The fill-time
@@ -212,11 +233,12 @@ one-minute samples. Do not replace unknown measurements with zero.
 | Execution, CLI, report, store, or API p95 | No matching operations in the recent rate window | Activity counters; widen the range to find earlier activity |
 | Failure categories | No failure has created a category series yet | Failed executions should confirm zero failures |
 | Last container termination was OOM | No recorded termination, or missing kube-state-metrics | Container restarts and Kubernetes termination state |
-| Local cache footprint | Collection is disabled by default; missing directories or incomplete walks also omit sizes | `metrics.collection.cacheSizeEnabled` and Storage collection status |
+| Local file sizes | Collection is disabled by default; missing directories or incomplete walks also omit sizes | `metrics.collection.cacheSizeEnabled` and Disk metric collection |
+| Filesystem analysis cache | Redis/memory backend, backend metric unavailable, or size collection disabled | Active backend metric and Disk metric collection; no value is expected with Redis |
 | Estimated time to full | Fewer than 60 samples, or free space is not declining | Available filesystem space; the trend always looks back six hours |
 | Average pool wait | No requests waited for a pool connection, so the average is undefined | Redis pool timeouts and connection counts |
 | Analysis cache summary | No exporter was discovered, or the selected exporter is unavailable | Select the analysis-cache exporter; job/report Redis is separate |
-| Database age / next update | Database or required metadata timestamp is missing | Database presence and Metadata collection status |
+| Database age / next update | Database or required metadata timestamp is missing | Database presence and DB metadata checks |
 | Pod, Harbor, or log panels | Their separate metric/log source is unavailable or labels do not match | cAdvisor, kube-state-metrics, Harbor scraping, or Loki labels |
 
 ## Sources for the descriptions

@@ -133,7 +133,7 @@ class DashboardTest(unittest.TestCase):
         for panel in DASHBOARD["panels"]:
             if panel["type"] == "row":
                 current = panel["title"]
-                sections[current] = []
+                sections[current] = list(panel.get("panels", []))
                 if current in ("Vulnerability database", "Java package index"):
                     self.assertFalse(panel["collapsed"])
             elif current:
@@ -154,7 +154,30 @@ class DashboardTest(unittest.TestCase):
             owners = [name for name, panels in sections.items()
                       for panel in panels for target in panel.get("targets", [])
                       if "harbor_scanner_trivy_" + metric in target["expr"]]
-            self.assertEqual(owners, ["Database monitoring health"])
+            self.assertEqual(owners, ["Monitoring diagnostics"])
+
+    def test_analysis_cache_is_filtered_by_reported_backend(self):
+        panels = {panel["id"]: panel for panel in all_panels()}
+        local = panels[99]["targets"][0]["expr"]
+        self.assertIn('kind="analysis"', local)
+        self.assertIn('analysis_cache_backend_info', local)
+        self.assertIn('backend="filesystem"', local)
+        self.assertIn('and on (cluster,namespace,scanner,pod)', local)
+        self.assertIn('@ end() == 1', local)
+        self.assertNotIn('or vector(0)', local)
+        self.assertIn('kind=~"vulnerability_db|java_db"', panels[38]["targets"][0]["expr"])
+        self.assertTrue(panels[103]["collapsed"])
+        self.assertTrue(panels[78]["collapsed"])
+
+    def test_pipeline_stages_keep_distinct_populations(self):
+        panels = {panel["id"]: panel for panel in all_panels()}
+        stages = [panels[i] for i in (63, 20, 22)]
+        self.assertEqual(len({p["gridPos"]["y"] for p in stages}), 1)
+        self.assertEqual([p["gridPos"]["x"] for p in stages], [0, 8, 16])
+        for panel, metric in zip(stages, ("harbor_task_queue_latency", "queue_wait_duration_seconds_bucket", "oldest_running_job_age_seconds")):
+            self.assertIn(metric, panel["targets"][0]["expr"])
+        self.assertIn("max(", panels[27]["targets"][0]["expr"])
+        self.assertIn("queue_unacknowledged_jobs", panels[27]["targets"][0]["expr"])
 
     def test_current_database_status_has_unknown_and_history(self):
         panels = {panel["id"]: panel for panel in all_panels()}

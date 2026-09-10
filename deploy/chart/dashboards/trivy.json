@@ -45,14 +45,15 @@
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 0
+        "y": 0,
+        "w": 24,
+        "h": 1
       },
       "id": 73,
       "title": "Overview",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -84,10 +85,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 0,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 2,
       "options": {
@@ -156,10 +157,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 4,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 3,
       "options": {
@@ -229,10 +230,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 8,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 4,
       "options": {
@@ -276,7 +277,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Successful adapter task executions in the selected range. Reports containing vulnerabilities count as successful; rescans, retries, and separate tasks count individually.",
+      "description": "Successful execution attempts during the selected range. Retries mean this is not a count of unique images.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -302,10 +303,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 12,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 5,
       "options": {
@@ -341,7 +342,7 @@
           "refId": "A"
         }
       ],
-      "title": "Completed (selected range)",
+      "title": "Successful attempts (selected range)",
       "type": "stat"
     },
     {
@@ -349,7 +350,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Failed adapter task executions in the selected range. Investigate Failure categories and Scanner errors; vulnerability findings do not count as failures.",
+      "description": "Failed execution attempts during the selected range, including attempts that are later retried successfully.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -374,10 +375,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 16,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 6,
       "options": {
@@ -413,7 +414,7 @@
           "refId": "A"
         }
       ],
-      "title": "Failed (selected range)",
+      "title": "Failed attempts (selected range)",
       "type": "stat"
     },
     {
@@ -446,10 +447,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 20,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 7,
       "options": {
@@ -551,10 +552,10 @@
         ]
       },
       "gridPos": {
-        "h": 4,
-        "w": 12,
         "x": 0,
-        "y": 5
+        "y": 5,
+        "w": 12,
+        "h": 4
       },
       "id": 8,
       "options": {
@@ -608,10 +609,10 @@
     {
       "description": "Dashboard scope and links to metric definitions and troubleshooting.",
       "gridPos": {
-        "h": 4,
-        "w": 12,
         "x": 12,
-        "y": 5
+        "y": 5,
+        "w": 12,
+        "h": 4
       },
       "id": 9,
       "options": {
@@ -631,14 +632,15 @@
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 9
+        "y": 9,
+        "w": 24,
+        "h": 1
       },
       "id": 74,
       "title": "Runtime",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -703,10 +705,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 10
+        "y": 10,
+        "w": 8,
+        "h": 7
       },
       "id": 11,
       "options": {
@@ -807,10 +809,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 10
+        "y": 10,
+        "w": 8,
+        "h": 7
       },
       "id": 12,
       "options": {
@@ -923,10 +925,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 10
+        "y": 10,
+        "w": 8,
+        "h": 7
       },
       "id": 13,
       "options": {
@@ -998,10 +1000,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 6,
         "x": 0,
-        "y": 17
+        "y": 17,
+        "w": 6,
+        "h": 7
       },
       "id": 60,
       "options": {
@@ -1028,7 +1030,7 @@
           "expr": "label_replace(label_replace((max by (pod,container) ((kube_pod_container_status_last_terminated_reason{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",reason=\"OOMKilled\"}) and on (cluster,namespace,pod) max by (cluster,namespace,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}))), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}} \u00b7 {{container}}",
+          "legendFormat": "{{replica}} · {{container}}",
           "range": true,
           "refId": "A"
         }
@@ -1099,10 +1101,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 9,
         "x": 6,
-        "y": 17
+        "y": 17,
+        "w": 9,
+        "h": 7
       },
       "id": 14,
       "options": {
@@ -1202,10 +1204,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 9,
         "x": 15,
-        "y": 17
+        "y": 17,
+        "w": 9,
+        "h": 7
       },
       "id": 15,
       "options": {
@@ -1244,23 +1246,362 @@
       "type": "timeseries"
     },
     {
+      "id": 98,
+      "type": "row",
+      "title": "Scan pipeline — waiting and running",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 24
+        "y": 24,
+        "w": 24,
+        "h": 1
       },
-      "id": 75,
-      "title": "Scanning and workers",
-      "type": "row"
+      "panels": []
+    },
+    {
+      "id": 100,
+      "type": "text",
+      "title": "Scan stages",
+      "options": {
+        "mode": "markdown",
+        "content": "**Harbor queue → Adapter queue → Active worker**\n\nThe panels below show current queue age, p95 wait before first start, and elapsed running time. They measure different tasks and cannot be added together."
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 3
+      }
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Finished adapter task executions per minute, split by outcome. Falling throughput with a growing queue indicates a processing bottleneck.",
+      "description": "Current wait of the next IMAGE_SCAN task before Harbor dispatches it. Covers all scanners in the selected Harbor installation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 8,
+        "h": 7
+      },
+      "id": 63,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((harbor_task_queue_latency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Harbor: next queued scan age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Enqueue-to-first-start wait for tasks that started in the recent window. Excludes Harbor scheduling and retries; empty if no tasks started.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 28,
+        "w": 8,
+        "h": 7
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(.95, sum by (le,capability) (rate(harbor_scanner_trivy_queue_wait_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
+          "format": "time_series",
+          "instant": false,
+          "interval": "1m",
+          "legendFormat": "{{capability}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Adapter: wait before first start (p95)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Elapsed time of the oldest running task per replica, including report processing. Zero when idle. This is running time, not queue wait.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 28,
+        "w": 8,
+        "h": 7
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((harbor_scanner_trivy_oldest_running_job_age_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Worker: oldest active scan age",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 24,
+        "h": 1
+      },
+      "id": 75,
+      "title": "Scanning and workers",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Completed execution attempts per minute, including retries. This is not a count of unique images.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1350,10 +1691,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 25
+        "y": 36,
+        "w": 8,
+        "h": 7
       },
       "id": 18,
       "options": {
@@ -1388,7 +1729,7 @@
           "refId": "A"
         }
       ],
-      "title": "Execution throughput",
+      "title": "Worker execution rate",
       "type": "timeseries"
     },
     {
@@ -1396,7 +1737,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "p95 worker execution time, including preparation, Trivy calls, and report persistence. Excludes queueing. Compare with CLI and store latency to locate delays.",
+      "description": "Time spent processing completed attempts, including target resolution, scanning and report persistence. Queue wait is excluded.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1486,10 +1827,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 25
+        "y": 36,
+        "w": 8,
+        "h": 7
       },
       "id": 19,
       "options": {
@@ -1524,111 +1865,7 @@
           "refId": "A"
         }
       ],
-      "title": "Execution latency (p95)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "p95 wait from adapter enqueue to worker lock acquisition. Rising wait with saturated workers indicates capacity pressure; Harbor scheduling delay is measured separately.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 25
-      },
-      "id": 20,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(.95, sum by (le,capability) (rate(harbor_scanner_trivy_queue_wait_duration_seconds_bucket{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])))",
-          "format": "time_series",
-          "instant": false,
-          "interval": "1m",
-          "legendFormat": "{{capability}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Adapter queue wait (p95)",
+      "title": "Worker execution duration (p95)",
       "type": "timeseries"
     },
     {
@@ -1694,10 +1931,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
+        "x": 16,
+        "y": 36,
         "w": 8,
-        "x": 0,
-        "y": 32
+        "h": 7
       },
       "id": 21,
       "options": {
@@ -1739,110 +1976,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Age of the oldest active task per replica; zero while idle. Investigate tasks exceeding normal execution times. Total task duration can exceed the CLI timeout.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 32
-      },
-      "id": 22,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_scanner_trivy_oldest_running_job_age_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Oldest running execution",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Execution failures per minute by stage and category. Use categories to narrow log searches; classifications are heuristic. Empty before the first recorded failure.",
+      "description": "Failed execution attempts by stage and cause. Retries can produce more than one failure for a scan request.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1901,10 +2035,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
+        "x": 0,
+        "y": 43,
         "w": 8,
-        "x": 16,
-        "y": 32
+        "h": 7
       },
       "id": 23,
       "options": {
@@ -1934,12 +2068,12 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{stage}} \u00b7 {{category}}",
+          "legendFormat": "{{stage}} · {{category}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Failure categories",
+      "title": "Worker failure categories",
       "type": "timeseries"
     },
     {
@@ -1947,7 +2081,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Dispatch decisions per minute. lock_busy usually reflects duplicate delivery; decode_error and lock_error prevent execution and warrant investigating message handling or Redis.",
+      "description": "Worker ownership decisions per minute. lock_busy means another worker owns the delivery; lock_error and decode_error prevent processing.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2052,10 +2186,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
+        "x": 8,
+        "y": 43,
         "w": 8,
-        "x": 0,
-        "y": 39
+        "h": 7
       },
       "id": 24,
       "options": {
@@ -2090,7 +2224,7 @@
           "refId": "A"
         }
       ],
-      "title": "Dispatch outcomes",
+      "title": "Adapter dispatch outcomes",
       "type": "timeseries"
     },
     {
@@ -2098,7 +2232,112 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "p95 Trivy subprocess duration by command and outcome. Includes database updates, image access, and analysis; use logs to identify which phase is slow.",
+      "description": "Durable deliveries awaiting acknowledgement, including queued and in-progress work. Shared queue sampled between scans; values can lag while all workers are busy.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 43,
+        "w": 8,
+        "h": 7
+      },
+      "id": 27,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max(harbor_scanner_trivy_queue_unacknowledged_jobs{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})",
+          "format": "time_series",
+          "instant": false,
+          "interval": "1m",
+          "legendFormat": "Unacknowledged deliveries",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Adapter unacknowledged deliveries",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Duration of completed Trivy child processes. Excludes adapter queueing, report transformation and persistence.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2158,7 +2397,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* \u00b7 success$"
+              "options": ".* · success$"
             },
             "properties": [
               {
@@ -2173,7 +2412,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* \u00b7 (failed|nonzero_exit|signal|start_error)$"
+              "options": ".* · (failed|nonzero_exit|signal|start_error)$"
             },
             "properties": [
               {
@@ -2188,10 +2427,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 39
+        "x": 0,
+        "y": 50,
+        "w": 6,
+        "h": 7
       },
       "id": 25,
       "options": {
@@ -2221,12 +2460,12 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{command}} \u00b7 {{outcome}}",
+          "legendFormat": "{{command}} · {{outcome}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Trivy child duration (p95)",
+      "title": "Trivy CLI duration (p95)",
       "type": "timeseries"
     },
     {
@@ -2234,7 +2473,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Existing-SBOM lookup, reuse, and image-scan fallback events per minute. Repeated lookup errors or fallbacks warrant checking Harbor accessory access and SBOM compatibility.",
+      "description": "Adapter lookups of Harbor SBOM accessories and reuse/fallback decisions. A task can emit several events; this is not the Trivy analysis-cache hit rate.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2354,10 +2593,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 39
+        "x": 6,
+        "y": 50,
+        "w": 6,
+        "h": 7
       },
       "id": 26,
       "options": {
@@ -2392,7 +2631,7 @@
           "refId": "A"
         }
       ],
-      "title": "SBOM reuse and fallback",
+      "title": "SBOM reuse decisions",
       "type": "timeseries"
     },
     {
@@ -2400,112 +2639,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Job publications per minute with no Redis subscribers. These messages are not retained. Check worker subscriptions and Redis connectivity when nonzero.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "red",
-            "mode": "fixed"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "suffix:messages/min"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 0,
-        "y": 46
-      },
-      "id": 27,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "(sum(rate(harbor_scanner_trivy_publish_no_subscribers_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
-          "format": "time_series",
-          "instant": false,
-          "interval": "1m",
-          "legendFormat": "Publications with no subscribers",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Publications with no subscribers",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Trivy subprocess completions per minute by termination reason. Investigate nonzero_exit, signal, and start_error in logs; a signal alone does not establish OOM.",
+      "description": "Completed child processes by exit reason. A signal does not establish OOM; check the container OOM panel. HTTP server shutdown errors are outside this metric.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2565,7 +2699,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* \u00b7 success$"
+              "options": ".* · success$"
             },
             "properties": [
               {
@@ -2580,7 +2714,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".* \u00b7 (failed|nonzero_exit|signal|start_error)$"
+              "options": ".* · (failed|nonzero_exit|signal|start_error)$"
             },
             "properties": [
               {
@@ -2595,10 +2729,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 46
+        "x": 12,
+        "y": 50,
+        "w": 6,
+        "h": 7
       },
       "id": 28,
       "options": {
@@ -2628,12 +2762,12 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{command}} \u00b7 {{reason}}",
+          "legendFormat": "{{command}} · {{reason}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Child termination reasons",
+      "title": "Trivy CLI exit reasons",
       "type": "timeseries"
     },
     {
@@ -2641,7 +2775,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Configured timeout for a Trivy scan invocation; highest value across replicas. Compare with CLI duration when investigating timeouts. Queueing and adapter processing add to total latency.",
+      "description": "Configured timeout for each Trivy child process. Total worker execution can take longer.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2699,10 +2833,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 46
+        "x": 18,
+        "y": 50,
+        "w": 6,
+        "h": 7
       },
       "id": 29,
       "options": {
@@ -2736,20 +2870,21 @@
           "refId": "A"
         }
       ],
-      "title": "Configured CLI timeout",
+      "title": "Trivy CLI timeout",
       "type": "timeseries"
     },
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 53
+        "y": 57,
+        "w": 24,
+        "h": 1
       },
       "id": 76,
       "title": "Vulnerability database",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -2791,10 +2926,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 4,
         "x": 0,
-        "y": 54
+        "y": 58,
+        "w": 4,
+        "h": 7
       },
       "id": 32,
       "options": {
@@ -2878,10 +3013,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 4,
-        "y": 54
+        "y": 58,
+        "w": 5,
+        "h": 7
       },
       "id": 34,
       "options": {
@@ -2971,10 +3106,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 9,
-        "y": 54
+        "y": 58,
+        "w": 5,
+        "h": 7
       },
       "id": 31,
       "options": {
@@ -3048,10 +3183,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 14,
-        "y": 54
+        "y": 58,
+        "w": 5,
+        "h": 7
       },
       "id": 92,
       "options": {
@@ -3128,10 +3263,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 19,
-        "y": 54
+        "y": 58,
+        "w": 5,
+        "h": 7
       },
       "id": 33,
       "options": {
@@ -3178,14 +3313,15 @@
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 61
+        "y": 65,
+        "w": 24,
+        "h": 1
       },
       "id": 77,
       "title": "Java package index",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -3227,10 +3363,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 4,
         "x": 0,
-        "y": 62
+        "y": 66,
+        "w": 4,
+        "h": 7
       },
       "id": 70,
       "options": {
@@ -3314,10 +3450,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 4,
-        "y": 62
+        "y": 66,
+        "w": 5,
+        "h": 7
       },
       "id": 72,
       "options": {
@@ -3407,10 +3543,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 9,
-        "y": 62
+        "y": 66,
+        "w": 5,
+        "h": 7
       },
       "id": 69,
       "options": {
@@ -3484,10 +3620,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 14,
-        "y": 62
+        "y": 66,
+        "w": 5,
+        "h": 7
       },
       "id": 93,
       "options": {
@@ -3564,10 +3700,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 5,
         "x": 19,
-        "y": 62
+        "y": 66,
+        "w": 5,
+        "h": 7
       },
       "id": 71,
       "options": {
@@ -3612,989 +3748,17 @@
       ]
     },
     {
+      "id": 101,
+      "type": "row",
+      "title": "Redis / Valkey analysis cache",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
+        "x": 0,
+        "y": 73,
         "w": 24,
-        "x": 0,
-        "y": 69
+        "h": 1
       },
-      "id": 78,
-      "title": "Database monitoring health",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Collection health for Trivy version and downloaded database metadata. On failure, check version discovery and metadata-file access.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#9FA7B3"
-          },
-          "custom": {
-            "lineWidth": 0,
-            "fillOpacity": 85,
-            "spanNulls": false
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "index": 0,
-                  "text": "Failed"
-                },
-                "1": {
-                  "color": "green",
-                  "index": 1,
-                  "text": "OK"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "noValue": "No observations",
-          "unit": "none"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 0,
-        "y": 70
-      },
-      "id": 35,
-      "options": {
-        "mergeValues": true,
-        "showValue": "auto",
-        "rowHeight": 0.8,
-        "alignValue": "center",
-        "legend": {
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_scanner_trivy_metadata_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Trivy metadata collection",
-      "type": "state-timeline"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Time since Trivy version and database metadata were successfully collected. Growth beyond the collection interval indicates stale monitoring data.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 18,
-        "x": 6,
-        "y": 70
-      },
-      "id": 36,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((time()-harbor_scanner_trivy_metadata_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Trivy metadata snapshot age",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 77
-      },
-      "id": 79,
-      "title": "Cache and storage",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Latest result and time since successful collection, per replica. Cache size is optional; Unknown can mean disabled or unavailable. This reports collection health, not disk health.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "noValue": "Unknown",
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Collector"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "cache_filesystem": {
-                        "text": "Cache filesystem",
-                        "color": "blue",
-                        "index": 0
-                      },
-                      "reports_filesystem": {
-                        "text": "Report filesystem",
-                        "color": "blue",
-                        "index": 1
-                      },
-                      "cache_size": {
-                        "text": "Cache size (optional)",
-                        "color": "#9FA7B3",
-                        "index": 2
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "-1": {
-                        "text": "Unknown",
-                        "color": "#9FA7B3",
-                        "index": 0
-                      },
-                      "0": {
-                        "text": "Failed",
-                        "color": "red",
-                        "index": 1
-                      },
-                      "1": {
-                        "text": "OK",
-                        "color": "green",
-                        "index": 2
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#9FA7B3"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Last success"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "-1": {
-                        "text": "Unknown",
-                        "color": "#9FA7B3",
-                        "index": 0
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Replica"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "regex",
-                    "options": {
-                      "pattern": "^harbor-scanner-(.+)$",
-                      "result": {
-                        "text": "$1"
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 0,
-        "y": 78
-      },
-      "id": 43,
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "sortBy": [
-          {
-            "displayName": "Replica",
-            "desc": false
-          }
-        ]
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace((((harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\"))), \"measurement\", \"Status\", \"pod\", \".*\") or label_replace(((time() - harbor_scanner_trivy_storage_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\"))), \"measurement\", \"Last success\", \"pod\", \".*\")",
-          "legendFormat": "{{pod}}",
-          "instant": true,
-          "range": false,
-          "format": "time_series",
-          "editorMode": "code",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          }
-        }
-      ],
-      "title": "Storage metrics collection",
-      "type": "table",
-      "links": [
-        {
-          "title": "View history",
-          "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=91&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
-          "targetBlank": false
-        }
-      ],
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {
-            "mode": "columns",
-            "keepLabels": [
-              "pod",
-              "collector",
-              "measurement"
-            ],
-            "valueLabel": "measurement"
-          }
-        },
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "indexByName": {
-              "collector": 0,
-              "Status": 1,
-              "Last success": 2,
-              "pod": 3
-            },
-            "renameByName": {
-              "pod": "Replica",
-              "collector": "Collector"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Filesystem capacity unavailable to the scanner, including other files and reserved space. High utilization can block database updates and report writes. Do not sum shared mounts.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "percentunit"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 78
-      },
-      "id": 39,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((1-(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / harbor_scanner_trivy_storage_capacity_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}} \u00b7 {{area}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Filesystem utilization",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Filesystem space available at cache and report paths. Sustained decline warrants reviewing cache growth and volume capacity; both paths may share a mount.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "bytes"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 78
-      },
-      "id": 40,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}} \u00b7 {{area}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Available filesystem space",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Local BoltDB analysis cache, vulnerability DB, and Java index sizes. Requires metrics.collection.cacheSizeEnabled. Missing paths or failed collection omit values; Redis cache memory is excluded.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 vulnerability_db$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Vulnerability DB \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 java_db$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Java package index \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* \u00b7 analysis$"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Analysis cache (BoltDB) \u00b7 ${__field.labels.pod}"
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 0,
-        "y": 85
-      },
-      "id": 38,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_scanner_trivy_cache_size_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}} \u00b7 {{kind}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Local analysis cache and database sizes",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Time to disk exhaustion projected from a six-hour free-space trend. Empty without a declining trend or 60 samples. Reassess after cleanup, resizing, or workload changes.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 85
-      },
-      "id": 42,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace(((harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / -deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h])) and (deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) < 0) and (count_over_time(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) >= 60)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}} \u00b7 {{area}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Estimated time to full",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Available filesystem inodes. Exhaustion blocks file creation even with free disk space. Empty where inode accounting is unsupported.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 85
-      },
-      "id": 41,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_scanner_trivy_storage_inodes_available{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}} \u00b7 {{area}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Available inodes",
-      "type": "timeseries"
+      "panels": []
     },
     {
       "id": 56,
@@ -4607,7 +3771,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 92,
+        "y": 74,
         "w": 8,
         "h": 7
       },
@@ -4703,7 +3867,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 92,
+        "y": 74,
         "w": 8,
         "h": 7
       },
@@ -4783,7 +3947,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 92,
+        "y": 74,
         "w": 8,
         "h": 7
       },
@@ -4861,16 +4025,896 @@
       ]
     },
     {
+      "id": 102,
+      "type": "row",
+      "title": "Redis job/report client pool",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 99
+        "y": 81,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Redis client pool connections per replica; total includes idle. Assess pool pressure alongside connection waits and timeouts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 82,
+        "w": 8,
+        "h": 7
+      },
+      "id": 53,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((harbor_scanner_trivy_redis_pool_connections{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}} · {{state}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Job/report Redis pool connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Redis connection-pool wait timeouts per minute. Nonzero values can interrupt job coordination and persistence; check pool contention and Redis responsiveness.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "suffix:timeouts/min"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 82,
+        "w": 8,
+        "h": 7
+      },
+      "id": 54,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(sum(rate(harbor_scanner_trivy_redis_pool_timeouts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
+          "format": "time_series",
+          "instant": false,
+          "interval": "1m",
+          "legendFormat": "Redis pool timeouts",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Job/report Redis pool timeouts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Mean Redis connection wait among requests that waited. Empty when no waits occurred. Rising waits and timeouts indicate connection-pool pressure.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 82,
+        "w": 8,
+        "h": 7
+      },
+      "id": 55,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(harbor_scanner_trivy_redis_pool_wait_duration_seconds_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])) / sum(rate(harbor_scanner_trivy_redis_pool_waits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
+          "format": "time_series",
+          "instant": false,
+          "interval": "1m",
+          "legendFormat": "Average pool wait",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Job/report Redis pool wait",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 89,
+        "w": 24,
+        "h": 1
+      },
+      "id": 79,
+      "title": "Local disk — databases and reports",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Filesystem capacity unavailable to the scanner, including other files and reserved space. High utilization can block database updates and report writes. Do not sum shared mounts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 90,
+        "w": 8,
+        "h": 7
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace(label_replace((1-(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / harbor_scanner_trivy_storage_capacity_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}} · {{area}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Filesystem utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Free space on the local database and report filesystems. Redis analysis caching still needs this disk space. Paths may share a mount.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 90,
+        "w": 8,
+        "h": 7
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace(label_replace((harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}} · {{area}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Available filesystem space",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Available filesystem inodes. Exhaustion blocks file creation even with free disk space. Empty where inode accounting is unsupported.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 90,
+        "w": 8,
+        "h": 7
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace(label_replace((harbor_scanner_trivy_storage_inodes_available{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}} · {{area}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Available inodes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Local database file sizes, also required with Redis analysis caching. Requires cacheSizeEnabled; missing paths or failed collection omit values.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* · vulnerability_db$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Vulnerability DB · ${__field.labels.replica}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* · java_db$"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Java package index · ${__field.labels.replica}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 97,
+        "w": 12,
+        "h": 7
+      },
+      "id": 38,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((harbor_scanner_trivy_cache_size_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",kind=~\"vulnerability_db|java_db\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}} · {{kind}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Vulnerability DB and Java index sizes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Time to disk exhaustion projected from a six-hour free-space trend. Empty without a declining trend or 60 samples. Reassess after cleanup, resizing, or workload changes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 97,
+        "w": 12,
+        "h": 7
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace(label_replace(((harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"} / -deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h])) and (deriv(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) < 0) and (count_over_time(harbor_scanner_trivy_storage_available_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[6h]) >= 60)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\"), \"area\", \"databases\", \"area\", \"cache\")",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{replica}} · {{area}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated time to full",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 104,
+        "w": 24,
+        "h": 1
       },
       "id": 80,
       "title": "Reports and persistence",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -4935,10 +4979,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 100
+        "y": 105,
+        "w": 8,
+        "h": 7
       },
       "id": 45,
       "options": {
@@ -4968,7 +5012,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{encoding}} \u00b7 {{format}}",
+          "legendFormat": "{{encoding}} · {{format}}",
           "range": true,
           "refId": "A"
         }
@@ -5039,10 +5083,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 100
+        "y": 105,
+        "w": 8,
+        "h": 7
       },
       "id": 46,
       "options": {
@@ -5143,10 +5187,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 100
+        "y": 105,
+        "w": 8,
+        "h": 7
       },
       "id": 47,
       "options": {
@@ -5176,7 +5220,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{record}} \u00b7 {{encoding}}",
+          "legendFormat": "{{record}} · {{encoding}}",
           "range": true,
           "refId": "A"
         }
@@ -5309,10 +5353,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 107
+        "y": 112,
+        "w": 8,
+        "h": 7
       },
       "id": 48,
       "options": {
@@ -5413,10 +5457,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 107
+        "y": 112,
+        "w": 8,
+        "h": 7
       },
       "id": 49,
       "options": {
@@ -5517,10 +5561,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 107
+        "y": 112,
+        "w": 8,
+        "h": 7
       },
       "id": 50,
       "options": {
@@ -5622,7 +5666,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^success \u00b7 .*"
+              "options": "^success · .*"
             },
             "properties": [
               {
@@ -5637,7 +5681,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^error \u00b7 .*"
+              "options": "^error · .*"
             },
             "properties": [
               {
@@ -5652,7 +5696,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^not_found \u00b7 .*"
+              "options": "^not_found · .*"
             },
             "properties": [
               {
@@ -5667,7 +5711,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^not_applied \u00b7 .*"
+              "options": "^not_applied · .*"
             },
             "properties": [
               {
@@ -5682,10 +5726,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 114
+        "y": 119,
+        "w": 12,
+        "h": 7
       },
       "id": 51,
       "options": {
@@ -5715,7 +5759,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{outcome}} \u00b7 {{operation}}",
+          "legendFormat": "{{outcome}} · {{operation}}",
           "range": true,
           "refId": "A"
         }
@@ -5786,10 +5830,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 114
+        "x": 12,
+        "y": 119,
+        "w": 12,
+        "h": 7
       },
       "id": 52,
       "options": {
@@ -5828,328 +5872,17 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Redis client pool connections per replica; total includes idle. Assess pool pressure alongside connection waits and timeouts.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 114
-      },
-      "id": 53,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_scanner_trivy_redis_pool_connections{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{replica}} \u00b7 {{state}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Job/report Redis pool connections",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Redis connection-pool wait timeouts per minute. Nonzero values can interrupt job coordination and persistence; check pool contention and Redis responsiveness.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "red",
-            "mode": "fixed"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "suffix:timeouts/min"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 121
-      },
-      "id": 54,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "(sum(rate(harbor_scanner_trivy_redis_pool_timeouts_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))) * 60",
-          "format": "time_series",
-          "instant": false,
-          "interval": "1m",
-          "legendFormat": "Redis pool timeouts",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Job/report Redis pool timeouts",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Mean Redis connection wait among requests that waited. Empty when no waits occurred. Rising waits and timeouts indicate connection-pool pressure.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 121
-      },
-      "id": 55,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "sum(rate(harbor_scanner_trivy_redis_pool_wait_duration_seconds_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])) / sum(rate(harbor_scanner_trivy_redis_pool_waits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval]))",
-          "format": "time_series",
-          "instant": false,
-          "interval": "1m",
-          "legendFormat": "Average pool wait",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Job/report Redis pool wait",
-      "type": "timeseries"
-    },
-    {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 128
+        "y": 126,
+        "w": 24,
+        "h": 1
       },
       "id": 81,
       "title": "API",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -6221,7 +5954,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Metadata \u00b7 ${__field.labels.code}"
+                "value": "Metadata · ${__field.labels.code}"
               }
             ]
           },
@@ -6233,7 +5966,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Report \u00b7 ${__field.labels.code}"
+                "value": "Report · ${__field.labels.code}"
               }
             ]
           },
@@ -6245,7 +5978,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Submit scan \u00b7 ${__field.labels.code}"
+                "value": "Submit scan · ${__field.labels.code}"
               }
             ]
           },
@@ -6297,10 +6030,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 129
+        "y": 127,
+        "w": 8,
+        "h": 7
       },
       "id": 58,
       "options": {
@@ -6330,7 +6063,7 @@
           "format": "time_series",
           "instant": false,
           "interval": "1m",
-          "legendFormat": "{{route}} \u00b7 {{code}}",
+          "legendFormat": "{{route}} · {{code}}",
           "range": true,
           "refId": "A"
         }
@@ -6439,10 +6172,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 129
+        "y": 127,
+        "w": 8,
+        "h": 7
       },
       "id": 59,
       "options": {
@@ -6543,10 +6276,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 129
+        "y": 127,
+        "w": 8,
+        "h": 7
       },
       "id": 16,
       "options": {
@@ -6586,14 +6319,15 @@
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 136
+        "y": 134,
+        "w": 24,
+        "h": 1
       },
       "id": 82,
       "title": "Harbor scheduling context (optional)",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -6658,10 +6392,10 @@
         }
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 137
+        "y": 135,
+        "w": 12,
+        "h": 7
       },
       "id": 62,
       "options": {
@@ -6696,109 +6430,6 @@
         }
       ],
       "title": "Harbor scan queue size",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Wait age of the next IMAGE_SCAN task in Harbor\u2019s queue. Rising age with a nonempty queue indicates scheduling delay before adapter processing.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "noValue": "No observations",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 137
-      },
-      "id": 63,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "13.3.0-34259522365",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "label_replace(label_replace(harbor_task_queue_latency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}, \"jobservice\", \"$1\", \"instance\", \"(.+)\"), \"jobservice\", \"$1\", \"pod\", \"(.+)\")",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{jobservice}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Harbor scan queue latency",
       "type": "timeseries"
     },
     {
@@ -6896,10 +6527,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 137
+        "x": 12,
+        "y": 135,
+        "w": 12,
+        "h": 7
       },
       "id": 64,
       "options": {
@@ -6940,14 +6571,15 @@
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 144
+        "y": 142,
+        "w": 24,
+        "h": 1
       },
       "id": 83,
       "title": "Logs (optional)",
-      "type": "row"
+      "type": "row",
+      "panels": []
     },
     {
       "datasource": {
@@ -6956,10 +6588,10 @@
       },
       "description": "Logs from the selected scanner pods. Use to investigate scan progress, database downloads, and failures. Requires matching Loki labels; deleted pods fall out of discovery.",
       "gridPos": {
-        "h": 9,
-        "w": 12,
         "x": 0,
-        "y": 145
+        "y": 143,
+        "w": 12,
+        "h": 9
       },
       "id": 66,
       "options": {
@@ -7002,10 +6634,10 @@
       },
       "description": "Scanner log lines matching error, fatal, or panic. Inspect messages alongside execution failures; keyword matches can include harmless output.",
       "gridPos": {
-        "h": 9,
-        "w": 12,
         "x": 12,
-        "y": 145
+        "y": 143,
+        "w": 12,
+        "h": 9
       },
       "id": 67,
       "options": {
@@ -7042,13 +6674,553 @@
       "type": "logs"
     },
     {
+      "id": 103,
+      "type": "row",
+      "title": "Filesystem analysis cache (filesystem backend only)",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 152,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Active local fanal cache only. Hidden unless the adapter reports the filesystem backend; Redis, memory and unreported backends produce no data. Requires cacheSizeEnabled.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 8,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "noValue": "Filesystem cache inactive or unavailable",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 153,
+            "w": 24,
+            "h": 7
+          },
+          "id": 99,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.3.0-34259522365",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "label_replace(label_replace((harbor_scanner_trivy_cache_size_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",kind=\"analysis\"} and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_analysis_cache_backend_info{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",backend=\"filesystem\"} @ end() == 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{replica}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Filesystem analysis cache size",
+          "type": "timeseries"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 160,
+        "w": 24,
+        "h": 1
+      },
+      "id": 78,
+      "title": "Monitoring diagnostics",
+      "type": "row",
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Whether the adapter could check vulnerability DB and Java index metadata and obtain the Trivy version. A missing database can be a valid check result; this does not test database integrity.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#9FA7B3"
+              },
+              "custom": {
+                "lineWidth": 0,
+                "fillOpacity": 85,
+                "spanNulls": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "Failed"
+                    },
+                    "1": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "OK"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "noValue": "No observations",
+              "unit": "none"
+            }
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 161,
+            "w": 6,
+            "h": 7
+          },
+          "id": 35,
+          "options": {
+            "mergeValues": true,
+            "showValue": "auto",
+            "rowHeight": 0.8,
+            "alignValue": "center",
+            "legend": {
+              "showLegend": false
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "13.3.0-34259522365",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "label_replace(label_replace((harbor_scanner_trivy_metadata_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{replica}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "DB metadata checks",
+          "type": "state-timeline"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Time since the last successful metadata check. A growing value means database status panels may be stale; this is not database content age.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 8,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "noValue": "No observations",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "x": 6,
+            "y": 161,
+            "w": 18,
+            "h": 7
+          },
+          "id": 36,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.3.0-34259522365",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "label_replace(label_replace((time()-harbor_scanner_trivy_metadata_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{replica}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Time since DB metadata refresh",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Collection results for local disk space and optional file sizes. Failed means those disk measurements are unavailable; it does not establish a disk failure.",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "noValue": "Unknown",
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Collector"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "cache_filesystem": {
+                            "text": "Database filesystem",
+                            "color": "blue",
+                            "index": 0
+                          },
+                          "reports_filesystem": {
+                            "text": "Report filesystem",
+                            "color": "blue",
+                            "index": 1
+                          },
+                          "cache_size": {
+                            "text": "Local file sizes (optional)",
+                            "color": "#9FA7B3",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "-1": {
+                            "text": "Unknown",
+                            "color": "#9FA7B3",
+                            "index": 0
+                          },
+                          "0": {
+                            "text": "Failed",
+                            "color": "red",
+                            "index": 1
+                          },
+                          "1": {
+                            "text": "OK",
+                            "color": "green",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#9FA7B3"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Last success"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "-1": {
+                            "text": "Unknown",
+                            "color": "#9FA7B3",
+                            "index": 0
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Replica"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "regex",
+                        "options": {
+                          "pattern": "^harbor-scanner-(.+)$",
+                          "result": {
+                            "text": "$1"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 168,
+            "w": 24,
+            "h": 7
+          },
+          "id": 43,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "sortBy": [
+              {
+                "displayName": "Replica",
+                "desc": false
+              }
+            ]
+          },
+          "pluginVersion": "13.3.0-34259522365",
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "label_replace((((harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\"))), \"measurement\", \"Status\", \"pod\", \".*\") or label_replace(((time() - harbor_scanner_trivy_storage_last_success_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}) or on (cluster,namespace,scanner,pod,collector) (label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"reports_filesystem\", \"pod\", \".*\") or label_replace((max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1), \"collector\", \"cache_size\", \"pod\", \".*\"))), \"measurement\", \"Last success\", \"pod\", \".*\")",
+              "legendFormat": "{{pod}}",
+              "instant": true,
+              "range": false,
+              "format": "time_series",
+              "editorMode": "code",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              }
+            }
+          ],
+          "title": "Disk metric collection",
+          "type": "table",
+          "links": [
+            {
+              "title": "View history",
+              "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?viewPanel=91&from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}",
+              "targetBlank": false
+            }
+          ],
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {
+                "mode": "columns",
+                "keepLabels": [
+                  "pod",
+                  "collector",
+                  "measurement"
+                ],
+                "valueLabel": "measurement"
+              }
+            },
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "indexByName": {
+                  "collector": 0,
+                  "Status": 1,
+                  "Last success": 2,
+                  "pod": 3
+                },
+                "renameByName": {
+                  "pod": "Replica",
+                  "collector": "Collector"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": 84,
       "title": "Database and storage history",
       "type": "row",
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 154,
+        "y": 175,
         "w": 24,
         "h": 1
       },
@@ -7094,7 +7266,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 155,
+            "y": 176,
             "w": 6,
             "h": 3
           },
@@ -7195,7 +7367,7 @@
           },
           "gridPos": {
             "x": 6,
-            "y": 155,
+            "y": 176,
             "w": 9,
             "h": 6
           },
@@ -7298,7 +7470,7 @@
           },
           "gridPos": {
             "x": 15,
-            "y": 155,
+            "y": 176,
             "w": 9,
             "h": 6
           },
@@ -7377,7 +7549,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 158,
+            "y": 179,
             "w": 6,
             "h": 3
           },
@@ -7454,7 +7626,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 161,
+            "y": 182,
             "w": 6,
             "h": 3
           },
@@ -7555,7 +7727,7 @@
           },
           "gridPos": {
             "x": 6,
-            "y": 161,
+            "y": 182,
             "w": 9,
             "h": 6
           },
@@ -7658,7 +7830,7 @@
           },
           "gridPos": {
             "x": 15,
-            "y": 161,
+            "y": 182,
             "w": 9,
             "h": 6
           },
@@ -7737,7 +7909,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 164,
+            "y": 185,
             "w": 6,
             "h": 3
           },
@@ -7814,7 +7986,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 167,
+            "y": 188,
             "w": 6,
             "h": 3
           },
@@ -7843,7 +8015,7 @@
               "expr": "label_replace(label_replace((harbor_scanner_trivy_storage_collection_success{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
               "format": "time_series",
               "instant": false,
-              "legendFormat": "{{replica}} \u00b7 {{collector}}",
+              "legendFormat": "{{replica}} · {{collector}}",
               "range": true,
               "refId": "A"
             }
@@ -7960,7 +8132,7 @@
       },
       {
         "current": {},
-        "description": "Select the exporter for Trivy\u2019s analysis-cache Redis/Valkey. The job/report Redis pool is monitored separately by the adapter.",
+        "description": "Select the exporter for Trivy’s analysis-cache Redis/Valkey. The job/report Redis pool is monitored separately by the adapter.",
         "hide": 0,
         "label": "Analysis cache (optional)",
         "name": "redis_service",
