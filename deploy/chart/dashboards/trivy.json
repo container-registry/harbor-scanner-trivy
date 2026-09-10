@@ -355,6 +355,75 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
+      "description": "Average duration of successful artifact vulnerability scans completed in the selected time range, across scanner replicas. Includes preparation and report storage; excludes queue wait and SBOM generation. No value means no completed scans were observed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "decimals": 1,
+          "noValue": "No completed scans",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      },
+      "id": 1089,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "vertical",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(harbor_scanner_trivy_job_duration_seconds_sum{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",capability=\"vulnerability\",outcome=\"success\"}[$__range])) / (sum(increase(harbor_scanner_trivy_job_duration_seconds_count{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",capability=\"vulnerability\",outcome=\"success\"}[$__range])) > 0)",
+          "format": "time_series",
+          "instant": true,
+          "legendFormat": "Average scan duration",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Average scan duration (selected range)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "description": "Successful execution attempts during the selected range. Retries mean this is not a count of unique images.",
       "fieldConfig": {
         "defaults": {
@@ -382,8 +451,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 12,
+        "w": 3,
+        "x": 15,
         "y": 1
       },
       "id": 5,
@@ -454,8 +523,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 16,
+        "w": 3,
+        "x": 18,
         "y": 1
       },
       "id": 6,
@@ -526,8 +595,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 20,
+        "w": 3,
+        "x": 21,
         "y": 1
       },
       "id": 7,
