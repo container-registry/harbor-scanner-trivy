@@ -3,12 +3,14 @@ package trivy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/fake"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -247,6 +249,10 @@ func TestRegistryRetrievalRetryPolicy(t *testing.T) {
 			{"connection refused", errors.New("dial tcp: connection refused"), true},
 			{"timeout", context.DeadlineExceeded, true},
 			{"registry unavailable", errors.New("503 Service Unavailable"), true},
+			{"registry URL contains status digits", errors.New("dial tcp registry401.example.com:403: connection refused"), true},
+			{"image digest contains status digits", errors.New("GET https://registry/v2/401/manifests/sha256:abc403abc: timeout"), true},
+			{"structured 503 with auth words", fmt.Errorf("registry: %w", &transport.Error{StatusCode: 503, Errors: []transport.Diagnostic{{Code: transport.UnauthorizedErrorCode}}}), true},
+			{"structured 401", fmt.Errorf("registry: %w", &transport.Error{StatusCode: 401}), false},
 			{"unauthorized", errors.New("401 Unauthorized"), false},
 			{"forbidden", errors.New("403 Forbidden"), false},
 		} {
@@ -275,4 +281,13 @@ func TestRegistryRetrievalRetryPolicy(t *testing.T) {
 		require.ErrorAs(t, err, &scanErr)
 		require.False(t, scanErr.Retryable)
 	})
+}
+
+func TestCLIAuthClassificationIgnoresImageReferenceTokens(t *testing.T) {
+	for _, message := range []string{
+		"GET https://registry401.example.com:403/v2/401/manifests/sha256:403abc: connection refused",
+		"GET https://unauthorized.example.com/v2/forbidden/manifests/sha256:401abc: connection refused",
+	} {
+		require.Equal(t, ErrCategoryNetwork, classifyTrivyError(message))
+	}
 }

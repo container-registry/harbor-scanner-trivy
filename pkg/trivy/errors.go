@@ -1,6 +1,9 @@
 package trivy
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ScanErrorCategory categorizes scan failures for structured error reporting.
 // Harbor can parse the category prefix from error messages to show meaningful
@@ -39,4 +42,15 @@ func (e *ScanError) Error() string {
 
 func (e *ScanError) Unwrap() error {
 	return e.Cause
+}
+
+// Match status tokens, not digits embedded in registry URLs or image digests.
+func isAuthenticationErrorMessage(message string) bool {
+	for _, word := range strings.Fields(strings.ToLower(message)) {
+		switch strings.Trim(word, "\"':;,()[]") {
+		case "401", "403", "unauthorized", "forbidden":
+			return true
+		}
+	}
+	return false
 }

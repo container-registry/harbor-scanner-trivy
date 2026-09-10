@@ -397,7 +397,7 @@ func classifyTrivyError(output string) ScanErrorCategory {
 		return ErrCategoryCache
 	}
 	switch {
-	case strings.Contains(lower, "unauthorized") || strings.Contains(lower, "401") || strings.Contains(lower, "403 forbidden"):
+	case isAuthenticationErrorMessage(lower):
 		return ErrCategoryAuth
 	case strings.Contains(lower, "connection refused") || strings.Contains(lower, "no such host") || strings.Contains(lower, "dial tcp"):
 		return ErrCategoryNetwork

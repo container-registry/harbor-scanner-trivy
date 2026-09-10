@@ -3,6 +3,7 @@ package trivy
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"golang.org/x/xerrors"
 )
 
@@ -283,8 +285,13 @@ func validateLayers(imageRef string, layers []v1.Descriptor) error {
 // classifyRemoteError categorizes errors from go-containerregistry's remote.Image.
 func classifyRemoteError(err error) ScanErrorCategory {
 	msg := strings.ToLower(err.Error())
+	authFailure := isAuthenticationErrorMessage(msg)
+	var registryError *transport.Error
+	if errors.As(err, &registryError) {
+		authFailure = registryError.StatusCode == http.StatusUnauthorized || registryError.StatusCode == http.StatusForbidden
+	}
 	switch {
-	case strings.Contains(msg, "unauthorized") || strings.Contains(msg, "401") || strings.Contains(msg, "403"):
+	case authFailure:
 		return ErrCategoryAuth
 	case strings.Contains(msg, "connection refused") || strings.Contains(msg, "no such host") || strings.Contains(msg, "dial tcp"):
 		return ErrCategoryNetwork
