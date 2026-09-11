@@ -38,10 +38,16 @@ spec:
       tlsConfig:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.metrics.serviceMonitor.relabelings }}
       relabelings:
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: scanner
+        {{- with .Values.metrics.serviceMonitor.cluster }}
+        - targetLabel: cluster
+          replacement: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.metrics.serviceMonitor.relabelings }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       {{- with .Values.metrics.serviceMonitor.metricRelabelings }}
       metricRelabelings:
         {{- toYaml . | nindent 8 }}

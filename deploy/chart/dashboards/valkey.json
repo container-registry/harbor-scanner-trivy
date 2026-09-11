@@ -1,0 +1,2064 @@
+{
+  "id": null,
+  "uid": "harbor-valkey",
+  "title": "Valkey / Redis",
+  "description": "Operational Redis/Valkey metrics from redis_exporter, including the dedicated Trivy analysis cache.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": [
+    "harbor",
+    "valkey",
+    "redis",
+    "trivy"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-12h",
+    "to": "now"
+  },
+  "graphTooltip": 1,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": true,
+        "current": {},
+        "description": "Prometheus source for scanner and supporting infrastructure metrics.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "allowCustomValue": true,
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(redis_up{service!=\"\"}, cluster)",
+        "description": "One cluster, identified by its cluster scrape label.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Cluster",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "query": "label_values(redis_up{service!=\"\"}, cluster)",
+          "refId": "cluster"
+        },
+        "refresh": 1,
+        "regex": "",
+        "regexApplyTo": "value",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allowCustomValue": true,
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(redis_up{cluster=~\"${cluster:regex}\",service!=\"\"}, namespace)",
+        "description": "One Harbor namespace within the selected cluster.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Namespace",
+        "multi": false,
+        "name": "namespace",
+        "options": [],
+        "query": {
+          "query": "label_values(redis_up{cluster=~\"${cluster:regex}\",service!=\"\"}, namespace)",
+          "refId": "namespace"
+        },
+        "refresh": 1,
+        "regex": "",
+        "regexApplyTo": "value",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "description": "Exporter Service for one Redis/Valkey deployment. Includes every server exposed by that Service.",
+        "hide": 0,
+        "label": "Valkey / Redis service",
+        "name": "redis_service",
+        "query": {
+          "query": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
+          "refId": "redis_service"
+        },
+        "skipUrlSync": false,
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
+        "options": [],
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "allowCustomValue": false,
+        "regex": ""
+      },
+      {
+        "allowCustomValue": true,
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner!=\"\"}, scanner)",
+        "description": "Scanner Kubernetes Service; includes all its replicas.",
+        "hide": 2,
+        "includeAll": false,
+        "label": "Scanner",
+        "multi": false,
+        "name": "scanner",
+        "options": [],
+        "query": {
+          "query": "label_values(up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner!=\"\"}, scanner)",
+          "refId": "scanner"
+        },
+        "refresh": 1,
+        "regex": "",
+        "regexApplyTo": "value",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "link",
+      "title": "Trivy scanner",
+      "url": "/d/harbor-trivy-scanner/harbor-trivy-scanner?from=${__from}&to=${__to}&var-datasource=${datasource}&var-cluster=${cluster:percentencode}&var-namespace=${namespace:percentencode}&var-scanner=${scanner:percentencode}&var-redis_service=${redis_service:percentencode}",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Overview",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Availability",
+      "description": "Whether the exporter can reach each server. Unknown means the exporter cannot be scraped.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "options": {
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3"
+                },
+                "0": {
+                  "text": "Down",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Up",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((((redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Memory used / maxmemory",
+      "description": "Server memory relative to configured maxmemory. Orange at 80%; red at 95%. No maxmemory means no server memory limit is configured.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "options": {
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3"
+                },
+                "-2": {
+                  "text": "No maxmemory",
+                  "color": "#9FA7B3"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace(((((100 * redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} / (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} > 0)) or (redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} * 0 - 2 and redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Cache hit rate",
+      "description": "Successful key lookups in the recent rate window. No lookups means the cache is idle. This is key reuse, not the scanner client-pool hit rate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "options": {
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3"
+                },
+                "-2": {
+                  "text": "No lookups",
+                  "color": "#9FA7B3"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace(((((100 * rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) / ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) > 0)) or ((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) * 0 - 2 and (rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])) == 0)) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Evictions (selected range)",
+      "description": "Keys removed to enforce maxmemory during the selected range. Eviction is expected in a bounded cache; rising evictions with slow scans can mean frequent re-analysis.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 6,
+        "h": 7
+      },
+      "options": {
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unknown",
+                  "color": "#9FA7B3"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((((increase(redis_evicted_keys_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__range])) and on (cluster,namespace,service,instance,pod) ((max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) == 1) and on (cluster,namespace,service,instance,pod) (redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} == 1))) or on (cluster,namespace,service,instance,pod) (max by (cluster,namespace,service,instance,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}) * 0 - 1)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Memory and cache",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Used memory, resident process memory, and configured maxmemory. A zero maxmemory setting is omitted; container limits are separate.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 8,
+        "h": 7
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Used \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((redis_memory_used_rss_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "RSS \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "C",
+          "expr": "label_replace(label_replace((label_replace((redis_memory_max_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} > 0), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "maxmemory \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Memory and limit",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Successful and missing key lookups per minute. Misses require Trivy to compute or fetch analysis again when this server is its analysis cache.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:lookups/min",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 9,
+        "w": 8,
+        "h": 7
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_keyspace_hits_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Hit \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_keyspace_misses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Miss \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Cache lookups",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Evicted keys are removed for memory pressure; expired keys reached their TTL. These are different causes of cache misses.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:keys/min",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 9,
+        "w": 8,
+        "h": 7
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_evicted_keys_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Evicted \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_expired_keys_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Expired \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Evictions and expiry",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Memory used by stored data and server bookkeeping, per server.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 8,
+        "h": 7
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((redis_memory_used_dataset_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Dataset \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((redis_memory_used_overhead_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Overhead \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Memory breakdown",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Total keys and keys with an expiry in each non-empty logical Redis database. A logical database number does not isolate memory limits.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 16,
+        "w": 8,
+        "h": 7
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((redis_db_keys{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} > 0), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{db}} \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((redis_db_keys_expiring{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"} > 0), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "With TTL \u00b7 {{db}} \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Stored keys",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Resident process memory divided by allocated memory. Small datasets can have a high ratio because of fixed process overhead.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 16,
+        "w": 8,
+        "h": 7
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((redis_mem_fragmentation_ratio{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Memory fragmentation",
+      "type": "timeseries"
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "Connections and commands",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Connected clients and clients waiting in blocking commands. Blocked clients are not automatically an error.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 8,
+        "h": 7
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((redis_connected_clients{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Connected \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((redis_blocked_clients{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Blocked \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Client connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Connections rejected per minute because the server reached its client limit.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:connections/min",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 24,
+        "w": 8,
+        "h": 7
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_rejected_connections_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Rejected \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Rejected connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "All processed commands per minute, including monitoring and administrative traffic.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:commands/min",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 24,
+        "w": 8,
+        "h": 7
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_commands_processed_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Command throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Command calls per minute, including exporter queries such as INFO and CONFIG.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:commands/min",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 8,
+        "h": 7
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_commands_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{cmd}} \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Commands by type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Average server execution time per command. Excludes client-pool waits and network latency; idle commands have no value.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 31,
+        "w": 8,
+        "h": 7
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_commands_duration_seconds_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) / (rate(redis_commands_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) > 0)), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{cmd}} \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Command execution time (average)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Commands that failed during execution or were rejected before execution. Inspect server logs and client errors for the cause.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:errors/min",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 31,
+        "w": 8,
+        "h": 7
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_commands_failed_calls_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Failed \u00b7 {{cmd}} \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_commands_rejected_calls_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval]) * 60), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Rejected \u00b7 {{cmd}} \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Command errors",
+      "type": "timeseries"
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Server health",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Server network traffic in bytes per second. Includes protocol overhead and all clients.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 8,
+        "h": 7
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_net_input_bytes_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Received \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace((label_replace((rate(redis_net_output_bytes_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}[$__rate_interval])), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "Sent \u00b7 {{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Network traffic",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Time since each server process started. A drop indicates a restart or replacement.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 39,
+        "w": 8,
+        "h": 7
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((redis_uptime_in_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Uptime",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "1 means the exporter failed its latest collection; 0 means it succeeded. Missing data can indicate an unavailable exporter.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 39,
+        "w": 8,
+        "h": 7
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace((label_replace((redis_exporter_last_scrape_error{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\",service=~\"${redis_service:regex}\"}), \"node\", \"$1\", \"instance\", \"(.*)\")), \"node\", \"$1\", \"pod\", \"(.+)\"), \"node\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{node}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "interval": "1m"
+        }
+      ],
+      "title": "Exporter collection errors",
+      "type": "timeseries"
+    },
+    {
+      "id": 24,
+      "type": "text",
+      "title": "About this dashboard",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Select one cluster, namespace, and exporter Service. Values are per server (`instance`); the selected Service may expose several nodes. This dashboard measures the whole server. The dedicated Trivy Valkey stores **analysis-cache data**; job/report Redis is separate. Empty rates can mean no activity or missing telemetry. [Exporter documentation](https://github.com/oliver006/redis_exporter)"
+      }
+    }
+  ]
+}

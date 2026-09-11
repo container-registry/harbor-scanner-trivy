@@ -303,6 +303,14 @@ the user claimed through .Values.config / .Values.secret.
   value: {{ .Values.api.idleTimeout | quote }}
 - name: SCANNER_API_SERVER_METRICS_ENABLED
   value: {{ .Values.metrics.enabled | quote }}
+- name: SCANNER_METRICS_COLLECTION_INTERVAL
+  value: {{ printf "%ds" (int .Values.metrics.collection.intervalSeconds) | quote }}
+- name: SCANNER_METRICS_COLLECTION_TIMEOUT
+  value: {{ printf "%ds" (int .Values.metrics.collection.timeoutSeconds) | quote }}
+- name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+  value: {{ .Values.metrics.collection.cacheSizeEnabled | quote }}
+- name: SCANNER_METRICS_CACHE_MAX_FILES
+  value: {{ .Values.metrics.collection.maxCacheFiles | quote }}
 {{- if $tls }}
 - name: SCANNER_API_SERVER_TLS_CERTIFICATE
   value: /certs/tls.crt
