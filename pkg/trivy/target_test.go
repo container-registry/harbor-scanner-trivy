@@ -249,6 +249,8 @@ func TestRegistryRetrievalRetryPolicy(t *testing.T) {
 			{"connection refused", errors.New("dial tcp: connection refused"), true},
 			{"timeout", context.DeadlineExceeded, true},
 			{"registry unavailable", errors.New("503 Service Unavailable"), true},
+			{"unrelated byte count", errors.New("download stopped after 403 bytes: connection reset by peer"), true},
+			{"quoted descriptive word", errors.New("failed to read layer named forbidden due to timeout"), true},
 			{"registry URL contains status digits", errors.New("dial tcp registry401.example.com:403: connection refused"), true},
 			{"image digest contains status digits", errors.New("GET https://registry/v2/401/manifests/sha256:abc403abc: timeout"), true},
 			{"structured 503 with auth words", fmt.Errorf("registry: %w", &transport.Error{StatusCode: 503, Errors: []transport.Diagnostic{{Code: transport.UnauthorizedErrorCode}}}), true},
@@ -289,5 +291,27 @@ func TestCLIAuthClassificationIgnoresImageReferenceTokens(t *testing.T) {
 		"GET https://unauthorized.example.com/v2/forbidden/manifests/sha256:401abc: connection refused",
 	} {
 		require.Equal(t, ErrCategoryNetwork, classifyTrivyError(message))
+	}
+}
+
+func TestAuthenticationMessageRequiresStatusContext(t *testing.T) {
+	for _, message := range []string{
+		"download stopped after 401 bytes: connection reset by peer",
+		"download stopped after 403 bytes: context deadline exceeded",
+		"failed to read layer named unauthorized due to timeout",
+		"failed to read layer named forbidden due to timeout",
+	} {
+		require.False(t, isAuthenticationErrorMessage(message), message)
+		require.NotEqual(t, ErrCategoryAuth, classifyTrivyError(message), message)
+	}
+	for _, message := range []string{
+		"GET https://registry/v2/: 401 Unauthorized",
+		"GET https://registry/v2/: 403 Forbidden",
+		"unexpected status code: 401",
+		"unexpected status: 403",
+		"image scan error: UNAUTHORIZED: authentication required",
+		"GET https://registry/v2/: UNAUTHORIZED",
+	} {
+		require.True(t, isAuthenticationErrorMessage(message), message)
 	}
 }

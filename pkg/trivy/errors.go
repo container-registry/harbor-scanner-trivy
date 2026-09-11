@@ -44,11 +44,22 @@ func (e *ScanError) Unwrap() error {
 	return e.Cause
 }
 
-// Match status tokens, not digits embedded in registry URLs or image digests.
+// Recognize HTTP statuses and registry error prefixes, not arbitrary counts or
+// descriptive words in CLI stderr. Typed registry errors use their HTTP status.
 func isAuthenticationErrorMessage(message string) bool {
-	for _, word := range strings.Fields(strings.ToLower(message)) {
-		switch strings.Trim(word, "\"':;,()[]") {
-		case "401", "403", "unauthorized", "forbidden":
+	words := strings.Fields(strings.ToLower(message))
+	token := func(i int) string { return strings.Trim(words[i], "\"':;,()[]") }
+	for i := range words {
+		word := token(i)
+		if word == "401" || word == "403" {
+			if i+1 < len(words) && ((word == "401" && token(i+1) == "unauthorized") || (word == "403" && token(i+1) == "forbidden")) {
+				return true
+			}
+			if i > 0 && (token(i-1) == "status" || (token(i-1) == "code" && i > 1 && token(i-2) == "status")) {
+				return true
+			}
+		}
+		if (word == "unauthorized" || word == "forbidden") && (i == 0 || strings.HasSuffix(words[i-1], ":")) && (strings.HasSuffix(words[i], ":") || i == len(words)-1) {
 			return true
 		}
 	}
