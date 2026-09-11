@@ -302,6 +302,10 @@ func parseDuration(t *testing.T, s string) time.Duration {
 func TestMetricsConfigurationValidation(t *testing.T) {
 	for _, tc := range []struct{ name, value string }{{"SCANNER_METRICS_COLLECTION_INTERVAL", "0s"}, {"SCANNER_METRICS_COLLECTION_TIMEOUT", "0s"}, {"SCANNER_METRICS_COLLECTION_TIMEOUT", "2m"}, {"SCANNER_METRICS_CACHE_MAX_FILES", "0"}} {
 		t.Run(tc.name+tc.value, func(t *testing.T) {
+			t.Setenv("SCANNER_API_SERVER_METRICS_ENABLED", "true")
+			t.Setenv("SCANNER_METRICS_COLLECTION_INTERVAL", "1m")
+			t.Setenv("SCANNER_METRICS_COLLECTION_TIMEOUT", "5s")
+			t.Setenv("SCANNER_METRICS_CACHE_MAX_FILES", "10000")
 			t.Setenv(tc.name, tc.value)
 			_, err := GetConfig()
 			require.ErrorContains(t, err, "invalid metrics collection settings")

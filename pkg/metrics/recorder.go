@@ -179,7 +179,12 @@ func (r *Recorder) Handler() http.Handler {
 	return promhttp.InstrumentMetricHandler(r.registry, promhttp.HandlerFor(r.registry, promhttp.HandlerOpts{}))
 }
 
-func (r *Recorder) Gatherer() prometheus.Gatherer { return r.registry }
+func (r *Recorder) Gatherer() prometheus.Gatherer {
+	if r == nil {
+		return prometheus.Gatherers{}
+	}
+	return r.registry
+}
 
 func (r *Recorder) normalize(name string, labels []string) []string {
 	d := r.definitions[name]

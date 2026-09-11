@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,4 +108,51 @@ func TestCollectorShutdownAndOutputLimit(t *testing.T) {
 	r.Start(ctx, cfg, "test")()
 	require.Zero(t, testutil.CollectAndCount(r.gauges["metadata_last_success_timestamp_seconds"]))
 	New(false).Start(context.Background(), cfg, "test")()
+}
+
+func TestDisabledGathererIsEmpty(t *testing.T) {
+	families, err := New(false).Gatherer().Gather()
+	require.NoError(t, err)
+	require.Empty(t, families)
+}
+
+func TestNonRegularDatabasePathIsUnknown(t *testing.T) {
+	r := New(true)
+	cfg := etc.Trivy{CacheDir: t.TempDir()}
+	dir := filepath.Join(cfg.CacheDir, "db")
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "trivy.db"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(`{"Version":2,"UpdatedAt":"2026-09-09T10:00:00Z"}`), 0o600))
+	r.collectMetadata(cfg, true)
+	require.Zero(t, testutil.ToFloat64(r.gauges["metadata_collection_success"]))
+	// Only the genuinely absent Java database has a presence observation.
+	require.Equal(t, 1, testutil.CollectAndCount(r.gauges["db_present"]))
+	require.Zero(t, testutil.ToFloat64(r.gauges["db_present"].WithLabelValues("java")))
+	require.Zero(t, testutil.CollectAndCount(r.gauges["db_updated_timestamp_seconds"]))
+}
+
+func TestUninitializedCachePartsAreEmpty(t *testing.T) {
+	r := New(true)
+	root := t.TempDir()
+	r.collectCache(context.Background(), root, 20)
+	for _, kind := range []string{"analysis", "vulnerability_db", "java_db"} {
+		require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
+	}
+	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
+	// Losing the entire mount/path must still invalidate the sample.
+	require.NoError(t, os.Remove(root))
+	r.collectCache(context.Background(), root, 20)
+	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
+}
+
+func TestSuccessfulChildWithRunnerErrorIsNotNonzeroExit(t *testing.T) {
+	r := New(true)
+	cmd := exec.Command("sh", "-c", "exit 0")
+	_, err := r.Run("image", cmd, func(cmd *exec.Cmd) ([]byte, error) {
+		require.NoError(t, cmd.Run())
+		return nil, io.ErrUnexpectedEOF
+	})
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "other")))
+	require.Zero(t, testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "nonzero_exit")))
 }

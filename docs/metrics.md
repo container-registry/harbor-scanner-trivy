@@ -1,7 +1,7 @@
 # Operational metrics
 
 The adapter exposes Prometheus metrics on the existing API listener at `/metrics`.
-`SCANNER_API_SERVER_METRICS_ENABLED=false` disables application recording and
+`SCANNER_API_SERVER_METRICS_ENABLED=false` disables the `/metrics` endpoint (scrapes return 404), application recording and
 background collection. Scraping uses the API listener's TLS, client-certificate
 and network-policy settings; no extra listener is opened.
 
@@ -70,7 +70,7 @@ Every suffix below has prefix **`harbor_scanner_trivy_`**. Histograms export
 | `db_next_update_timestamp_seconds` | gauge | database | Advertised database next update timestamp. |
 | `db_downloaded_timestamp_seconds` | gauge | database | Recorded local download timestamp, not download attempts. |
 | `db_updates_enabled` | gauge | database | Effective automatic database update policy. |
-| `metadata_collection_success` | gauge | — | Whether the last metadata refresh succeeded. |
+| `metadata_collection_success` | gauge | — | Whether Trivy version and local vulnerability/Java metadata checks succeeded, including valid database absence. |
 | `metadata_last_success_timestamp_seconds` | gauge | — | Last successful metadata refresh. |
 | `cache_size_bytes` | gauge | kind | Logical regular-file bytes for the verified local cache layout. |
 | `storage_capacity_bytes` | gauge | area | Filesystem capacity at the configured path; areas may share a filesystem. |

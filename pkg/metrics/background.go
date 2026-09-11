@@ -120,7 +120,7 @@ func (r *Recorder) collectMetadata(cfg etc.Trivy, versionOK bool) {
 			}
 		}
 		// Missing files are a valid absent DB observation; other failures are unknown.
-		failed := (fileErr != nil && !errors.Is(fileErr, fs.ErrNotExist)) || (err != nil && !errors.Is(err, fs.ErrNotExist))
+		failed := (fileErr == nil && !file.Mode().IsRegular()) || (fileErr != nil && !errors.Is(fileErr, fs.ErrNotExist)) || (err != nil && !errors.Is(err, fs.ErrNotExist))
 		present := fileErr == nil && file.Mode().IsRegular() && err == nil
 		if failed {
 			ok = false
@@ -173,9 +173,17 @@ func (r *Recorder) collectionResult(collector string, started time.Time, err err
 func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int) {
 	started := time.Now()
 	remaining := maxFiles
+	rootInfo, rootErr := os.Stat(root)
 	var firstErr error
 	for _, part := range []struct{ kind, dir string }{{"analysis", "fanal"}, {"vulnerability_db", "db"}, {"java_db", "java-db"}} {
-		size, err := directoryBytes(ctx, filepath.Join(root, part.dir), &remaining)
+		path := filepath.Join(root, part.dir)
+		size, err := directoryBytes(ctx, path, &remaining)
+		var pathErr *fs.PathError
+		// An uninitialized cache part is empty. A vanished descendant or missing
+		// cache root is an incomplete collection, not a zero-byte observation.
+		if rootErr == nil && rootInfo.IsDir() && errors.As(err, &pathErr) && pathErr.Path == path && errors.Is(err, fs.ErrNotExist) {
+			size, err = 0, nil
+		}
 		if err != nil {
 			r.Delete("cache_size_bytes", part.kind)
 			firstErr = err

@@ -14,11 +14,16 @@ func (r *Recorder) Run(command string, cmd *exec.Cmd, run func(*exec.Cmd) ([]byt
 	output, err := run(cmd)
 	outcome, reason := "success", "success"
 	if err != nil {
-		outcome, reason = "failed", "nonzero_exit"
-		if cmd.ProcessState == nil {
+		outcome = "failed"
+		switch {
+		case cmd.ProcessState == nil:
 			reason = "start_error"
-		} else if cmd.ProcessState.ExitCode() == -1 {
+		case cmd.ProcessState.ExitCode() == -1:
 			reason = "signal"
+		case cmd.ProcessState.ExitCode() != 0:
+			reason = "nonzero_exit"
+		default:
+			reason = "other"
 		}
 	}
 	r.Observe("subprocess_duration_seconds", time.Since(started).Seconds(), command, outcome)

@@ -160,7 +160,15 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 	)
 
 	report, err := w.parseReport(opt.Format, reportFile)
-	return report, target.fromAccessory, err
+	if err != nil {
+		return Report{}, target.fromAccessory, &ScanError{
+			Category: ErrCategoryReportParse,
+			ImageRef: imageRef.Name,
+			Detail:   "parsing Trivy report",
+			Cause:    err,
+		}
+	}
+	return report, target.fromAccessory, nil
 }
 
 func (w *wrapper) parseReport(format Format, reportFile io.Reader) (Report, error) {

@@ -18,6 +18,7 @@ Maintained by [container-registry.com], forked from [goharbor/harbor-scanner-tri
 - [What it offers](#what-it-offers)
 - [Install](#install)
 - [Releases](#releases)
+- [Operational metrics](#operational-metrics)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
