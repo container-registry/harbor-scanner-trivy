@@ -77,7 +77,7 @@ Metric coverage is informed by the exporter's
 our layout and queries add installation isolation, per-server values, and explicit
 idle/unknown/unlimited states.
 
-## Select one installation
+## Trivy dashboard: select one installation
 
 Select a Prometheus data source, **Cluster**, **Namespace**, then **Scanner**.
 Each selector picks its first alphabetical result initially and allows exactly
