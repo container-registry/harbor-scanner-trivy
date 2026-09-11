@@ -1,5 +1,5 @@
 == tests/tools/doctor-tripwire.yaml
-   ERROR jobQueue.workerConcurrency: 8 workers share one fs scan cache, which only one process may open. Use trivy.cacheBackend memory or a redis:// URL.
+   ERROR jobQueue.workerConcurrency: 8 workers are unsupported. Keep 1 worker per pod and scale replicas with a dedicated Redis/Valkey scan cache.
    ERROR trivy.skipUpdate: set with no persistent cache and no initContainers to seed one, so no vulnerability DB will ever be present.
    WARN redis.url: embeds a password, which lands in the pod spec in clear text. Use redis.existingSecret.
    WARN trivy.gitHubToken: is inlined into the release. Use trivy.existingSecret for anything longer-lived than a test install.

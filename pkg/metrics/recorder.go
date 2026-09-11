@@ -20,15 +20,16 @@ const Prefix = "harbor_scanner_trivy_"
 // Labels are normalized at the recorder boundary, including values originating
 // in malformed HTTP requests or queue messages. Versions come from the binaries.
 var values = map[string][]string{
+	"backend":    {"filesystem", "redis", "memory", "unknown", "other"},
 	"capability": {"vulnerability", "sbom", "other"},
 	"format":     {"json", "spdx-json", "cyclonedx", "other"},
 	"outcome":    {"success", "failed", "error", "not_found", "not_applied", "other"},
 	"command":    {"image", "sbom", "version", "other"},
 	"stage":      {"status", "target", "auth", "scan", "transform", "report", "internal", "other"},
-	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "internal", "unknown", "other"},
+	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "internal", "unknown", "other"},
 	"encoding":   {"raw", "compressed", "other"},
 	"record":     {"job", "report", "other"},
-	"operation":  {"create", "status", "read", "report", "other"},
+	"operation":  {"enqueue", "status", "read", "report", "acknowledge", "other"},
 	"database":   {"vulnerability", "java", "other"},
 	"kind":       {"analysis", "vulnerability_db", "java_db", "other"},
 	"area":       {"cache", "reports", "other"},
@@ -53,13 +54,20 @@ var (
 )
 
 var catalog = []definition{
+	{"scan_retries_total", "Attempts after interrupted execution or cache failure.", "counter", nil, nil},
+	{"lease_losses_total", "Failed lease renewals or lost ownership.", "counter", nil, nil},
+	{"queue_unacknowledged_jobs", "Shared unacknowledged stream length; use max across pods, not sum.", "gauge", nil, nil},
+	{"queue_quarantined_jobs", "Malformed deliveries retained for operator inspection; use max across pods.", "gauge", nil, nil},
+	{"queue_collection_success", "Whether all queue metrics were collected successfully.", "gauge", nil, nil},
+	{"queue_collection_last_success_timestamp_seconds", "Unix timestamp of the last successful queue collection.", "gauge", nil, nil},
+	{"queue_oldest_age_seconds", "Age of oldest unacknowledged delivery; sampled every ten seconds.", "gauge", nil, nil},
 	{"build_info", "Adapter and Trivy binary versions.", "gauge", []string{"adapter_version", "trivy_version"}, nil},
 	{"http_requests_total", "API requests by route template.", "counter", []string{"route", "method", "code"}, nil},
 	{"http_request_duration_seconds", "API handler duration.", "histogram", []string{"route", "method"}, prometheus.DefBuckets},
-	{"jobs_enqueued_total", "Successfully published tasks (including zero-subscriber publications).", "counter", []string{"capability", "format"}, nil},
+	{"jobs_enqueued_total", "Durably enqueued tasks.", "counter", []string{"capability", "format"}, nil},
 	{"job_dispatch_total", "Worker dispatch outcomes, including skipped locks.", "counter", []string{"result"}, nil},
-	{"publish_no_subscribers_total", "Publications reaching no subscribers.", "counter", nil, nil},
-	{"job_attempts_total", "Terminal observed executions, not unique artifacts.", "counter", []string{"capability", "format", "outcome"}, nil},
+	{"publish_no_subscribers_total", "Deprecated Pub/Sub metric; Streams do not require an online subscriber.", "counter", nil, nil},
+	{"job_attempts_total", "Observed execution attempts, including retryable failures; not unique artifacts or terminal jobs.", "counter", []string{"capability", "format", "outcome"}, nil},
 	{"job_failures_total", "Primary failures of controller executions.", "counter", []string{"stage", "category"}, nil},
 	{"job_duration_seconds", "Controller processing and persistence duration after lock acquisition.", "histogram", []string{"capability", "outcome"}, executionBuckets},
 	{"queue_wait_duration_seconds", "Adapter enqueue-to-lock-acquisition duration, excluding Harbor's queue.", "histogram", []string{"capability"}, executionBuckets},
@@ -83,7 +91,8 @@ var catalog = []definition{
 	{"db_next_update_timestamp_seconds", "Advertised database next update timestamp.", "gauge", []string{"database"}, nil},
 	{"db_downloaded_timestamp_seconds", "Recorded local download timestamp, not download attempts.", "gauge", []string{"database"}, nil},
 	{"db_updates_enabled", "Effective automatic database update policy.", "gauge", []string{"database"}, nil},
-	{"metadata_collection_success", "Whether the last metadata refresh succeeded.", "gauge", nil, nil},
+	{"analysis_cache_backend_info", "Configured Trivy analysis-cache backend; database files remain local.", "gauge", []string{"backend"}, nil},
+	{"metadata_collection_success", "Whether Trivy version and local vulnerability/Java database metadata checks succeeded, including valid absence.", "gauge", nil, nil},
 	{"metadata_last_success_timestamp_seconds", "Last successful metadata refresh.", "gauge", nil, nil},
 	{"cache_size_bytes", "Logical regular-file bytes for the verified local cache layout.", "gauge", []string{"kind"}, nil},
 	{"storage_capacity_bytes", "Filesystem capacity at the configured path; areas may share a filesystem.", "gauge", []string{"area"}, nil},
@@ -156,7 +165,10 @@ func New(enabled bool) *Recorder {
 			r.Add("store_bytes_written_total", 0, record, encoding)
 		}
 	}
-	for _, op := range []string{"create", "read", "report", "status"} {
+	for _, op := range values["operation"] {
+		if op == "other" {
+			continue
+		}
 		for _, outcome := range []string{"success", "error", "not_found", "not_applied"} {
 			r.Add("store_operations_total", 0, op, outcome)
 		}

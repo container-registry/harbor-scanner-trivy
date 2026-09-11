@@ -1,8 +1,13 @@
 package redisx
 
 import (
+	"context"
 	"net/url"
 	"testing"
+	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/alicebob/miniredis/v2/server"
 
 	"github.com/stretchr/testify/require"
 
@@ -108,5 +113,31 @@ func TestParseSentinelURL(t *testing.T) {
 				assert.EqualError(t, err, tc.expectedError)
 			}
 		})
+	}
+}
+
+func TestRedisCommandHonorsCallerDeadline(t *testing.T) {
+	backend := miniredis.RunT(t)
+	client, err := NewClient(etc.RedisPool{URL: "redis://" + backend.Addr()})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	require.NoError(t, client.Ping(context.Background()).Err())
+	release := make(chan struct{})
+	defer close(release)
+	backend.Server().SetPreHook(func(_ *server.Peer, cmd string, _ ...string) bool {
+		if cmd == "PING" {
+			<-release
+		}
+		return false
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- client.Ping(ctx).Err() }()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Redis ignored the caller deadline")
 	}
 }

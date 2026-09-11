@@ -46,6 +46,7 @@ func (s *ScanJobKey) String() string {
 
 type ScanJob struct {
 	FinishedAt time.Time         `json:"finished_at,omitzero"`
+	Attempts   int               `json:"attempts,omitempty"`
 	Key        ScanJobKey        `json:"key"` // Must be unique
 	Status     ScanJobStatus     `json:"status"`
 	Error      string            `json:"error"`

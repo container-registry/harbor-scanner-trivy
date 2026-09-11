@@ -18,6 +18,7 @@ import (
 	v1 "github.com/container-registry/harbor-scanner-trivy/pkg/http/api/v1"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
 	storepkg "github.com/container-registry/harbor-scanner-trivy/pkg/persistence/redis"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/scan"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
@@ -25,7 +26,7 @@ import (
 
 type resultWrapper struct{ run func() error }
 
-func (w resultWrapper) Scan(trivy.ImageRef, trivy.ScanOption) (trivy.Report, error) {
+func (w resultWrapper) Scan(context.Context, trivy.ImageRef, trivy.ScanOption) (trivy.Report, error) {
 	return trivy.Report{}, w.run()
 }
 func (resultWrapper) GetVersion() (trivy.VersionInfo, error) { return trivy.VersionInfo{}, nil }
@@ -71,11 +72,12 @@ func TestMetricsTrackProcessingOutcomeNotStatusWriteOrPolling(t *testing.T) {
 			r.RegisterRedis(rdb)
 			store := storepkg.NewStore(etc.RedisStore{Namespace: "test", ScanJobTTL: time.Minute}, rdb, r)
 			key := job.ScanJobKey{ID: "private-id", MIMEType: api.MimeTypeSecurityVulnerabilityReport}
-			ctx := context.Background()
-			require.NoError(t, store.Create(ctx, job.ScanJob{Key: key, Status: job.Queued}))
+			ctx := persistence.WithLease(context.Background(), "fixture-lease", "owner")
+			require.NoError(t, rdb.Set(ctx, "fixture-lease", "owner", time.Minute).Err())
+			require.NoError(t, store.Enqueue(ctx, job.ScanJob{Key: key, Status: job.Queued}, "fixture-stream", []byte("fixture")))
 			before := countMetric(t, r, "store_bytes_written_total", map[string]string{"record": "job"})
-			require.NoError(t, store.Create(ctx, job.ScanJob{Key: key, Status: job.Queued}))
-			require.Equal(t, before, countMetric(t, r, "store_bytes_written_total", map[string]string{"record": "job"}), "duplicate Create must not count unapplied bytes")
+			require.NoError(t, store.Enqueue(ctx, job.ScanJob{Key: key, Status: job.Queued}, "fixture-stream", []byte("fixture")))
+			require.Equal(t, before, countMetric(t, r, "store_bytes_written_total", map[string]string{"record": "job"}), "duplicate enqueue must not count unapplied bytes")
 			wrapper := resultWrapper{run: func() error {
 				switch mode {
 				case "scan_failure":
@@ -130,6 +132,13 @@ func TestMetricsTrackProcessingOutcomeNotStatusWriteOrPolling(t *testing.T) {
 			}
 			require.Equal(t, float64(10), countMetric(t, r, "http_requests_total", map[string]string{"route": "unmatched"}))
 			if mode == "success" {
+				require.NoError(t, rdb.XGroupCreate(ctx, "fixture-stream", "fixture", "0").Err())
+				deliveries, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{Group: "fixture", Consumer: "fixture", Streams: []string{"fixture-stream", ">"}, Count: 1}).Result()
+				require.NoError(t, err)
+				delivery := deliveries[0].Messages[0]
+				require.EqualValues(t, 1, rdb.XPending(ctx, "fixture-stream", "fixture").Val().Count)
+				require.NoError(t, store.Acknowledge(ctx, key, "fixture-stream", "fixture", delivery.ID))
+				require.Zero(t, rdb.XPending(ctx, "fixture-stream", "fixture").Val().Count)
 				server.FastForward(2 * time.Minute)
 				res := httptest.NewRecorder()
 				handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/scan/private-id/report", nil))

@@ -6,7 +6,7 @@ trivy:
   existingSecret: harbor-scanner-trivy-github
   cacheBackend: redis://scan-cache:6379/0
 jobQueue:
-  workerConcurrency: 4
+  workerConcurrency: 1
 persistence:
   enabled: true
 # Regression guard for effective()'s precedence: extraEnv outranks the

@@ -46,6 +46,8 @@ func newInstancePool(config etc.RedisPool) (*redis.Client, error) {
 		return nil, xerrors.Errorf("invalid redis URL: %s", err)
 	}
 
+	// Bound lease renewals, collection and shutdown by their caller deadlines.
+	options.ContextTimeoutEnabled = true
 	options.MaxIdleConns = config.MaxIdle
 	options.MaxActiveConns = config.MaxActive
 	options.ConnMaxIdleTime = config.IdleTimeout
@@ -66,11 +68,12 @@ func newSentinelPool(configURL *url.URL, config etc.RedisPool) (*redis.Client, e
 	}
 
 	return redis.NewFailoverClient(&redis.FailoverOptions{
-		MasterName:    sentinelURL.MonitorName,
-		SentinelAddrs: sentinelURL.Addrs,
-		DB:            sentinelURL.Database,
-		Password:      sentinelURL.Password,
-		Username:      sentinelURL.Username,
+		ContextTimeoutEnabled: true,
+		MasterName:            sentinelURL.MonitorName,
+		SentinelAddrs:         sentinelURL.Addrs,
+		DB:                    sentinelURL.Database,
+		Password:              sentinelURL.Password,
+		Username:              sentinelURL.Username,
 
 		DialTimeout:  config.ConnectionTimeout,
 		ReadTimeout:  config.ReadTimeout,

@@ -60,7 +60,7 @@ func TestRestAPI(t *testing.T) {
 
 	// Set up Redis
 	rdb, store := initRedis(t)
-	enqueuer := queue.NewEnqueuer(jobQueue, rdb, store)
+	enqueuer := queue.NewEnqueuer(jobQueue, store)
 
 	// Set up Trivy
 	wrapper, trivyConf := initTrivy(t, now)
@@ -528,7 +528,7 @@ func initWorker(t *testing.T, ctx context.Context, store persistence.Store, jobQ
 	rdb *goredis.Client, wrapper trivy.Wrapper,
 ) {
 	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}))
-	worker := queue.NewWorker(jobQueue, rdb, controller)
+	worker := queue.NewWorker(jobQueue, rdb, controller, store)
 	t.Cleanup(worker.Stop)
 
 	worker.Start(ctx)

@@ -1,13 +1,16 @@
 package trivy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -51,7 +54,7 @@ type BearerAuth struct {
 }
 
 type Wrapper interface {
-	Scan(imageRef ImageRef, opt ScanOption) (Report, error)
+	Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error)
 	GetVersion() (VersionInfo, error)
 }
 
@@ -62,6 +65,11 @@ type wrapper struct {
 }
 
 func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metrics.Recorder) Wrapper {
+	backend := config.CacheBackend
+	if strings.HasPrefix(backend, "redis") {
+		backend = "redis"
+	}
+	slog.Info("Trivy scan cache configured", "backend", backend, "ttl", config.CacheTTL)
 	return &wrapper{
 		metrics:    metrics.Optional(recorders),
 		config:     config,
@@ -69,17 +77,22 @@ func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metri
 	}
 }
 
-func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
-	report, usedAccessory, err := w.scan(imageRef, opt, w.useSBOMAccessory(opt))
+func (w *wrapper) Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error) {
+	if w.config.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, w.config.Timeout)
+		defer cancel()
+	}
+	report, usedAccessory, err := w.scan(ctx, imageRef, opt, w.useSBOMAccessory(opt))
 	if err == nil && usedAccessory {
 		w.metrics.Inc("sbom_accessory_events_total", "reuse_success")
 	}
-	if err != nil && usedAccessory {
+	if err != nil && usedAccessory && ctx.Err() == nil {
 		w.metrics.Inc("sbom_accessory_events_total", "fallback")
 		slog.Warn("SBOM accessory scan failed, retrying as image scan",
 			slog.String("image_ref", imageRef.Name),
 			slog.String("err", err.Error()))
-		report, _, err = w.scan(imageRef, opt, false)
+		report, _, err = w.scan(ctx, imageRef, opt, false)
 	}
 	return report, err
 }
@@ -99,11 +112,11 @@ func (w *wrapper) useSBOMAccessory(opt ScanOption) bool {
 	return true
 }
 
-func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool) (Report, bool, error) {
+func (w *wrapper) scan(ctx context.Context, imageRef ImageRef, opt ScanOption, useSBOMAccessory bool) (Report, bool, error) {
 	logger := slog.With(slog.String("image_ref", imageRef.Name))
 	logger.Debug("Started scanning")
 
-	target, err := newTarget(imageRef, w.config, w.ambassador, useSBOMAccessory, w.metrics)
+	target, err := newTarget(ctx, imageRef, w.config, w.ambassador, useSBOMAccessory, w.metrics)
 	if err != nil {
 		return Report{}, false, xerrors.Errorf("creating scan target: %w", err)
 	}
@@ -128,7 +141,7 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 		}
 	}()
 
-	cmd, err := w.prepareScanCmd(target, reportFile.Name(), opt)
+	cmd, err := w.prepareScanCmd(ctx, target, reportFile.Name(), opt)
 	if err != nil {
 		return Report{}, target.fromAccessory, xerrors.Errorf("preparing scan command: %w", err)
 	}
@@ -138,8 +151,9 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 
 	stdout, err := w.metrics.Run(string(target.kind), cmd, w.ambassador.RunCmd)
 	if err != nil {
-		output := string(stdout)
-		category := classifyTrivyError(output)
+		// Classify before redaction: a short password may also occur in an error keyword.
+		category := classifyTrivyError(string(stdout))
+		output := w.redactCacheCredentials(string(stdout))
 		targetName, _ := target.Name()
 		logger.Error("Running trivy failed",
 			slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
@@ -147,16 +161,17 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 			slog.String("category", string(category)),
 		)
 		return Report{}, target.fromAccessory, &ScanError{
-			Category: category,
-			ImageRef: targetName,
-			Detail:   output,
-			Cause:    err,
+			Category:  category,
+			Retryable: category != ErrCategoryAuth && category != ErrCategoryUnscannable,
+			ImageRef:  targetName,
+			Detail:    output,
+			Cause:     &redactedError{cause: err, message: w.redactCacheCredentials(err.Error())},
 		}
 	}
 
 	logger.Debug("Running trivy finished",
 		slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
-		slog.String("std_out", string(stdout)),
+		slog.String("std_out", w.redactCacheCredentials(string(stdout))),
 	)
 
 	report, err := w.parseReport(opt.Format, reportFile)
@@ -210,7 +225,7 @@ func (w *wrapper) parseSBOM(reportFile io.Reader) (Report, error) {
 	return Report{SBOM: doc}, nil
 }
 
-func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanOption) (*exec.Cmd, error) {
+func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputFile string, opt ScanOption) (*exec.Cmd, error) {
 	args := []string{
 		string(target.kind), // subcommand
 		"--no-progress",
@@ -287,9 +302,10 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 		return nil, err
 	}
 
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = time.Second
 
-	cmd.Env = w.ambassador.Environ()
+	cmd.Env = w.cacheEnv(w.ambassador.Environ())
 
 	switch a := target.Auth().(type) {
 	case NoAuth:
@@ -311,11 +327,77 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 	return cmd, nil
 }
 
+// Keep errors.Is/As useful without exposing credentials in formatted errors.
+type redactedError struct {
+	cause   error
+	message string
+}
+
+func (e *redactedError) Error() string { return e.message }
+func (e *redactedError) Unwrap() error { return e.cause }
+
+func (w *wrapper) redactCacheCredentials(text string) string {
+	u, err := url.Parse(w.config.CacheBackend)
+	if err != nil || u.User == nil {
+		return text
+	}
+	text = strings.ReplaceAll(text, w.config.CacheBackend, "redis://[redacted]")
+	if u.Scheme == "rediss" {
+		text = strings.ReplaceAll(text, "redis://"+strings.TrimPrefix(w.config.CacheBackend, "rediss://"), "redis://[redacted]")
+	}
+	text = strings.ReplaceAll(text, u.User.String(), "[redacted]")
+	if password, ok := u.User.Password(); ok && password != "" {
+		// URL userinfo encoding differs from QueryEscape (notably spaces).
+		encoded := strings.TrimPrefix(url.UserPassword("", password).String(), ":")
+		text = strings.ReplaceAll(text, encoded, "[redacted]")
+		text = strings.ReplaceAll(text, url.QueryEscape(password), "[redacted]")
+		text = strings.ReplaceAll(text, password, "[redacted]")
+	}
+	return text
+}
+
+// Pass cache credentials through the child environment, never command arguments.
+// Explicit adapter settings take precedence over inherited native Trivy settings.
+func (w *wrapper) cacheEnv(env []string) []string {
+	if w.config.CacheBackend == "" {
+		return env
+	}
+	backend, enableTLS := w.config.CacheBackend, w.config.CacheRedisTLS
+	// Trivy selects the Redis backend only for redis://; preserve rediss://
+	// semantics by enabling its separate TLS option before normalizing the URL.
+	if strings.HasPrefix(backend, "rediss://") {
+		backend = "redis://" + strings.TrimPrefix(backend, "rediss://")
+		enableTLS = true
+	}
+	values := []string{
+		"TRIVY_CACHE_BACKEND=" + backend,
+		"TRIVY_CACHE_TTL=" + w.config.CacheTTL.String(),
+		fmt.Sprintf("TRIVY_REDIS_TLS=%t", enableTLS),
+		"TRIVY_REDIS_CA=" + w.config.CacheRedisCA,
+		"TRIVY_REDIS_CERT=" + w.config.CacheRedisCert,
+		"TRIVY_REDIS_KEY=" + w.config.CacheRedisKey,
+	}
+	for _, value := range values {
+		key, _, _ := strings.Cut(value, "=")
+		filtered := make([]string, 0, len(env)+1)
+		for _, entry := range env {
+			if !strings.HasPrefix(entry, key+"=") {
+				filtered = append(filtered, entry)
+			}
+		}
+		env = append(filtered, value)
+	}
+	return env
+}
+
 // classifyTrivyError categorizes Trivy CLI errors by pattern-matching the output.
 func classifyTrivyError(output string) ScanErrorCategory {
 	lower := strings.ToLower(output)
+	if strings.Contains(lower, "redis cache") || strings.Contains(lower, "layer cache missing") || strings.Contains(lower, "cache may be in use") {
+		return ErrCategoryCache
+	}
 	switch {
-	case strings.Contains(lower, "unauthorized") || strings.Contains(lower, "401") || strings.Contains(lower, "403 forbidden"):
+	case isAuthenticationErrorMessage(lower):
 		return ErrCategoryAuth
 	case strings.Contains(lower, "connection refused") || strings.Contains(lower, "no such host") || strings.Contains(lower, "dial tcp"):
 		return ErrCategoryNetwork

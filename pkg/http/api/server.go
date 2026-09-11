@@ -72,14 +72,12 @@ func NewServer(config etc.API, handler http.Handler) (server *Server, err error)
 	return
 }
 
-func (s *Server) ListenAndServe() {
-	go func() {
-		if err := s.listenAndServe(); errors.Is(err, http.ErrServerClosed) {
-			slog.Error("Error", slog.String("err", err.Error()))
-			os.Exit(1)
-		}
-		slog.Debug("API server stopped listening for incoming connections")
-	}()
+func (s *Server) ListenAndServe() error {
+	err := s.listenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
 }
 
 func (s *Server) listenAndServe() error {

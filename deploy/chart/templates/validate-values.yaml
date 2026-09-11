@@ -87,17 +87,38 @@ every pod after the first Pending forever.
 {{- end }}
 
 {{/*
-The fs scan cache is one BoltDB file with an exclusive process lock, so a second
-concurrent scan in the same pod does not wait, it fails. Redis has no expiry at
-TTL 0, which grows the instance without bound.
+Keep one CLI worker per pod regardless of scan backend: local vulnerability
+databases still need isolation. Redis TTL must be positive.
 */}}
-{{- $cacheBackend := toString .Values.trivy.cacheBackend }}
+{{- $cacheBackend := include "harbor-scanner-trivy.cacheBackend" . }}
+{{- $sources := include "harbor-scanner-trivy.envOverrideSources" . | fromYaml }}
+{{- if .Values.valkey.enabled }}
+{{- if eq $cacheBackend "memory" }}
+{{- fail "valkey.enabled cannot be combined with trivy.cacheBackend=memory; disable the subchart for an in-process cache." }}
+{{- end }}
+{{- if .Values.valkey.auth.enabled }}
+{{- if ne (get $sources "SCANNER_TRIVY_CACHE_BACKEND") "secret" }}
+{{- fail "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)." }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and (not (hasKey $sources "SCANNER_TRIVY_CACHE_BACKEND")) (or (eq $cacheBackend "fs") (eq $cacheBackend "memory")) (or .Values.trivy.cacheRedisTLS .Values.trivy.cacheRedisCACert .Values.trivy.cacheRedisCert .Values.trivy.cacheRedisKey) }}
+{{- fail "Redis TLS settings require a Redis scan cache; set trivy.cacheBackend or supply SCANNER_TRIVY_CACHE_BACKEND through a Secret." }}
+{{- end }}
+{{- if and (not (hasKey .Values.lifecycle "preStop")) (le (int .Values.terminationGracePeriodSeconds) 10) }}
+{{- fail "terminationGracePeriodSeconds must exceed 10 seconds for the default preStop drain hook; increase it or explicitly replace/disable lifecycle.preStop." }}
+{{- end }}
 {{- if contains "+sentinel://" $cacheBackend }}
 {{- fail "trivy.cacheBackend does not accept Sentinel URLs: Trivy's scan cache dials a single Redis node. Point it at a node with redis:// or rediss://." }}
 {{- end }}
 
-{{- if and (eq $cacheBackend "fs") (gt (int .Values.jobQueue.workerConcurrency) 1) }}
-{{- fail "jobQueue.workerConcurrency above 1 needs trivy.cacheBackend set to a redis:// URL or memory; the fs scan cache admits one scan at a time." }}
+{{/* Secret-backed certificate paths can be opaque at render time. */}}
+{{- $certParts := 0 }}
+{{- range $name, $value := dict "SCANNER_TRIVY_CACHE_REDIS_CA" .Values.trivy.cacheRedisCACert "SCANNER_TRIVY_CACHE_REDIS_CERT" .Values.trivy.cacheRedisCert "SCANNER_TRIVY_CACHE_REDIS_KEY" .Values.trivy.cacheRedisKey }}
+{{- if or $value (hasKey $sources $name) }}{{- $certParts = add1 $certParts }}{{- end }}
+{{- end }}
+{{- if and (gt $certParts 0) (lt $certParts 3) }}
+{{- fail "Redis scan cache TLS requires CA, certificate, and key together." }}
 {{- end }}
 
 {{- if and (hasPrefix "redis" $cacheBackend) (regexMatch "^(0+(\\.0+)?(ns|us|ms|s|m|h)?)+$" (toString .Values.trivy.cacheTTL)) }}

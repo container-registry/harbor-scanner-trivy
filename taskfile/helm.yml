@@ -2,8 +2,8 @@
 #
 # Every task here runs identically in CI (.github/workflows/chart-ci.yml), which
 # installs the same tool versions from versions.env. Tool tasks prefer a local
-# binary and fall back to Docker so the gate is runnable without installing
-# anything; `task helm:ci` runs the whole thing.
+# binary and selected tools fall back to Docker. The full gate still requires
+# local Helm, Python and the declared tool prerequisites; `task helm:ci` runs it.
 ---
 version: '3'
 
@@ -16,19 +16,34 @@ vars:
   HELM_SET: ""
 
 tasks:
+  dependencies:
+    desc: "Fetch the locked Valkey subchart used by Harbor-next"
+    run: once
+    cmd: |
+      if command -v helm >/dev/null 2>&1; then
+        helm dependency build {{.CHART_DIR}} --skip-refresh
+      else
+        docker run --rm -v "$(pwd)":/workdir -w /workdir \
+          quay.io/helmpack/chart-testing:v{{.CT_VERSION}} \
+          helm dependency build {{.CHART_DIR}} --skip-refresh
+      fi
+
   # ============================================================================
   # Individual checks
   # ============================================================================
 
   lint:helm:
+    deps: [dependencies]
     desc: "helm lint --strict"
     cmd: helm lint --strict {{.CHART_DIR}} {{.HELM_SET}}
 
   template:
+    deps: [dependencies]
     desc: "Render the default values and fail on any template error"
     cmd: helm template test {{.CHART_DIR}} {{.HELM_SET}} > /dev/null
 
   lint:ct:
+    deps: [dependencies]
     desc: "chart-testing lint (Chart.yaml schema, yamllint, ci/*-values.yaml renders)"
     # --lint-conf: repo-owned yamllint config (see taskfile/ct-lintconf.yaml)
     # so release-please's Chart.yaml stamping style passes the gate.
@@ -54,6 +69,7 @@ tasks:
       fi
 
   lint:kube:
+    deps: [dependencies]
     desc: "kube-linter over every ci/ values scenario"
     cmds:
       - for: {var: CI_VALUES}
@@ -130,14 +146,17 @@ tasks:
       echo "ct-lintconf matches chart-testing {{.CT_VERSION}} (min-spaces-from-content only)"
 
   unittest:
+    deps: [dependencies]
     desc: "helm unittest"
     cmd: helm unittest {{.CHART_DIR}}
 
   unittest:update:
+    deps: [dependencies]
     desc: "Regenerate the helm unittest snapshots (read the diff before committing)"
     cmd: helm unittest {{.CHART_DIR}} --update-snapshot
 
   examples:
+    deps: [dependencies]
     desc: "Render every example values file standalone"
     vars:
       # One directory per example; any values*.yaml inside is a scenario, so new
@@ -149,6 +168,7 @@ tasks:
         cmd: helm template harbor {{.CHART_DIR}} -f {{.ITEM}} > /dev/null && echo "OK {{.ITEM}}"
 
   gitops-determinism:
+    deps: [dependencies]
     desc: "Render the GitOps values twice and require byte-identical output"
     cmds:
       # This is what Argo CD does on every sync. Any diff means the chart
@@ -161,6 +181,7 @@ tasks:
         || (echo "Chart rendering is not deterministic - GitOps engines would see perpetual drift." && exit 1)
 
   trivy:
+    deps: [dependencies]
     desc: "Scan the rendered manifests for misconfigurations"
     # One shell with an EXIT trap, not `defer:`: an interrupted run must not
     # leave a manifest dump inside the chart for `helm package` to ship.
@@ -190,6 +211,7 @@ tasks:
         {{.CHART_DIR}}/ci/*.yaml {{.CHART_DIR}}/example/*/values*.yaml
 
   tools:test:
+    deps: [dependencies]
     desc: "Golden tests for the chart's own tooling (values-doctor, schema-drift)"
     # Chart-relative: the golden reports embed the input path, so they only
     # match when the tools run from the chart directory.
@@ -222,6 +244,7 @@ tasks:
         ignore_error: true
 
   trivy:report:
+    deps: [dependencies]
     desc: "Trivy misconfiguration scan with a SARIF report for code scanning"
     cmd: |
       set -eu
@@ -242,7 +265,7 @@ tasks:
 
   kubescape:
     desc: "Scan the rendered manifests against the NSA and MITRE frameworks"
-    deps: [_require-kubescape]
+    deps: [dependencies, _require-kubescape]
     # Not part of `helm:ci`: it needs a local binary and pulls its framework
     # definitions at run time, so it is an on-demand audit rather than a gate.
     cmd: >-
@@ -251,7 +274,7 @@ tasks:
 
   kubescape:report:
     desc: "Kubescape scan with a SARIF report"
-    deps: [_require-kubescape]
+    deps: [dependencies, _require-kubescape]
     cmd: >-
       helm template test {{.CHART_DIR}} {{.HELM_SET}}
       | kubescape scan framework nsa,mitre - --format sarif --output kubescape.sarif
@@ -293,6 +316,7 @@ tasks:
 
   package:
     desc: "Package the chart into dist/ (the release pipeline overrides --version)"
+    deps: [dependencies]
     cmds:
       - mkdir -p dist
       - helm package {{.CHART_DIR}} -d dist
@@ -303,6 +327,7 @@ tasks:
 
   release:dry-run:
     desc: "Everything the release job does before it talks to the registry"
+    deps: [dependencies]
     cmds:
       # Runs on a copy: the image annotation is appended to Chart.yaml, and the
       # worktree must not be left modified.
@@ -330,10 +355,12 @@ tasks:
   # ============================================================================
 
   install:
+    deps: [dependencies]
     desc: "Install the chart into the current cluster (VALUES_FILE optional)"
     cmd: helm install {{.CHART_NAME}} {{.CHART_DIR}} {{if .VALUES_FILE}}-f {{.VALUES_FILE}}{{end}}
 
   upgrade:
+    deps: [dependencies]
     desc: "Upgrade the release in the current cluster (VALUES_FILE optional)"
     cmd: helm upgrade {{.CHART_NAME}} {{.CHART_DIR}} {{if .VALUES_FILE}}-f {{.VALUES_FILE}}{{end}}
 
@@ -342,6 +369,7 @@ tasks:
     cmd: helm uninstall {{.CHART_NAME}}
 
   validate:
+    deps: [dependencies]
     desc: "Validate the rendered manifests against the cluster's API (client dry-run)"
     cmd: helm template test {{.CHART_DIR}} {{.HELM_SET}} | kubectl apply --dry-run=client -f -
 
@@ -351,6 +379,7 @@ tasks:
 
   lint:
     desc: "All chart linters"
+    deps: [dependencies]
     cmds:
       - task: lint:helm
       - task: lint:ct
