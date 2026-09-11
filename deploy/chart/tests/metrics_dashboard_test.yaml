@@ -120,3 +120,27 @@ tests:
           value:
             targetLabel: cluster
             replacement: production-eu
+
+  - it: rejects a null intervalSeconds instead of rendering a zero collection limit
+    templates: [statefulset.yaml]
+    set:
+      metrics.collection.intervalSeconds: null
+    asserts:
+      - failedTemplate:
+          errorPattern: "intervalSeconds"
+
+  - it: rejects a null timeoutSeconds instead of rendering a zero collection limit
+    templates: [statefulset.yaml]
+    set:
+      metrics.collection.timeoutSeconds: null
+    asserts:
+      - failedTemplate:
+          errorPattern: "timeoutSeconds"
+
+  - it: rejects a null maxCacheFiles instead of rendering a zero collection limit
+    templates: [statefulset.yaml]
+    set:
+      metrics.collection.maxCacheFiles: null
+    asserts:
+      - failedTemplate:
+          errorPattern: "maxCacheFiles"

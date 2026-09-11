@@ -20,6 +20,35 @@ def all_panels(panels=None):
         yield from all_panels(panel.get("panels", []))
 
 
+def assert_harbor_scope(test, expr):
+    # Variable braces must not terminate the surrounding PromQL selector.
+    expr = re.sub(r'\$\{(\w+):regex\}', r'VARIABLE_\1', expr)
+    for metric, labels in re.findall(r'\b(harbor_[a-z_]+)(?:\{([^}]*)\})?', expr):
+        for label in ("cluster", "namespace"):
+            test.assertIn(f'{label}=~"VARIABLE_{label}"', labels, metric)
+
+
+def assert_layout(test, panels, ids=None):
+    # Collapsed rows have a separate layout; IDs remain unique dashboard-wide.
+    if ids is None:
+        ids = set()
+    occupied = set()
+    for panel in panels:
+        test.assertNotIn(panel["id"], ids)
+        ids.add(panel["id"])
+        pos = panel["gridPos"]
+        test.assertGreaterEqual(pos["x"], 0, panel["title"])
+        test.assertGreaterEqual(pos["y"], 0, panel["title"])
+        test.assertGreater(pos["w"], 0, panel["title"])
+        test.assertGreater(pos["h"], 0, panel["title"])
+        test.assertLessEqual(pos["x"] + pos["w"], 24, panel["title"])
+        for x in range(pos["x"], pos["x"] + pos["w"]):
+            for y in range(pos["y"], pos["y"] + pos["h"]):
+                test.assertNotIn((x, y), occupied, panel["title"])
+                occupied.add((x, y))
+        assert_layout(test, panel.get("panels", []), ids)
+
+
 class DashboardTest(unittest.TestCase):
     def test_render_preserves_canonical_json(self):
         output = subprocess.check_output(
@@ -68,6 +97,7 @@ class DashboardTest(unittest.TestCase):
                 with self.subTest(panel=panel["title"]):
                     self.assertIn('cluster=~"${cluster:regex}"', expr)
                     self.assertIn('namespace=~"${namespace:regex}"', expr)
+                    assert_harbor_scope(self, expr)
                     for name, labels in re.findall(
                         r'harbor_scanner_trivy_([a-z_]+)\{([^}]+)\}',
                         # Remove variable braces so the metric selector can be read.
@@ -89,17 +119,13 @@ class DashboardTest(unittest.TestCase):
     def test_runtime_follows_overview_and_panels_do_not_overlap(self):
         rows = [p for p in DASHBOARD["panels"] if p["type"] == "row"]
         self.assertEqual([p["title"] for p in rows[:2]], ["Overview", "Runtime"])
-        occupied = set()
-        ids = set()
-        for panel in all_panels():
-            self.assertNotIn(panel["id"], ids)
-            ids.add(panel["id"])
-            pos = panel["gridPos"]
-            for x in range(pos["x"], pos["x"] + pos["w"]):
-                self.assertLess(x, 24)
-                for y in range(pos["y"], pos["y"] + pos["h"]):
-                    self.assertNotIn((x, y), occupied, panel["title"])
-                    occupied.add((x, y))
+        assert_layout(self, DASHBOARD["panels"])
+
+    def test_scope_check_rejects_labels_from_another_vector(self):
+        scope = 'cluster=~"${cluster:regex}",namespace=~"${namespace:regex}"'
+        for metric in ('harbor_task_queue_size', 'harbor_task_queue_size{type="IMAGE_SCAN"}'):
+            with self.subTest(metric=metric), self.assertRaises(AssertionError):
+                assert_harbor_scope(self, metric + ' + up{' + scope + '}')
 
     def test_database_rows_isolate_data_and_share_collection_health(self):
         sections = {}
@@ -155,6 +181,7 @@ class DashboardTest(unittest.TestCase):
                 self.assertEqual(panel["gridPos"]["x"], 0)
         for pid, width in ((35, 6), (36, 18)):
             self.assertEqual((panels[pid]["gridPos"]["w"], panels[pid]["gridPos"]["h"]), (width, 7))
+        self.assertEqual(panels[35]["gridPos"]["x"], 0)
         for ids in ((32, 34, 31, 92, 33), (70, 72, 69, 93, 71)):
             positions = [panels[pid]["gridPos"] for pid in ids]
             self.assertEqual(len({p["y"] for p in positions}), 1)
@@ -199,16 +226,7 @@ class ValkeyDashboardTest(unittest.TestCase):
             self.assertEqual(panels[pid]["fieldConfig"]["defaults"]["mappings"][0]["options"]["-2"]["text"], text)
 
     def test_layout_and_cross_dashboard_links(self):
-        occupied, ids = set(), set()
-        for p in VALKEY["panels"]:
-            self.assertNotIn(p["id"], ids)
-            ids.add(p["id"])
-            pos = p["gridPos"]
-            for x in range(pos["x"], pos["x"] + pos["w"]):
-                self.assertLess(x, 24)
-                for y in range(pos["y"], pos["y"] + pos["h"]):
-                    self.assertNotIn((x, y), occupied)
-                    occupied.add((x, y))
+        assert_layout(self, VALKEY["panels"])
         for dashboard, destination in ((DASHBOARD, "harbor-valkey"), (VALKEY, "harbor-trivy-scanner")):
             link = next(link for link in dashboard["links"] if '/d/' + destination + '/' in link["url"])
             for variable in ("cluster", "namespace", "redis_service", "scanner"):

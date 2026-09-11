@@ -185,8 +185,8 @@ frequency does not change how often Prometheus collects samples.
   adapter heap. Applied payload bytes are not Redis resident memory or wire bytes.
   Histograms have no observations until the corresponding operation occurs.
 - **Optional context:** Harbor's IMAGE_SCAN jobservice panels cover the selected
-  cluster/namespace and may include other scanner registrations. Redis server memory
-  requires a Redis/Valkey exporter. **Analysis cache (optional)** lists exporters
+  cluster/namespace and may include other scanner registrations. The analysis-cache
+  panels require a Redis/Valkey exporter. **Analysis cache (optional)** lists exporters
   in the selected namespace; select the analysis-cache server. Server memory is shared
   server memory, not this scanner's attributed memory.
 - **Optional logs:** select a Loki data source with matching `cluster`, `namespace`,

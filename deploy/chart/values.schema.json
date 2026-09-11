@@ -481,6 +481,11 @@
         "collection": {
           "type": "object",
           "additionalProperties": false,
+          "required": [
+            "intervalSeconds",
+            "timeoutSeconds",
+            "maxCacheFiles"
+          ],
           "properties": {
             "intervalSeconds": {
               "type": "integer",

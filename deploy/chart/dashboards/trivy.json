@@ -620,7 +620,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "Scanner availability, capacity, and execution health for the selected installation. Runtime includes Trivy subprocesses.\n\n[Metric definitions and empty-panel troubleshooting](https://github.com/container-registry/harbor-scanner-trivy/blob/codex/trivy-metrics-dashboard/deploy/chart/dashboards/README.md).",
+        "content": "Scanner availability, capacity, and execution health for the selected installation. Runtime includes Trivy subprocesses.\n\n[Metric definitions and empty-panel troubleshooting](https://github.com/container-registry/harbor-scanner-trivy/blob/main/deploy/chart/dashboards/README.md).",
         "mode": "markdown"
       },
       "pluginVersion": "13.3.0-34259522365",
@@ -969,7 +969,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Last recorded container termination state. OOMKilled may predate the selected range; check restart timing and memory limits. Empty without termination history or kube-state-metrics.",
+      "description": "Shows containers whose last recorded termination was OOMKilled. The termination may predate the selected range; check restart timing and memory limits. Other termination reasons are omitted. Empty results can also mean no termination history or missing kube-state-metrics.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -984,11 +984,6 @@
           "mappings": [
             {
               "options": {
-                "0": {
-                  "color": "#9FA7B3",
-                  "index": 0,
-                  "text": "Other reason"
-                },
                 "1": {
                   "color": "red",
                   "index": 1,
@@ -6692,10 +6687,10 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_task_queue_size{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "expr": "label_replace(label_replace(harbor_task_queue_size{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}, \"jobservice\", \"$1\", \"instance\", \"(.+)\"), \"jobservice\", \"$1\", \"pod\", \"(.+)\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}}",
+          "legendFormat": "{{jobservice}}",
           "range": true,
           "refId": "A"
         }
@@ -6795,10 +6790,10 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_task_queue_latency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "expr": "label_replace(label_replace(harbor_task_queue_latency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}, \"jobservice\", \"$1\", \"instance\", \"(.+)\"), \"jobservice\", \"$1\", \"pod\", \"(.+)\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}}",
+          "legendFormat": "{{jobservice}}",
           "range": true,
           "refId": "A"
         }
