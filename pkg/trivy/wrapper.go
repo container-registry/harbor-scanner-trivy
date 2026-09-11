@@ -164,7 +164,7 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 		return Report{}, target.fromAccessory, &ScanError{
 			Category: ErrCategoryReportParse,
 			ImageRef: imageRef.Name,
-			Detail:   "parsing Trivy report",
+			Detail:   err.Error(),
 			Cause:    err,
 		}
 	}

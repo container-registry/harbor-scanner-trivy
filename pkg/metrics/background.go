@@ -173,7 +173,6 @@ func (r *Recorder) collectionResult(collector string, started time.Time, err err
 func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int) {
 	started := time.Now()
 	remaining := maxFiles
-	rootInfo, rootErr := os.Stat(root)
 	var firstErr error
 	for _, part := range []struct{ kind, dir string }{{"analysis", "fanal"}, {"vulnerability_db", "db"}, {"java_db", "java-db"}} {
 		path := filepath.Join(root, part.dir)
@@ -181,8 +180,10 @@ func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int) 
 		var pathErr *fs.PathError
 		// An uninitialized cache part is empty. A vanished descendant or missing
 		// cache root is an incomplete collection, not a zero-byte observation.
-		if rootErr == nil && rootInfo.IsDir() && errors.As(err, &pathErr) && pathErr.Path == path && errors.Is(err, fs.ErrNotExist) {
-			size, err = 0, nil
+		if errors.As(err, &pathErr) && pathErr.Path == path && errors.Is(err, fs.ErrNotExist) {
+			if rootInfo, rootErr := os.Stat(root); rootErr == nil && rootInfo.IsDir() {
+				size, err = 0, nil
+			}
 		}
 		if err != nil {
 			r.Delete("cache_size_bytes", part.kind)

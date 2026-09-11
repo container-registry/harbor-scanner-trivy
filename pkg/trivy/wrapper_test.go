@@ -321,5 +321,7 @@ func TestMalformedReportHasReportParseCategory(t *testing.T) {
 	require.Equal(t, ErrCategoryReportParse, scanErr.Category)
 	var syntaxErr *json.SyntaxError
 	require.ErrorAs(t, err, &syntaxErr)
+	require.Contains(t, scanErr.Detail, "report json decode error")
+	require.Contains(t, scanErr.Detail, syntaxErr.Error())
 	ambassador.AssertExpectations(t)
 }
