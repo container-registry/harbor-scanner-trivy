@@ -1540,10 +1540,10 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "label_replace(label_replace((harbor_task_queue_latency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "expr": "label_replace(label_replace(harbor_task_queue_latency{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",type=\"IMAGE_SCAN\"}, \"jobservice\", \"$1\", \"instance\", \"(.+)\"), \"jobservice\", \"$1\", \"pod\", \"(.+)\")",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{replica}}",
+          "legendFormat": "{{jobservice}}",
           "range": true,
           "refId": "A"
         }

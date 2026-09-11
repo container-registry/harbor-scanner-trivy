@@ -181,14 +181,14 @@ func TestNonRegularDatabasePathIsUnknown(t *testing.T) {
 func TestUninitializedCachePartsAreEmpty(t *testing.T) {
 	r := New(true)
 	root := t.TempDir()
-	r.collectCache(context.Background(), root, 20)
+	r.collectCache(context.Background(), root, 20, "filesystem")
 	for _, kind := range []string{"analysis", "vulnerability_db", "java_db"} {
 		require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
 	}
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 	// Losing the entire mount/path must still invalidate the sample.
 	require.NoError(t, os.Remove(root))
-	r.collectCache(context.Background(), root, 20)
+	r.collectCache(context.Background(), root, 20, "filesystem")
 	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
 	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 }
