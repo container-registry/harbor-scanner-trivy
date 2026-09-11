@@ -17,11 +17,20 @@ type BuildInfo struct {
 }
 
 type Config struct {
+	Metrics    Metrics
 	API        API
 	Trivy      Trivy
 	RedisStore RedisStore
 	JobQueue   JobQueue
 	RedisPool  RedisPool
+}
+
+// Metrics controls bounded background observations; scraping never initiates collection.
+type Metrics struct {
+	CollectionInterval time.Duration `env:"SCANNER_METRICS_COLLECTION_INTERVAL" envDefault:"1m"`
+	CollectionTimeout  time.Duration `env:"SCANNER_METRICS_COLLECTION_TIMEOUT" envDefault:"5s"`
+	CacheSizeEnabled   bool          `env:"SCANNER_METRICS_CACHE_SIZE_ENABLED" envDefault:"false"`
+	CacheMaxFiles      int           `env:"SCANNER_METRICS_CACHE_MAX_FILES" envDefault:"10000"`
 }
 
 type Trivy struct {
@@ -104,6 +113,10 @@ func GetConfig() (Config, error) {
 	err := env.Parse(&cfg)
 	if err != nil {
 		return cfg, err
+	}
+
+	if cfg.API.MetricsEnabled && (cfg.Metrics.CollectionInterval < time.Second || cfg.Metrics.CollectionTimeout <= 0 || cfg.Metrics.CollectionTimeout > cfg.Metrics.CollectionInterval || cfg.Metrics.CacheMaxFiles < 1 || cfg.Metrics.CacheMaxFiles > 1000000) {
+		return cfg, fmt.Errorf("invalid metrics collection settings: interval must be >=1s, timeout in (0, interval], and max files in [1, 1000000]")
 	}
 
 	if _, ok := os.LookupEnv("SCANNER_TRIVY_DEBUG_MODE"); !ok {

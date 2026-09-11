@@ -2,6 +2,7 @@ package job
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
@@ -44,10 +45,11 @@ func (s *ScanJobKey) String() string {
 }
 
 type ScanJob struct {
-	Key    ScanJobKey        `json:"key"` // Must be unique
-	Status ScanJobStatus     `json:"status"`
-	Error  string            `json:"error"`
-	Report harbor.ScanReport `json:"report"`
+	FinishedAt time.Time         `json:"finished_at,omitzero"`
+	Key        ScanJobKey        `json:"key"` // Must be unique
+	Status     ScanJobStatus     `json:"status"`
+	Error      string            `json:"error"`
+	Report     harbor.ScanReport `json:"report"`
 }
 
 func (s *ScanJob) ID() string {

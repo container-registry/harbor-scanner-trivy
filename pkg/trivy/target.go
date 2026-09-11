@@ -11,6 +11,7 @@ import (
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -58,7 +59,8 @@ type ScanTarget struct {
 	fromAccessory bool   // SBOM discovered via referrers, not sent by Harbor
 }
 
-func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, useSBOMAccessory bool) (ScanTarget, error) {
+func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, useSBOMAccessory bool, recorders ...*metrics.Recorder) (ScanTarget, error) {
+	recorder := metrics.Optional(recorders)
 	var nameOpts []name.Option
 	slog.Debug("newTarget",
 		slog.Bool("nonssl", imageRef.NonSSL),
@@ -148,7 +150,7 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 		}
 	default:
 		if useSBOMAccessory {
-			if sbomImg, ok := findSBOMAccessory(ref, img, ambassador, authOpt, trOpt); ok {
+			if sbomImg, ok := findSBOMAccessoryObserved(ref, img, ambassador, recorder, authOpt, trOpt); ok {
 				filePath, err := downloadSBOM(sbomImg, config.CacheDir, ambassador)
 				if err == nil {
 					target.kind = TargetSBOM
@@ -156,6 +158,7 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 					target.fromAccessory = true
 					return target, nil
 				}
+				recorder.Inc("sbom_accessory_events_total", "fallback")
 				slog.Warn("Downloading SBOM accessory failed, scanning image instead",
 					slog.String("image_ref", imageRef.Name),
 					slog.String("err", err.Error()),
@@ -181,10 +184,15 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 // referrers support, no SBOM accessory exists, or any lookup step fails --
 // the caller then proceeds with a regular image scan.
 func findSBOMAccessory(ref name.Reference, img v1.Image, ambassador ext.Ambassador, opts ...remote.Option) (v1.Image, bool) {
+	return findSBOMAccessoryObserved(ref, img, ambassador, nil, opts...)
+}
+
+func findSBOMAccessoryObserved(ref name.Reference, img v1.Image, ambassador ext.Ambassador, recorder *metrics.Recorder, opts ...remote.Option) (v1.Image, bool) {
 	digest, err := img.Digest()
 	if err != nil {
 		slog.Warn("Computing image digest for SBOM accessory lookup failed",
 			slog.String("image_ref", ref.String()), slog.String("err", err.Error()))
+		recorder.Inc("sbom_accessory_events_total", "lookup_error")
 		return nil, false
 	}
 	subject := ref.Context().Digest(digest.String())
@@ -194,6 +202,7 @@ func findSBOMAccessory(ref name.Reference, img v1.Image, ambassador ext.Ambassad
 	if err != nil {
 		slog.Debug("Referrers lookup for SBOM accessory failed",
 			slog.String("image_ref", ref.String()), slog.String("err", err.Error()))
+		recorder.Inc("sbom_accessory_events_total", "lookup_error")
 		return nil, false
 	}
 
@@ -201,6 +210,7 @@ func findSBOMAccessory(ref name.Reference, img v1.Image, ambassador ext.Ambassad
 	if err != nil {
 		slog.Warn("Reading referrers index failed",
 			slog.String("image_ref", ref.String()), slog.String("err", err.Error()))
+		recorder.Inc("sbom_accessory_events_total", "lookup_error")
 		return nil, false
 	}
 
@@ -220,6 +230,7 @@ func findSBOMAccessory(ref name.Reference, img v1.Image, ambassador ext.Ambassad
 		}
 	}
 	if latest == nil {
+		recorder.Inc("sbom_accessory_events_total", "lookup_miss")
 		return nil, false
 	}
 
@@ -229,12 +240,14 @@ func findSBOMAccessory(ref name.Reference, img v1.Image, ambassador ext.Ambassad
 			slog.String("image_ref", ref.String()),
 			slog.String("accessory_digest", latest.Digest.String()),
 			slog.String("err", err.Error()))
+		recorder.Inc("sbom_accessory_events_total", "lookup_error")
 		return nil, false
 	}
 
 	slog.Info("Using SBOM accessory instead of image scan",
 		slog.String("image_ref", ref.String()),
 		slog.String("accessory_digest", latest.Digest.String()))
+	recorder.Inc("sbom_accessory_events_total", "lookup_hit")
 	return acc, true
 }
 

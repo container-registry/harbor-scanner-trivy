@@ -58,6 +58,7 @@ func TestGetConfig(t *testing.T) {
 				"SCANNER_LOG_LEVEL": "debug",
 			},
 			expectedConfig: Config{
+				Metrics: Metrics{CollectionInterval: time.Minute, CollectionTimeout: 5 * time.Second, CacheMaxFiles: 10000},
 				API: API{
 					Addr:           ":8080",
 					ReadTimeout:    parseDuration(t, "15s"),
@@ -98,6 +99,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			name: "Should return default config",
 			expectedConfig: Config{
+				Metrics: Metrics{CollectionInterval: time.Minute, CollectionTimeout: 5 * time.Second, CacheMaxFiles: 10000},
 				API: API{
 					Addr:           ":8080",
 					ReadTimeout:    parseDuration(t, "15s"),
@@ -176,6 +178,7 @@ func TestGetConfig(t *testing.T) {
 				"SCANNER_API_SERVER_METRICS_ENABLED": "false",
 			},
 			expectedConfig: Config{
+				Metrics: Metrics{CollectionInterval: time.Minute, CollectionTimeout: 5 * time.Second, CacheMaxFiles: 10000},
 				API: API{
 					Addr:           ":4200",
 					TLSCertificate: "/certs/tls.crt",
@@ -294,4 +297,18 @@ func parseDuration(t *testing.T, s string) time.Duration {
 	duration, err := time.ParseDuration(s)
 	require.NoError(t, err)
 	return duration
+}
+
+func TestMetricsConfigurationValidation(t *testing.T) {
+	for _, tc := range []struct{ name, value string }{{"SCANNER_METRICS_COLLECTION_INTERVAL", "0s"}, {"SCANNER_METRICS_COLLECTION_TIMEOUT", "0s"}, {"SCANNER_METRICS_COLLECTION_TIMEOUT", "2m"}, {"SCANNER_METRICS_CACHE_MAX_FILES", "0"}} {
+		t.Run(tc.name+tc.value, func(t *testing.T) {
+			t.Setenv("SCANNER_API_SERVER_METRICS_ENABLED", "true")
+			t.Setenv("SCANNER_METRICS_COLLECTION_INTERVAL", "1m")
+			t.Setenv("SCANNER_METRICS_COLLECTION_TIMEOUT", "5s")
+			t.Setenv("SCANNER_METRICS_CACHE_MAX_FILES", "10000")
+			t.Setenv(tc.name, tc.value)
+			_, err := GetConfig()
+			require.ErrorContains(t, err, "invalid metrics collection settings")
+		})
+	}
 }

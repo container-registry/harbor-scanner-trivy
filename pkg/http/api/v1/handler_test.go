@@ -961,3 +961,20 @@ func TestRequestHandler_GetMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestMetadataIncludesJavaBuildTimeWhenUpdatesDisabled(t *testing.T) {
+	wrapper := trivy.NewMockWrapper()
+	wrapper.On("GetVersion").Return(trivy.VersionInfo{JavaDB: &trivy.Metadata{
+		UpdatedAt:  time.Unix(1584517644, 0).UTC(),
+		NextUpdate: time.Unix(1584527644, 0).UTC(),
+	}}, nil)
+	handler := NewAPIHandler(etc.BuildInfo{}, etc.Config{Trivy: etc.Trivy{SkipJavaDBUpdate: true}}, nil, nil, wrapper)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/metadata", nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	var metadata harbor.ScannerAdapterMetadata
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &metadata))
+	require.Equal(t, "2020-03-18T07:47:24Z", metadata.Properties[propertyJavaDBUpdatedAt])
+	require.NotContains(t, metadata.Properties, propertyJavaDBNextUpdateAt)
+	wrapper.AssertExpectations(t)
+}

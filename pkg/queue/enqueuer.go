@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
 )
 
@@ -27,15 +29,17 @@ type Enqueuer interface {
 }
 
 type enqueuer struct {
+	metrics   *metrics.Recorder
 	namespace string
 	rdb       *redis.Client
 	store     persistence.Store
 }
 
 type Job struct {
-	Name string
-	Key  job.ScanJobKey
-	Args Args
+	EnqueuedAt time.Time `json:"enqueued_at,omitzero"`
+	Name       string
+	Key        job.ScanJobKey
+	Args       Args
 }
 
 func (s *Job) ID() string {
@@ -46,8 +50,9 @@ type Args struct {
 	ScanRequest *harbor.ScanRequest `json:",omitempty"`
 }
 
-func NewEnqueuer(config etc.JobQueue, rdb *redis.Client, store persistence.Store) Enqueuer {
+func NewEnqueuer(config etc.JobQueue, rdb *redis.Client, store persistence.Store, recorders ...*metrics.Recorder) Enqueuer {
 	return &enqueuer{
+		metrics:   metrics.Optional(recorders),
 		namespace: config.Namespace,
 		rdb:       rdb,
 		store:     store,
@@ -77,8 +82,9 @@ func (e *enqueuer) Enqueue(ctx context.Context, request harbor.ScanRequest) (str
 				}
 
 				j := Job{
-					Name: scanArtifactJobName,
-					Key:  jobKey,
+					EnqueuedAt: time.Now(),
+					Name:       scanArtifactJobName,
+					Key:        jobKey,
 					Args: Args{
 						ScanRequest: &request,
 					},
@@ -113,10 +119,16 @@ func (e *enqueuer) enqueue(ctx context.Context, j Job, scanJob job.ScanJob) erro
 	}
 
 	// Publish the job to the workers
-	if err = e.rdb.Publish(ctx, e.redisJobChannel(), b).Err(); err != nil {
+	subscribers, err := e.rdb.Publish(ctx, e.redisJobChannel(), b).Result()
+	if err != nil {
 		return xerrors.Errorf("enqueuing scan artifact job: %v", err)
 	}
 
+	capability, format := metrics.JobLabels(j.Key)
+	e.metrics.Inc("jobs_enqueued_total", capability, format)
+	if subscribers == 0 {
+		e.metrics.Inc("publish_no_subscribers_total")
+	}
 	logger.Debug("Successfully enqueued scan job")
 	return nil
 }
