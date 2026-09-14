@@ -228,3 +228,7 @@ silently useless.
 {{- fail "imageCredentials.create needs a registry to key the auth entry on: set imageCredentials.registry (image.registry is empty)." }}
 {{- end }}
 {{- end }}
+
+{{- if gt (int .Values.metrics.collection.timeoutSeconds) (int .Values.metrics.collection.intervalSeconds) }}
+{{- fail "metrics.collection.timeoutSeconds must not exceed intervalSeconds." }}
+{{- end }}

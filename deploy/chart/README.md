@@ -60,6 +60,14 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
   `secret` without a chart change, and every Kubernetes field the chart does not
   template is reachable through the merge hatches below.
 
+## Monitoring
+
+Enable `metrics.serviceMonitor.enabled` for Prometheus Operator scraping and
+`metrics.grafanaDashboard.enabled` to provision the Trivy and Valkey/Redis dashboards.
+See [dashboard setup and metric requirements](dashboards/README.md), including
+the required adapter image and cluster labels. Cache footprint collection is
+optional and bounded through `metrics.collection`.
+
 ## Configuring the adapter
 
 The adapter is configured entirely by environment variables, so `config` reaches
@@ -304,8 +312,17 @@ Kubernetes: `>=1.28.0-0`
 | jobQueue.workerConcurrency | int | `1` | Workers per replica. Each concurrent scan runs its own Trivy process and holds the vulnerability DB in memory, so raise `resources` alongside this. Above 1 also requires `trivy.cacheBackend` to be Redis or `memory`: those processes cannot share the single-writer `fs` scan cache. |
 | lifecycle | object | `{}` | Container lifecycle hooks. |
 | logLevel | string | `"info"` | Adapter log level: `trace`, `debug`, `info`, `warn`, `warning`, `error`. Anything unrecognized falls back to `info`. `debug` also turns on Trivy debug mode unless `trivy.debugMode` is set explicitly. |
+| metrics.collection.cacheSizeEnabled | bool | `false` | Opt in to bounded local cache footprint walks. Capacity/DB metrics do not require this. |
+| metrics.collection.intervalSeconds | int | `60` | Background sampling interval in seconds; scraping never initiates collection. |
+| metrics.collection.maxCacheFiles | int | `10000` | Maximum entries visited per cache sample, shared across cache directories. |
+| metrics.collection.timeoutSeconds | int | `5` | Version-command deadline/cache-walk budget in seconds; at most the interval. |
 | metrics.enabled | bool | `true` | Serve Prometheus metrics on `/metrics` of the API port (`SCANNER_API_SERVER_METRICS_ENABLED`). |
+| metrics.grafanaDashboard.annotations | object | `{"grafana_folder":"Harbor"}` | Sidecar annotations; configure Grafana's folderAnnotation to use grafana_folder if desired. |
+| metrics.grafanaDashboard.enabled | bool | `false` | Provision the scanner and Valkey/Redis dashboards as one ConfigMap. Enable on only one release per Grafana organization. |
+| metrics.grafanaDashboard.labels | object | `{"grafana_dashboard":"1"}` | Labels selected by Grafana's dashboard sidecar. |
+| metrics.grafanaDashboard.namespace | string | `""` | Dashboard ConfigMap namespace. Defaults to the release namespace; Grafana's sidecar must watch it. |
 | metrics.serviceMonitor.annotations | object | `{}` | Extra annotations. |
+| metrics.serviceMonitor.cluster | string | `""` | Optional cluster label attached at scrape time. Set a unique cluster name unless your query datasource already supplies this label. |
 | metrics.serviceMonitor.enabled | bool | `false` | Create a Prometheus Operator ServiceMonitor. Requires the `monitoring.coreos.com/v1` CRD. |
 | metrics.serviceMonitor.honorLabels | bool | `false` | Honor labels exposed by the target. |
 | metrics.serviceMonitor.interval | string | `""` | Scrape interval. |

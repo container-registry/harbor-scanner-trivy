@@ -1,0 +1,9 @@
+---
+metrics:
+  serviceMonitor:
+    enabled: true
+    cluster: production-eu
+  grafanaDashboard:
+    enabled: true
+  collection:
+    cacheSizeEnabled: true

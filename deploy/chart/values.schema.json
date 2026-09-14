@@ -472,6 +472,62 @@
             "tlsConfig": {
               "type": "object",
               "additionalProperties": true
+            },
+            "cluster": {
+              "type": "string"
+            }
+          }
+        },
+        "collection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "intervalSeconds",
+            "timeoutSeconds",
+            "maxCacheFiles"
+          ],
+          "properties": {
+            "intervalSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "cacheSizeEnabled": {
+              "type": "boolean"
+            },
+            "maxCacheFiles": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          }
+        },
+        "grafanaDashboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
             }
           }
         }

@@ -92,6 +92,14 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                   value: 60s
                 - name: SCANNER_API_SERVER_METRICS_ENABLED
                   value: "true"
+                - name: SCANNER_METRICS_COLLECTION_INTERVAL
+                  value: 60s
+                - name: SCANNER_METRICS_COLLECTION_TIMEOUT
+                  value: 5s
+                - name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+                  value: "false"
+                - name: SCANNER_METRICS_CACHE_MAX_FILES
+                  value: "10000"
                 - name: SCANNER_API_SERVER_TLS_CERTIFICATE
                   value: /certs/tls.crt
                 - name: SCANNER_API_SERVER_TLS_KEY
@@ -334,6 +342,14 @@ matches the default render:
                   value: 60s
                 - name: SCANNER_API_SERVER_METRICS_ENABLED
                   value: "true"
+                - name: SCANNER_METRICS_COLLECTION_INTERVAL
+                  value: 60s
+                - name: SCANNER_METRICS_COLLECTION_TIMEOUT
+                  value: 5s
+                - name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+                  value: "false"
+                - name: SCANNER_METRICS_CACHE_MAX_FILES
+                  value: "10000"
                 - name: SCANNER_TRIVY_CACHE_DIR
                   value: /home/scanner/.cache/trivy
                 - name: SCANNER_TRIVY_REPORTS_DIR
@@ -545,6 +561,14 @@ matches the multi-replica render:
                   value: 60s
                 - name: SCANNER_API_SERVER_METRICS_ENABLED
                   value: "true"
+                - name: SCANNER_METRICS_COLLECTION_INTERVAL
+                  value: 60s
+                - name: SCANNER_METRICS_COLLECTION_TIMEOUT
+                  value: 5s
+                - name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+                  value: "false"
+                - name: SCANNER_METRICS_CACHE_MAX_FILES
+                  value: "10000"
                 - name: SCANNER_TRIVY_CACHE_DIR
                   value: /home/scanner/.cache/trivy
                 - name: SCANNER_TRIVY_REPORTS_DIR
