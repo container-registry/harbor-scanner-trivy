@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.2](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.0.1...chart-v1.0.2) (2026-09-14)
+
+
+### Bug Fixes
+
+* **chart:** let the chart release PR restamp the version in the generated README ([#72](https://github.com/container-registry/harbor-scanner-trivy/issues/72)) ([9102e9b](https://github.com/container-registry/harbor-scanner-trivy/commit/9102e9b77f39253b25f9b36ec01492a00762c6c8))
+* **chart:** reject log levels the adapter does not understand ([#82](https://github.com/container-registry/harbor-scanner-trivy/issues/82)) ([e4ec360](https://github.com/container-registry/harbor-scanner-trivy/commit/e4ec36008293e1525d073231df3ad2d4b7a8056d))
+
+
+### Documentation
+
+* drop obsolete README content and fix config table facts ([#80](https://github.com/container-registry/harbor-scanner-trivy/issues/80)) ([bd4dd61](https://github.com/container-registry/harbor-scanner-trivy/commit/bd4dd6116c44d188eccb05a55e3f7c8dfedc7830))
+
+
+### Miscellaneous
+
+* release adapter 0.41.0 ([#65](https://github.com/container-registry/harbor-scanner-trivy/issues/65)) ([52ba524](https://github.com/container-registry/harbor-scanner-trivy/commit/52ba52444399e378a250a234c07f253a82333bae))
+
 ## [1.0.1](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.0.0...chart-v1.0.1) (2026-08-31)
 
 
