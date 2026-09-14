@@ -20,40 +20,92 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Job and report writes must be conditional on the job key still existing and
-// re-arm both TTLs together, or a scan job expiring mid-update leaves either a
-// silently dropped status change (SET XX no-op) or an orphaned report blob.
-// Lua gives us that atomically; both keys always live on one instance because
-// the adapter only ever connects via a non-cluster client (see pkg/redisx).
-// A TTL of 0 must mean "no expiry", mirroring how go-redis treats a zero
-// expiration on SET (and how pre-split versions behaved).
+// Pending jobs and reports have no expiry. Only acknowledgement starts retention.
+// Every mutation verifies ownership atomically on the same Redis instance.
 var (
-	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] job value, ARGV[2] TTL millis
-	updateJobScript = redis.NewScript(`
+	acknowledgeScript = redis.NewScript(`
+		if redis.call('GET', KEYS[4]) ~= ARGV[1] then return 0 end
 		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
-		local ttl = tonumber(ARGV[2])
-		if ttl == 0 then
-			redis.call('SET', KEYS[1], ARGV[1])
-			redis.call('PERSIST', KEYS[2])
-		else
-			redis.call('SET', KEYS[1], ARGV[1], 'PX', ttl)
+		redis.call('XACK', KEYS[3], ARGV[2], ARGV[3])
+		redis.call('XDEL', KEYS[3], ARGV[3])
+		local ttl = tonumber(ARGV[4])
+		if ttl > 0 then
+			redis.call('PEXPIRE', KEYS[1], ttl)
 			redis.call('PEXPIRE', KEYS[2], ttl)
 		end
+		redis.call('DEL', KEYS[4])
 		return 1`)
-
-	// KEYS[1] scan job key, KEYS[2] scan report key; ARGV[1] report value, ARGV[2] TTL millis
-	updateReportScript = redis.NewScript(`
-		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
-		local ttl = tonumber(ARGV[2])
-		if ttl == 0 then
-			redis.call('SET', KEYS[2], ARGV[1])
-			redis.call('PERSIST', KEYS[1])
-		else
-			redis.call('SET', KEYS[2], ARGV[1], 'PX', ttl)
-			redis.call('PEXPIRE', KEYS[1], ttl)
+	enqueueScript = redis.NewScript(`
+		if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+		local delivery = redis.call('XADD', KEYS[2], '*', 'job', ARGV[2])
+		local stored = redis.pcall('SET', KEYS[1], ARGV[1])
+		if type(stored) == 'table' and stored.err then
+			redis.call('XDEL', KEYS[2], delivery)
+			return redis.error_reply(stored.err)
 		end
 		return 1`)
+	updateJobScript = redis.NewScript(`
+		if redis.call('GET', KEYS[3]) ~= ARGV[2] then return -1 end
+		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+		redis.call('SET', KEYS[1], ARGV[1])
+		redis.call('PERSIST', KEYS[2])
+		return 1`)
+
+	updateReportScript = redis.NewScript(`
+		if redis.call('GET', KEYS[3]) ~= ARGV[2] then return -1 end
+		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+		redis.call('SET', KEYS[2], ARGV[1])
+		redis.call('PERSIST', KEYS[1])
+		return 1`)
 )
+
+func (s *store) Enqueue(ctx context.Context, scanJob job.ScanJob, stream string, payload []byte) (err error) {
+	result := "success"
+	defer s.operation("enqueue", &err, &result)()
+	value, rawSize, err := marshalSized(scanJob)
+	if err != nil {
+		return err
+	}
+	applied, err := enqueueScript.Run(ctx, s.rdb, []string{s.keyForScanJob(scanJob.Key), stream}, value, payload).Int()
+	if err != nil {
+		return err
+	}
+	if applied == 0 {
+		result = "not_applied"
+		return nil
+	}
+	s.written("job", rawSize, len(value))
+	return nil
+}
+
+// Acknowledge starts report retention only when delivery is retired. A crash
+// after storing the result but before XACK cannot expire the completion record
+// and cause a recovered delivery to repeat an already completed scan.
+func (s *store) Acknowledge(ctx context.Context, key job.ScanJobKey, stream, group, deliveryID string) (err error) {
+	result := "success"
+	defer s.operation("acknowledge", &err, &result)()
+	state, err := s.getJob(ctx, key)
+	if err != nil {
+		return err
+	}
+	if state == nil || (state.Status != job.Finished && state.Status != job.Failed) {
+		return xerrors.New("cannot acknowledge a non-terminal scan job")
+	}
+	lease := persistence.JobLease(ctx)
+	if lease.Key == "" || lease.Token == "" {
+		return xerrors.New("acknowledgement requires job ownership")
+	}
+	ack, err := acknowledgeScript.Run(ctx, s.rdb,
+		[]string{s.keyForScanJob(key), s.keyForScanReport(key), stream, lease.Key},
+		lease.Token, group, deliveryID, s.ttlMillis()).Int()
+	if err != nil {
+		return err
+	}
+	if ack != 1 {
+		return xerrors.New("scan job ownership lost before acknowledgement")
+	}
+	return nil
+}
 
 type store struct {
 	metrics *metrics.Recorder
@@ -69,38 +121,7 @@ func NewStore(cfg etc.RedisStore, rdb *redis.Client, recorders ...*metrics.Recor
 	}
 }
 
-func (s *store) Create(ctx context.Context, scanJob job.ScanJob) (err error) {
-	result := "success"
-	defer s.operation("create", &err, &result)()
-	value, rawSize, err := marshalSized(scanJob)
-	if err != nil {
-		return xerrors.Errorf("marshaling scan job: %w", err)
-	}
-
-	key := s.keyForScanJob(scanJob.Key)
-
-	logger := storeLogger(scanJob.Key)
-	logger.Debug("Saving scan job",
-		slog.String("scan_job_status", scanJob.Status.String()),
-		slog.String("redis_key", key),
-		slog.Duration("expire", s.cfg.ScanJobTTL),
-	)
-
-	applied, err := s.rdb.SetNX(ctx, key, value, s.cfg.ScanJobTTL).Result()
-	if err != nil {
-		return xerrors.Errorf("creating scan job: %w", err)
-	}
-
-	if applied {
-		s.written("job", rawSize, len(value))
-	} else {
-		result = "not_applied"
-	}
-	return nil
-}
-
-// update rewrites the scan job key and re-arms the TTL on both keys so the
-// report never outlives its job metadata.
+// update saves job metadata without rewriting the report.
 func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
 	value, rawSize, err := marshalSized(scanJob)
 	if err != nil {
@@ -113,16 +134,21 @@ func (s *store) update(ctx context.Context, scanJob job.ScanJob) error {
 	logger.Debug("Updating scan job",
 		slog.String("scan_job_status", scanJob.Status.String()),
 		slog.String("redis_key", key),
-		slog.Duration("expire", s.cfg.ScanJobTTL),
 	)
 
+	lease := persistence.JobLease(ctx)
+	if lease.Key == "" || lease.Token == "" {
+		return xerrors.New("scan job update requires ownership")
+	}
 	applied, err := updateJobScript.Run(ctx, s.rdb,
-		[]string{key, s.keyForScanReport(scanJob.Key)},
-		value, s.ttlMillis()).Int()
+		[]string{key, s.keyForScanReport(scanJob.Key), lease.Key},
+		value, lease.Token).Int()
 	if err != nil {
 		return xerrors.Errorf("updating scan job: %w", err)
 	} else if applied == 0 {
 		return missingJob(scanJob.Key)
+	} else if applied == -1 {
+		return xerrors.New("scan job ownership lost")
 	}
 
 	s.written("job", rawSize, len(value))
@@ -206,6 +232,10 @@ func (s *store) UpdateStatus(ctx context.Context, scanJobKey job.ScanJobKey, new
 	}
 
 	scanJob.Status = newStatus
+	if newStatus == job.Pending {
+		scanJob.Attempts++
+	}
+	scanJob.Error = ""
 	if len(messages) > 0 {
 		scanJob.Error = messages[0]
 	}
@@ -227,13 +257,19 @@ func (s *store) UpdateReport(ctx context.Context, scanJobKey job.ScanJobKey, rep
 		return xerrors.Errorf("marshaling scan report: %w", err)
 	}
 
+	lease := persistence.JobLease(ctx)
+	if lease.Key == "" || lease.Token == "" {
+		return xerrors.New("scan report update requires ownership")
+	}
 	applied, err := updateReportScript.Run(ctx, s.rdb,
-		[]string{s.keyForScanJob(scanJobKey), s.keyForScanReport(scanJobKey)},
-		value, s.ttlMillis()).Int()
+		[]string{s.keyForScanJob(scanJobKey), s.keyForScanReport(scanJobKey), lease.Key},
+		value, lease.Token).Int()
 	if err != nil {
 		return xerrors.Errorf("updating scan report: %w", err)
 	} else if applied == 0 {
 		return missingJob(scanJobKey)
+	} else if applied == -1 {
+		return xerrors.New("scan job ownership lost")
 	}
 
 	s.written("report", rawSize, len(value))

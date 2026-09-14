@@ -133,7 +133,7 @@ class DashboardTest(unittest.TestCase):
         for panel in DASHBOARD["panels"]:
             if panel["type"] == "row":
                 current = panel["title"]
-                sections[current] = []
+                sections[current] = list(panel.get("panels", []))
                 if current in ("Vulnerability database", "Java package index"):
                     self.assertFalse(panel["collapsed"])
             elif current:
@@ -144,7 +144,9 @@ class DashboardTest(unittest.TestCase):
         for section, database in (("Vulnerability database", "vulnerability"),
                                   ("Java package index", "java")):
             panels = sections[section]
-            self.assertEqual(len(panels), 5)
+            self.assertEqual(len(panels), 1)
+            self.assertEqual(panels[0]["type"], "table")
+            self.assertEqual(len(panels[0]["targets"]), 5)
             for panel in panels:
                 for target in panel["targets"]:
                     self.assertIn(f'database="{database}"', target["expr"])
@@ -154,48 +156,72 @@ class DashboardTest(unittest.TestCase):
             owners = [name for name, panels in sections.items()
                       for panel in panels for target in panel.get("targets", [])
                       if "harbor_scanner_trivy_" + metric in target["expr"]]
-            self.assertEqual(owners, ["Database monitoring health"])
+            self.assertEqual(owners, ["Monitoring diagnostics"])
+
+    def test_analysis_cache_is_filtered_by_reported_backend(self):
+        panels = {panel["id"]: panel for panel in all_panels()}
+        local = panels[99]["targets"][0]["expr"]
+        self.assertIn('kind="analysis"', local)
+        self.assertIn('analysis_cache_backend_info', local)
+        self.assertIn('backend="filesystem"', local)
+        self.assertIn('and on (cluster,namespace,scanner,pod)', local)
+        self.assertIn('@ end() == 1', local)
+        self.assertNotIn('or vector(0)', local)
+        self.assertIn('kind=~"vulnerability_db|java_db"', panels[38]["targets"][0]["expr"])
+        row = next(p for p in all_panels() if p["title"].startswith("Filesystem analysis cache ("))
+        self.assertTrue(row["collapsed"])
+
+    def test_pipeline_stages_keep_distinct_populations(self):
+        panels = {panel["id"]: panel for panel in all_panels()}
+        stages = [panels[i] for i in (63, 20, 22)]
+        self.assertEqual(len({p["gridPos"]["y"] for p in stages}), 1)
+        self.assertEqual([p["gridPos"]["x"] for p in stages], [0, 8, 16])
+        for panel, metric in zip(stages, ("harbor_task_queue_latency", "queue_wait_duration_seconds_bucket", "oldest_running_job_age_seconds")):
+            self.assertIn(metric, panel["targets"][0]["expr"])
+        self.assertIn("max(", panels[27]["targets"][0]["expr"])
+        self.assertIn("queue_unacknowledged_jobs", panels[27]["targets"][0]["expr"])
 
     def test_current_database_status_has_unknown_and_history(self):
         panels = {panel["id"]: panel for panel in all_panels()}
-        for pid in (32, 34, 70, 72):
+        for pid in (1032, 1071):
             panel = panels[pid]
-            self.assertEqual(panel["type"], "stat")
-            self.assertEqual(panel["options"]["graphMode"], "none")
+            self.assertEqual(panel["type"], "table")
             for target in panel["targets"]:
                 self.assertTrue(target["instant"])
                 self.assertFalse(target["range"])
                 self.assertIn(" == 1", target["expr"])
                 self.assertIn(" * 0 - 1", target["expr"])
-            states = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
-            self.assertEqual(states["-1"]["text"], "Unknown")
-            history_id = int(re.search(r"viewPanel=(\d+)", panel["links"][-1]["url"]).group(1))
-            self.assertTrue(panels[history_id]["targets"][0]["range"])
+            overrides = {o["matcher"]["options"]: o["properties"]
+                         for o in panel["fieldConfig"]["overrides"]}
+            for name in ("Availability", "Update policy"):
+                mappings = next(p["value"] for p in overrides[name] if p["id"] == "mappings")
+                self.assertEqual(mappings[0]["options"]["-1"]["text"], "Unknown")
+        for pid in (85, 88, 94, 95):
+            self.assertTrue(panels[pid]["targets"][0]["range"])
+            self.assertIn("min by (cluster,namespace,scanner,pod,database)", panels[pid]["targets"][0]["expr"])
+        collection = panels[43]
+        self.assertIn("storage_last_success_timestamp_seconds", collection["targets"][0]["expr"])
+        columns = collection["transformations"][-1]["options"]["renameByName"]
+        self.assertEqual(len(columns), 7)  # Replica, then status + last success per collector.
+        self.assertEqual(collection["transformations"][0]["options"]["valueLabel"], "collector")
+        for collector in ("cache_filesystem", "reports_filesystem", "cache_size"):
+            self.assertIn(collector, columns)
+            self.assertIn(collector + "-age", columns)
 
     def test_status_views_have_consistent_dimensions_and_order(self):
         panels = {panel["id"]: panel for panel in all_panels()}
-        for panel in panels.values():
-            if panel["type"] == "state-timeline" and panel["id"] != 35:
-                self.assertEqual((panel["gridPos"]["w"], panel["gridPos"]["h"]),
-                                 (6, 7 if panel["id"] == 60 else 3))
-                self.assertEqual(panel["gridPos"]["x"], 0)
-        for pid, width in ((35, 6), (36, 18)):
+        for pid, width in ((35, 6), (36, 18), (60, 6), (91, 24)):
             self.assertEqual((panels[pid]["gridPos"]["w"], panels[pid]["gridPos"]["h"]), (width, 7))
-        self.assertEqual(panels[35]["gridPos"]["x"], 0)
-        for ids in ((32, 34, 31, 92, 33), (70, 72, 69, 93, 71)):
+            if pid in (35, 60, 91):
+                self.assertEqual(panels[pid]["gridPos"]["x"], 0)
+        for ids in ((94, 95), (85, 88)):
             positions = [panels[pid]["gridPos"] for pid in ids]
             self.assertEqual(len({p["y"] for p in positions}), 1)
-            self.assertEqual([p["h"] for p in positions], [7] * 5)
-            self.assertEqual(positions[0]["x"], 0)
-            self.assertEqual(sum(p["w"] for p in positions), 24)
-            for left, right in zip(positions, positions[1:]):
-                self.assertEqual(left["x"] + left["w"], right["x"])
-        for availability, policy in ((85, 86), (88, 89)):
-            a, b = panels[availability]["gridPos"], panels[policy]["gridPos"]
-            self.assertEqual((a["w"], a["h"]), (6, 3))
-            self.assertEqual((b["w"], b["h"]), (6, 3))
-            self.assertEqual(a["x"], b["x"])
-            self.assertEqual(a["y"] + a["h"], b["y"])
+            self.assertEqual([p["x"] for p in positions], [0, 12])
+            self.assertTrue(all((p["w"], p["h"]) == (12, 7) for p in positions))
+        self.assertLess(panels[94]["gridPos"]["y"], panels[85]["gridPos"]["y"])
+        for pid in (56, 96, 97):
+            self.assertEqual(panels[pid]["options"]["textMode"], "auto")
 
 
 class ValkeyDashboardTest(unittest.TestCase):

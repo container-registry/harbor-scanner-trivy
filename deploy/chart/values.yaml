@@ -31,8 +31,8 @@ podManagementPolicy: OrderedReady
 # -- StatefulSet update strategy. Empty means the Kubernetes default
 # (`RollingUpdate`).
 updateStrategy: {}
-# -- Grace period for a terminating pod. An in-flight Trivy scan is bounded by
-# `trivy.timeout`; a longer grace period lets it finish instead of being killed.
+# -- Grace period for HTTP shutdown and cancellation of an in-flight Trivy
+# scan. Unacknowledged jobs remain in the stream for another pod to recover.
 terminationGracePeriodSeconds: 60
 
 image:
@@ -90,7 +90,7 @@ securityContext:
 
 # -- Resource requests and limits. The defaults fit a single-worker adapter
 # scanning ordinary images; raise memory before raising
-# `jobQueue.workerConcurrency`, because each concurrent scan runs its own Trivy
+# replica count, because each pod runs its own Trivy
 # process holding the vulnerability DB in memory.
 resources:
   requests:
@@ -362,27 +362,76 @@ api:
       keys:
         - ca.crt
 
+# -- Dedicated analysis-cache instance using the same official Valkey chart as
+# Harbor-next (0.9.3). Upstream chart values pass through under this key.
+# This instance must not store Harbor jobs/reports: its keys can be evicted.
+valkey:
+  # -- Deploy a dedicated cache and automatically select it when trivy.cacheBackend
+  # is fs. Disabled by default so existing external-cache deployments are preserved.
+  # With networkPolicy.egressEnabled, explicitly allow egress to the cache pods
+  # and DNS; enabling this subchart does not add NetworkPolicy rules.
+  enabled: false
+  # -- Resource name overrides pass through to the upstream chart. Empty names
+  # are release-scoped, avoiding Harbor's operational Valkey service.
+  fullnameOverride: ""
+  # -- Start a standalone cache. Replication options pass through to upstream;
+  # the adapter connects to its primary service, never a read-replica service.
+  replica:
+    enabled: false
+  # -- Cache data is disposable; restart warms it again. Configure upstream
+  # dataStorage and persistence separately if retaining a warm cache is desired.
+  dataStorage:
+    enabled: false
+  # -- Instance-wide cache policy. Budget memory below the container limit.
+  # Disable snapshots/AOF for this disposable cache; never use this for job data.
+  valkeyConfig: |
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+    save ""
+    appendonly no
+  # -- Main cache resources, including headroom above maxmemory.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 768Mi
+    limits:
+      memory: 1Gi
+  # -- Resources for the upstream configuration init container.
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+  # -- Upstream ACL configuration. With auth enabled, supply the adapter's full
+  # credential-bearing URL through a Secret override; see example/dedicated-cache.
+  # Use TLS to encrypt credentials and cache traffic outside a trusted network.
+  auth:
+    enabled: false
+  # -- Upstream TLS configuration. Also configure the adapter's cache CA/client
+  # certificate paths when using a private CA or mutual TLS.
+  tls:
+    enabled: false
+
 trivy:
   # -- Trivy cache directory. Must sit under the mounted cache volume.
   cacheDir: /home/scanner/.cache/trivy
   # -- Trivy reports directory. Must sit under the mounted cache volume.
   reportsDir: /home/scanner/.cache/reports
-  # -- Where Trivy keeps its per-layer scan cache: `fs`, `memory`, or a
-  # `redis://` / `rediss://` URL. Requires an adapter that reads
-  # `SCANNER_TRIVY_CACHE_*`; older builds ignore these and always use `fs`, so
-  # keep `jobQueue.workerConcurrency` at 1 unless the running `appVersion`
-  # supports them. `fs` is a single BoltDB file that one process
-  # may open at a time, so `jobQueue.workerConcurrency` above 1 needs `memory`
-  # or Redis. Sentinel URLs are not accepted here; Trivy dials one node.
+  # -- Trivy image/layer analysis cache: `fs`, `memory`, or a `redis://` / `rediss://`
+  # URL. Use a dedicated Redis/Valkey instance for cache reuse across replicas;
+  # memory limits and eviction policies cannot be isolated by logical DB number.
+  # Credentials can override SCANNER_TRIVY_CACHE_BACKEND through secret or extraEnv.
+  # With valkey.enabled=true, fs selects the bundled cache automatically.
+  # Sentinel URLs are not supported by Trivy's cache client.
   cacheBackend: fs
-  # -- Expiry for Redis scan cache keys. Required with a Redis backend, where it
-  # is the only thing bounding the cache. Ignored by the other backends.
+  # -- TTL for Redis/Valkey analysis entries, set on writes (reads do not renew it).
+  # Must be positive; choose it above the rescan interval with margin. Configure
+  # instance-level maxmemory and eviction separately; TTL is not a capacity cap.
   cacheTTL: 168h
-  # -- Size cap for the on-disk scan cache (`fs` only). The cache has no
-  # eviction and never shrinks, so once it is over the cap the adapter drops it
-  # whole, after the running scan. `0` disables the cap. Keep it under
-  # `persistence.size` minus the Trivy DBs (~1Gi) and the reports directory.
-  cacheMaxSize: 3GiB
+  # -- Deprecated: ignored. The adapter never implemented this filesystem size
+  # cap. Use a dedicated Redis/Valkey cache with an instance-level memory budget.
+  cacheMaxSize: "0"
   # -- Use TLS with public certificates for a Redis scan cache.
   cacheRedisTLS: false
   # -- CA certificate for a Redis scan cache, as a path inside the container;
@@ -477,17 +526,16 @@ redis:
 store:
   # -- Key namespace for scan jobs and reports.
   redisNamespace: harbor.scanner.trivy:data-store
-  # -- TTL for persisted scan jobs and reports.
+  # -- Retention of completed jobs and reports after acknowledgement. Queued
+  # and unacknowledged work does not expire; allow time for Harbor report polling.
   # @default -- `2 * trivy.timeout + 3s`
   redisScanJobTTL: ""
 
 jobQueue:
   # -- Key namespace for the scan job queue.
   redisNamespace: harbor.scanner.trivy:job-queue
-  # -- Workers per replica. Each concurrent scan runs its own Trivy process and
-  # holds the vulnerability DB in memory, so raise `resources` alongside this.
-  # Above 1 also requires `trivy.cacheBackend` to be Redis or `memory`: those
-  # processes cannot share the single-writer `fs` scan cache.
+  # -- Workers per replica. Must be 1 for every cache backend. Scale replicaCount
+  # with separate local database volumes and a dedicated shared Redis/Valkey cache.
   workerConcurrency: 1
 
 proxy:
@@ -535,7 +583,11 @@ extraVolumeMounts: []
 initContainers: []
 # -- Sidecar containers, passed through `tpl`.
 sidecars: []
-# -- Container lifecycle hooks.
+# -- Container lifecycle hooks. Unless a custom `preStop` is supplied, the chart
+# keeps HTTP serving for 10 seconds before SIGTERM while Kubernetes removes the
+# terminating endpoint. Custom `preStop` hooks replace this default; use
+# `preStop: null` to disable it. Leave enough termination grace for both the hook
+# and scan cancellation. The default hook requires terminationGracePeriodSeconds > 10.
 lifecycle: {}
 
 # -- Deep-merged into the StatefulSet `.spec`, for fields the chart does not

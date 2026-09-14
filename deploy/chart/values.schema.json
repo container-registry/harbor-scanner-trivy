@@ -858,7 +858,7 @@
         },
         "workerConcurrency": {
           "type": "integer",
-          "minimum": 1
+          "const": 1
         }
       }
     },
@@ -923,6 +923,11 @@
       "type": "object",
       "additionalProperties": true,
       "description": "Deep-merged into the adapter container."
+    },
+    "valkey": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Dedicated analysis-cache Valkey 0.9.3 subchart. Upstream values pass through; this instance is separate from Harbor job/report storage."
     }
   }
 }

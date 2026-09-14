@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
@@ -63,6 +64,13 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	if err != nil {
 		return fmt.Errorf("constructing connection pool: %w", err)
 	}
+	defer rdb.Close()
+	checkCtx, cancelCheck := context.WithTimeout(ctx, 5*time.Second)
+	err = queue.CheckBackend(checkCtx, rdb)
+	cancelCheck()
+	if err != nil {
+		return err
+	}
 
 	recorder := metrics.New(config.API.MetricsEnabled)
 	recorder.RegisterRedis(rdb)
@@ -72,8 +80,8 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, recorder)
 	store := redis.NewStore(config.RedisStore, rdb, recorder)
 	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}), recorder)
-	enqueuer := queue.NewEnqueuer(config.JobQueue, rdb, store, recorder)
-	worker := queue.NewWorker(config.JobQueue, rdb, controller, recorder)
+	enqueuer := queue.NewEnqueuer(config.JobQueue, store, recorder)
+	worker := queue.NewWorker(config.JobQueue, rdb, controller, store, recorder)
 
 	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, recorder)
 	apiServer, err := api.NewServer(config.API, apiHandler)
@@ -81,23 +89,18 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 		return fmt.Errorf("new api server: %w", err)
 	}
 
-	shutdownComplete := make(chan struct{})
-	go func() {
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
-		captured := <-sigint
-		slog.Debug("Trapped os signal", slog.String("signal", captured.String()))
+	signalCtx, stopSignals := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
+	worker.Start(signalCtx)
+	defer worker.Stop()
 
+	serverDone := make(chan error, 1)
+	go func() { serverDone <- apiServer.ListenAndServe() }()
+	select {
+	case err := <-serverDone:
+		return err
+	case <-signalCtx.Done():
 		apiServer.Shutdown()
-		worker.Stop()
-		_ = rdb.Close()
-
-		close(shutdownComplete)
-	}()
-
-	worker.Start(ctx)
-	apiServer.ListenAndServe()
-
-	<-shutdownComplete
-	return nil
+		return <-serverDone
+	}
 }

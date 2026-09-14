@@ -1,7 +1,9 @@
 package trivy
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,6 +18,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"golang.org/x/xerrors"
 )
 
@@ -59,7 +62,7 @@ type ScanTarget struct {
 	fromAccessory bool   // SBOM discovered via referrers, not sent by Harbor
 }
 
-func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, useSBOMAccessory bool, recorders ...*metrics.Recorder) (ScanTarget, error) {
+func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, useSBOMAccessory bool, recorders ...*metrics.Recorder) (ScanTarget, error) {
 	recorder := metrics.Optional(recorders)
 	var nameOpts []name.Option
 	slog.Debug("newTarget",
@@ -98,14 +101,17 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: config.Insecure}
 	trOpt := remote.WithTransport(tr)
+	ctxOpt := remote.WithContext(ctx)
 
-	img, err := ambassador.RemoteImage(ref, authOpt, trOpt)
+	img, err := ambassador.RemoteImage(ref, authOpt, trOpt, ctxOpt)
 	if err != nil {
+		category := classifyRemoteError(err)
 		return ScanTarget{}, &ScanError{
-			Category: classifyRemoteError(err),
-			ImageRef: imageRef.Name,
-			Detail:   "fetching image from registry",
-			Cause:    err,
+			Category:  category,
+			Retryable: category != ErrCategoryAuth,
+			ImageRef:  imageRef.Name,
+			Detail:    "fetching image from registry",
+			Cause:     err,
 		}
 	}
 
@@ -117,10 +123,11 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 	m, err := target.img.Manifest()
 	if err != nil {
 		return ScanTarget{}, &ScanError{
-			Category: ErrCategoryManifest,
-			ImageRef: imageRef.Name,
-			Detail:   "getting image manifest",
-			Cause:    err,
+			Category:  ErrCategoryManifest,
+			Retryable: classifyRemoteError(err) != ErrCategoryAuth,
+			ImageRef:  imageRef.Name,
+			Detail:    "getting image manifest",
+			Cause:     err,
 		}
 	}
 
@@ -150,7 +157,7 @@ func newTarget(imageRef ImageRef, config etc.Trivy, ambassador ext.Ambassador, u
 		}
 	default:
 		if useSBOMAccessory {
-			if sbomImg, ok := findSBOMAccessoryObserved(ref, img, ambassador, recorder, authOpt, trOpt); ok {
+			if sbomImg, ok := findSBOMAccessoryObserved(ref, img, ambassador, recorder, authOpt, trOpt, ctxOpt); ok {
 				filePath, err := downloadSBOM(sbomImg, config.CacheDir, ambassador)
 				if err == nil {
 					target.kind = TargetSBOM
@@ -278,8 +285,13 @@ func validateLayers(imageRef string, layers []v1.Descriptor) error {
 // classifyRemoteError categorizes errors from go-containerregistry's remote.Image.
 func classifyRemoteError(err error) ScanErrorCategory {
 	msg := strings.ToLower(err.Error())
+	authFailure := isAuthenticationErrorMessage(msg)
+	var registryError *transport.Error
+	if errors.As(err, &registryError) {
+		authFailure = registryError.StatusCode == http.StatusUnauthorized || registryError.StatusCode == http.StatusForbidden
+	}
 	switch {
-	case strings.Contains(msg, "unauthorized") || strings.Contains(msg, "401") || strings.Contains(msg, "403"):
+	case authFailure:
 		return ErrCategoryAuth
 	case strings.Contains(msg, "connection refused") || strings.Contains(msg, "no such host") || strings.Contains(msg, "dial tcp"):
 		return ErrCategoryNetwork

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v6"
+	"github.com/redis/go-redis/v9"
 )
 
 type BuildInfo struct {
@@ -34,6 +35,12 @@ type Metrics struct {
 }
 
 type Trivy struct {
+	CacheBackend      string        `env:"SCANNER_TRIVY_CACHE_BACKEND" envDefault:"fs"`
+	CacheTTL          time.Duration `env:"SCANNER_TRIVY_CACHE_TTL" envDefault:"168h"`
+	CacheRedisTLS     bool          `env:"SCANNER_TRIVY_CACHE_REDIS_TLS"`
+	CacheRedisCA      string        `env:"SCANNER_TRIVY_CACHE_REDIS_CA"`
+	CacheRedisCert    string        `env:"SCANNER_TRIVY_CACHE_REDIS_CERT"`
+	CacheRedisKey     string        `env:"SCANNER_TRIVY_CACHE_REDIS_KEY"`
 	CacheDir          string        `env:"SCANNER_TRIVY_CACHE_DIR" envDefault:"/home/scanner/.cache/trivy"`
 	ReportsDir        string        `env:"SCANNER_TRIVY_REPORTS_DIR" envDefault:"/home/scanner/.cache/reports"`
 	DebugMode         bool          `env:"SCANNER_TRIVY_DEBUG_MODE" envDefault:"false"`
@@ -128,6 +135,12 @@ func GetConfig() (Config, error) {
 	if cfg.Trivy.Timeout <= 0 || cfg.Trivy.Timeout > maxTrivyTimeout {
 		return cfg, fmt.Errorf("SCANNER_TRIVY_TIMEOUT must be in (0, %s], got %s", maxTrivyTimeout, cfg.Trivy.Timeout)
 	}
+	if cfg.JobQueue.WorkerConcurrency != 1 {
+		return cfg, fmt.Errorf("SCANNER_JOB_QUEUE_WORKER_CONCURRENCY must be 1; scale adapter pods with separate database volumes and a dedicated Redis/Valkey scan cache")
+	}
+	if err := validateCache(cfg.Trivy); err != nil {
+		return cfg, err
+	}
 
 	if cfg.RedisStore.ScanJobTTL <= 0 {
 		if cfg.RedisStore.ScanJobTTL < 0 {
@@ -140,15 +153,39 @@ func GetConfig() (Config, error) {
 	return cfg, nil
 }
 
+func validateCache(cfg Trivy) error {
+	switch cfg.CacheBackend {
+	case "fs", "memory":
+		if cfg.CacheRedisTLS || cfg.CacheRedisCA != "" || cfg.CacheRedisCert != "" || cfg.CacheRedisKey != "" {
+			return fmt.Errorf("redis TLS settings require a Redis scan cache")
+		}
+		return nil
+	}
+	if !strings.HasPrefix(cfg.CacheBackend, "redis://") && !strings.HasPrefix(cfg.CacheBackend, "rediss://") {
+		return fmt.Errorf("SCANNER_TRIVY_CACHE_BACKEND must be fs, memory, or a redis:// or rediss:// URL; Sentinel is not supported")
+	}
+	if _, err := redis.ParseURL(cfg.CacheBackend); err != nil {
+		// Parse errors may include credentials. Never echo the URL or error.
+		return fmt.Errorf("SCANNER_TRIVY_CACHE_BACKEND contains an invalid Redis URL")
+	}
+	if cfg.CacheTTL <= 0 {
+		return fmt.Errorf("SCANNER_TRIVY_CACHE_TTL must be positive for a Redis scan cache")
+	}
+	if cfg.CacheRedisCA != "" || cfg.CacheRedisCert != "" || cfg.CacheRedisKey != "" {
+		if cfg.CacheRedisCA == "" || cfg.CacheRedisCert == "" || cfg.CacheRedisKey == "" {
+			return fmt.Errorf("redis scan cache TLS requires CA, certificate, and key together")
+		}
+	}
+	return nil
+}
+
 // maxTrivyTimeout bounds SCANNER_TRIVY_TIMEOUT to something sane; generous
 // beyond any real scan, and it keeps the TTL derivation from overflowing.
 const maxTrivyTimeout = 24 * time.Hour
 
-// deriveScanJobTTL sizes the scan job TTL from the Trivy timeout. The TTL is
-// re-armed on every store write, so it only has to outlive the write-free
-// window: the adapter-side queue wait plus the trivy run, both bounded by the
-// timeout (2x covers a maximal scan queued behind another), plus slack for
-// Harbor's report poll to fetch the finished report.
+// deriveScanJobTTL retains the historical default for Harbor report polling.
+// Durable queue metadata and reports do not expire until acknowledgement;
+// this TTL applies only once the delivery has completed.
 func deriveScanJobTTL(trivyTimeout time.Duration) time.Duration {
 	return 2*trivyTimeout + 3*time.Second
 }
