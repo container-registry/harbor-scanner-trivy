@@ -475,6 +475,30 @@ trivy:
   # -- Serve scans from a pre-existing SBOM accessory attached to the image
   # instead of re-scanning its layers.
   useSBOMAccessory: false
+  # -- Where Trivy looks for the image (`remote`, `docker`, `containerd`,
+  # `podman`). The adapter always scans a registry, so `remote` skips the probes
+  # Trivy would otherwise make for local container runtime sockets that a
+  # scanner pod does not have. Empty leaves the flag off and restores Trivy's
+  # own default.
+  imageSrc: remote
+  # -- Suppress Trivy's update notice and announcements, which it fetches from
+  # the network on every scan.
+  skipVersionCheck: true
+  # -- Stop Trivy sending anonymous usage data to Aqua. Each scan otherwise
+  # calls out to `check.trivy.dev`, which costs latency on every scan and fails
+  # in an air-gapped install.
+  disableTelemetry: true
+  # -- Refuse images larger than this before pulling them, e.g. `10GB`. Empty
+  # means no limit. A too-large image is reported as a scan failure instead of
+  # consuming the pod's memory and disk until it is OOM-killed.
+  maxImageSize: ""
+  # -- Soft heap limit for the Trivy child process (`GOMEMLIMIT`). Empty derives
+  # 80% of the pod's memory limit from the cgroup, so a heavy scan is slowed by
+  # garbage collection instead of being OOM-killed. `off` passes the pod
+  # environment through unchanged; any other value is handed to Trivy verbatim
+  # (`2GiB`, `1073741824`). It is a soft limit: it cannot stop a single
+  # allocation from exceeding the pod's memory limit.
+  childGoMemLimit: ""
   # -- VEX source used to filter vulnerabilities: `oci` or `repo`.
   vexSource: ""
   # -- Skip updating the VEX repository.

@@ -132,6 +132,12 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                   value: "false"
                 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
                   value: "false"
+                - name: SCANNER_TRIVY_IMAGE_SRC
+                  value: remote
+                - name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+                  value: "true"
+                - name: SCANNER_TRIVY_DISABLE_TELEMETRY
+                  value: "true"
                 - name: SCANNER_TRIVY_IGNORE_POLICY
                   value: /home/scanner/opa/policy.rego
                 - name: SCANNER_TRIVY_GITHUB_TOKEN
@@ -386,6 +392,12 @@ matches the default render:
                   value: "false"
                 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
                   value: "false"
+                - name: SCANNER_TRIVY_IMAGE_SRC
+                  value: remote
+                - name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+                  value: "true"
+                - name: SCANNER_TRIVY_DISABLE_TELEMETRY
+                  value: "true"
                 - name: SCANNER_STORE_REDIS_NAMESPACE
                   value: harbor.scanner.trivy:data-store
                 - name: SCANNER_JOB_QUEUE_REDIS_NAMESPACE
@@ -609,6 +621,12 @@ matches the multi-replica render:
                   value: "false"
                 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
                   value: "false"
+                - name: SCANNER_TRIVY_IMAGE_SRC
+                  value: remote
+                - name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+                  value: "true"
+                - name: SCANNER_TRIVY_DISABLE_TELEMETRY
+                  value: "true"
                 - name: SCANNER_STORE_REDIS_NAMESPACE
                   value: harbor.scanner.trivy:data-store
                 - name: SCANNER_JOB_QUEUE_REDIS_NAMESPACE

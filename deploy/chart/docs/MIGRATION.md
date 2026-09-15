@@ -68,6 +68,23 @@ Two things are worth checking on a running install:
 | `securityContext` | privileged/readOnlyRootFilesystem only | plus `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]` | Passes kube-linter and Trivy's config checks unchanged |
 | `podSecurityContext` | no `runAsGroup`/`seccompProfile` | adds both | Same |
 
+### Changed Trivy invocation defaults
+
+These three change how the adapter invokes Trivy compared with the upstream
+`goharbor/harbor-scanner-trivy`, which passes none of them. No environment
+variable was renamed or removed, so an upstream configuration keeps working.
+
+| Value | Env | Default | What changes | Restore upstream behaviour |
+|-------|-----|---------|--------------|----------------------------|
+| `trivy.imageSrc` | `SCANNER_TRIVY_IMAGE_SRC` | `remote` | Trivy no longer probes for local Docker, containerd and Podman sockets before pulling from the registry. A scanner pod has none of them | `trivy.imageSrc: ""` |
+| `trivy.skipVersionCheck` | `SCANNER_TRIVY_SKIP_VERSION_CHECK` | `true` | Trivy no longer fetches its update notice and announcements per scan | `trivy.skipVersionCheck: false` |
+| `trivy.disableTelemetry` | `SCANNER_TRIVY_DISABLE_TELEMETRY` | `true` | Trivy no longer sends anonymous usage data to `check.trivy.dev` per scan | `trivy.disableTelemetry: false` |
+
+`trivy.maxImageSize` and `trivy.childGoMemLimit` are new and off by default,
+except that an empty `childGoMemLimit` derives `GOMEMLIMIT` for the Trivy child
+from the pod's cgroup memory limit. Set it to `off` to leave the child
+environment exactly as the pod defines it.
+
 ### Removed
 
 `scanner.trivy.ignorePolicy` still exists, but the ConfigMap it renders was

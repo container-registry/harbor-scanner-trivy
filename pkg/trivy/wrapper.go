@@ -256,6 +256,21 @@ func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputF
 
 	if target.kind == TargetImage {
 		args = append(args, "--scanners", w.config.Scanners)
+		// Image flags are rejected by the sbom subcommand.
+		if w.config.ImageSrc != "" {
+			args = append(args, "--image-src", w.config.ImageSrc)
+		}
+		if w.config.MaxImageSize != "" {
+			args = append(args, "--max-image-size", w.config.MaxImageSize)
+		}
+	}
+
+	if w.config.SkipVersionCheck {
+		args = append(args, "--skip-version-check")
+	}
+
+	if w.config.DisableTelemetry {
+		args = append(args, "--disable-telemetry")
 	}
 
 	if w.config.IgnoreUnfixed {
@@ -317,6 +332,9 @@ func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputF
 	cmd.WaitDelay = time.Second
 
 	cmd.Env = w.cacheEnv(w.ambassador.Environ())
+	if limit := childGoMemLimit(w.config.ChildGoMemLimit); limit != "" {
+		cmd.Env = setEnv(cmd.Env, "GOMEMLIMIT="+limit)
+	}
 
 	switch a := target.Auth().(type) {
 	case NoAuth:
@@ -380,14 +398,19 @@ func (w *wrapper) cacheEnv(env []string) []string {
 		backend = "redis://" + strings.TrimPrefix(backend, "rediss://")
 		enableTLS = true
 	}
-	values := []string{
-		"TRIVY_CACHE_BACKEND=" + backend,
-		"TRIVY_CACHE_TTL=" + w.config.CacheTTL.String(),
+	return setEnv(env,
+		"TRIVY_CACHE_BACKEND="+backend,
+		"TRIVY_CACHE_TTL="+w.config.CacheTTL.String(),
 		fmt.Sprintf("TRIVY_REDIS_TLS=%t", enableTLS),
-		"TRIVY_REDIS_CA=" + w.config.CacheRedisCA,
-		"TRIVY_REDIS_CERT=" + w.config.CacheRedisCert,
-		"TRIVY_REDIS_KEY=" + w.config.CacheRedisKey,
-	}
+		"TRIVY_REDIS_CA="+w.config.CacheRedisCA,
+		"TRIVY_REDIS_CERT="+w.config.CacheRedisCert,
+		"TRIVY_REDIS_KEY="+w.config.CacheRedisKey,
+	)
+}
+
+// setEnv replaces any inherited entry for the same key, so an adapter setting
+// always wins over what the pod environment happens to carry.
+func setEnv(env []string, values ...string) []string {
 	for _, value := range values {
 		key, _, _ := strings.Cut(value, "=")
 		filtered := make([]string, 0, len(env)+1)

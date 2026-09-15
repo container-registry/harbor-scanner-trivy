@@ -637,3 +637,50 @@ func TestGetVersionReusesTheBackgroundProbe(t *testing.T) {
 	require.Nil(t, vi.JavaDB)
 	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
 }
+
+func TestScanCommandCarriesTheDefaultEngineFlags(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"GOMEMLIMIT=inherited", "KEEP=yes"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	config := etc.Trivy{ImageSrc: "remote", SkipVersionCheck: true, DisableTelemetry: true, ChildGoMemLimit: "1GiB"}
+	w := &wrapper{config: config, ambassador: ambassador}
+
+	image, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	require.NoError(t, err)
+	require.Contains(t, strings.Join(image.Args, " "), "--image-src remote")
+	require.Subset(t, image.Args, []string{"--skip-version-check", "--disable-telemetry"})
+	require.NotContains(t, image.Args, "--max-image-size")
+	require.Contains(t, image.Env, "GOMEMLIMIT=1GiB")
+	require.NotContains(t, image.Env, "GOMEMLIMIT=inherited")
+	require.Contains(t, image.Env, "KEEP=yes")
+
+	// --image-src and --max-image-size belong to the image subcommand only.
+	sbom, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetSBOM, filePath: "sbom.json"}, "report.json", ScanOption{Format: FormatJSON})
+	require.NoError(t, err)
+	require.NotContains(t, sbom.Args, "--image-src")
+	require.Subset(t, sbom.Args, []string{"--skip-version-check", "--disable-telemetry"})
+}
+
+func TestScanCommandOmitsUnsetEngineFlags(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"GOMEMLIMIT=inherited"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	w := &wrapper{config: etc.Trivy{ChildGoMemLimit: "off"}, ambassador: ambassador}
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	require.NoError(t, err)
+	for _, flag := range []string{"--image-src", "--max-image-size", "--skip-version-check", "--disable-telemetry"} {
+		require.NotContains(t, cmd.Args, flag)
+	}
+	// "off" is the escape hatch: whatever the pod sets is passed through.
+	require.Contains(t, cmd.Env, "GOMEMLIMIT=inherited")
+}
+
+func TestScanCommandPassesTheImageSizeLimit(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	w := &wrapper{config: etc.Trivy{MaxImageSize: "10GB"}, ambassador: ambassador}
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	require.NoError(t, err)
+	require.Contains(t, strings.Join(cmd.Args, " "), "--max-image-size 10GB")
+}

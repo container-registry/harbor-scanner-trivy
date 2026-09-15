@@ -78,6 +78,10 @@ func TestGetConfig(t *testing.T) {
 					Insecure:     false,
 					GitHubToken:  "",
 					Timeout:      parseDuration(t, "5m0s"),
+
+					ImageSrc:         "remote",
+					SkipVersionCheck: true,
+					DisableTelemetry: true,
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://localhost:6379",
@@ -121,6 +125,10 @@ func TestGetConfig(t *testing.T) {
 					Insecure:     false,
 					GitHubToken:  "",
 					Timeout:      parseDuration(t, "5m0s"),
+
+					ImageSrc:         "remote",
+					SkipVersionCheck: true,
+					DisableTelemetry: true,
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://localhost:6379",
@@ -168,6 +176,11 @@ func TestGetConfig(t *testing.T) {
 				"SCANNER_TRIVY_TIMEOUT":              "15m30s",
 				"SCANNER_TRIVY_VEX_SOURCE":           "oci",
 				"SCANNER_TRIVY_SKIP_VEX_REPO_UPDATE": "true",
+				"SCANNER_TRIVY_IMAGE_SRC":            "docker",
+				"SCANNER_TRIVY_SKIP_VERSION_CHECK":   "false",
+				"SCANNER_TRIVY_DISABLE_TELEMETRY":    "false",
+				"SCANNER_TRIVY_MAX_IMAGE_SIZE":       "5GB",
+				"SCANNER_TRIVY_CHILD_GOMEMLIMIT":     "off",
 
 				"SCANNER_STORE_REDIS_NAMESPACE":    "store.ns",
 				"SCANNER_STORE_REDIS_SCAN_JOB_TTL": "2h45m15s",
@@ -214,6 +227,11 @@ func TestGetConfig(t *testing.T) {
 					Timeout:           parseDuration(t, "15m30s"),
 					VEXSource:         "oci",
 					SkipVEXRepoUpdate: true,
+					ImageSrc:          "docker",
+					SkipVersionCheck:  false,
+					DisableTelemetry:  false,
+					MaxImageSize:      "5GB",
+					ChildGoMemLimit:   "off",
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://harbor-harbor-redis:6379",

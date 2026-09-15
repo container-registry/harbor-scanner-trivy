@@ -139,3 +139,52 @@ tests:
           content:
             name: SCANNER_TRIVY_DEBUG_MODE
             value: "false"
+
+  - it: pins the engine flags the adapter needs in a scanner pod
+    asserts:
+      # A scanner pod has no container runtime socket, reaches the network for
+      # nothing it needs, and should not call out to Aqua on every scan.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_IMAGE_SRC
+            value: remote
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_DISABLE_TELEMETRY
+            value: "true"
+
+  - it: omits the optional image size and child memory limits
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_MAX_IMAGE_SIZE
+            value: ""
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CHILD_GOMEMLIMIT
+            value: ""
+
+  - it: passes explicit image size and child memory limits through
+    set:
+      trivy.maxImageSize: 10GB
+      trivy.childGoMemLimit: "off"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_MAX_IMAGE_SIZE
+            value: 10GB
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CHILD_GOMEMLIMIT
+            value: "off"
