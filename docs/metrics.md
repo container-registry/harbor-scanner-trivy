@@ -135,6 +135,11 @@ measurements cover every workload sharing the instance.
   where possible. Store errors can additionally reflect a failed status write.
   Child stderr classification remains heuristic; exact diagnostic detail stays
   in logs. Error labels never contain raw stderr or image identifiers.
+- Failures are classified from Trivy's fatal report, the last `FATAL` line and
+  what follows it, not from the whole stderr buffer. A run logs a failed
+  database mirror before succeeding from the next one, so the buffer of a scan
+  that ended on a registry 401 also contains download errors. Output with no
+  fatal line, from a child that was killed, is classified whole.
 - `category="rate_limit"` and `category="db_download"` are retryable infrastructure
   failures: a throttling registry, or a vulnerability/Java database that could not be
   fetched. `category="db_schema"` (binary and database schema disagree) and

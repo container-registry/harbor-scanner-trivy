@@ -464,25 +464,25 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 	}{
 		{
 			name:      "registry rate limit",
-			output:    "FATAL\tFatal error\timage scan error: TOOMANYREQUESTS: retry-after: 60, allowed: 100/minute",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: TOOMANYREQUESTS: retry-after: 60, allowed: 100/minute",
 			expected:  ErrCategoryRateLimit,
 			retryable: true,
 		},
 		{
 			name:      "numeric rate limit status",
-			output:    "FATAL\tFatal error\tGET https://registry/v2/token: status code 429",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tGET https://registry/v2/token: status code 429",
 			expected:  ErrCategoryRateLimit,
 			retryable: true,
 		},
 		{
 			name:      "database download failure",
-			output:    "FATAL\tFatal error\tinit error: DB error: failed to download artifact from any source: 3 errors occurred",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact from any source: 3 errors occurred",
 			expected:  ErrCategoryDBDownload,
 			retryable: true,
 		},
 		{
 			name:      "java database failure",
-			output:    "FATAL\tFatal error\tjava DB error: failed to initialize the Java DB",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tjava DB error: failed to initialize the Java DB",
 			expected:  ErrCategoryDBDownload,
 			retryable: true,
 		},
@@ -490,19 +490,19 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 			// Trivy logs the advice and returns the schema mismatch wrapped in
 			// "DB error:", so both keywords reach the classifier together.
 			name:      "outdated binary",
-			output:    "ERROR\tTrivy version is old. Update to the latest version.\nFATAL\tFatal error\tDB error: the version of DB schema doesn't match. Local DB: 3, Expected: 2",
+			output:    "2026-09-15T10:00:00Z\tERROR\tTrivy version is old. Update to the latest version.\n2026-09-15T10:00:00Z\tFATAL\tFatal error\tDB error: the version of DB schema doesn't match. Local DB: 3, Expected: 2",
 			expected:  ErrCategoryDBSchema,
 			retryable: false,
 		},
 		{
 			name:      "schema mismatch with updates disabled",
-			output:    "FATAL\tFatal error\tDB error: validate error: --skip-db-update cannot be specified with the old DB schema. Local DB: 2, Expected: 3",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tDB error: validate error: --skip-db-update cannot be specified with the old DB schema. Local DB: 2, Expected: 3",
 			expected:  ErrCategoryDBSchema,
 			retryable: false,
 		},
 		{
 			name:      "java schema mismatch with updates disabled",
-			output:    "FATAL\tFatal error\tJava DB error: '--skip-java-db-update' cannot be specified on the first run",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tJava DB error: '--skip-java-db-update' cannot be specified on the first run",
 			expected:  ErrCategoryDBSchema,
 			retryable: false,
 		},
@@ -514,25 +514,25 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 		},
 		{
 			name:      "artifact that is not an image",
-			output:    `FATAL	Fatal error	unsupported artifact type "application/vnd.cncf.helm.config.v1+json" for image "registry/chart:1.0"`,
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tunsupported artifact type \"application/vnd.cncf.helm.config.v1+json\" for image \"registry/chart:1.0\"",
 			expected:  ErrCategoryUnsupportedArtifact,
 			retryable: false,
 		},
 		{
 			name:      "cache miss",
-			output:    "FATAL\tFatal error\tlayer cache missing: sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tlayer cache missing: sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
 			expected:  ErrCategoryCache,
 			retryable: true,
 		},
 		{
 			name:      "expired deadline",
-			output:    "FATAL\tFatal error\timage scan error: context deadline exceeded",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: context deadline exceeded",
 			expected:  ErrCategoryTimeout,
 			retryable: true,
 		},
 		{
 			name:      "broken layer archive",
-			output:    "FATAL\tFatal error\trun error: walk error: failed to extract the archive: unexpected EOF",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\trun error: walk error: failed to extract the archive: unexpected EOF",
 			expected:  ErrCategoryUnscannable,
 			retryable: false,
 		},
@@ -540,13 +540,13 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 			// Known ordering hazard: a timed-out extraction is reported as a
 			// timeout, because "timeout" is matched before the archive keywords.
 			name:      "broken layer archive reported after a timeout",
-			output:    "FATAL\tFatal error\trun error: timeout: failed to extract the archive",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\trun error: timeout: failed to extract the archive",
 			expected:  ErrCategoryTimeout,
 			retryable: true,
 		},
 		{
 			name:      "registry rejects the credentials",
-			output:    "FATAL\tFatal error\timage scan error: GET https://registry/v2/library/alpine/manifests/latest: UNAUTHORIZED: authentication required",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/library/alpine/manifests/latest: UNAUTHORIZED: authentication required",
 			expected:  ErrCategoryAuth,
 			retryable: false,
 		},
@@ -685,4 +685,57 @@ func TestScanCommandPassesTheImageSizeLimit(t *testing.T) {
 	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
 	require.NoError(t, err)
 	require.Contains(t, strings.Join(cmd.Args, " "), "--max-image-size 10GB")
+}
+
+func TestClassificationReadsTheFatalLineNotTheWholeLog(t *testing.T) {
+	// A database mirror that is unreachable logs a failure and then succeeds
+	// from the next repository, so the buffer of a successful run carries
+	// download errors that have nothing to do with why the scan ended.
+	mirrorFallback := "2026-09-15T09:59:58Z\tERROR\t[oci] Failed to download artifact\trepo=\"mirror.gcr.io/aquasec/trivy-db\" err=\"oci download error\"\n" +
+		"2026-09-15T09:59:58Z\tINFO\t[oci] Trying to download artifact from other repository...\n" +
+		"2026-09-15T09:59:59Z\tINFO\t[vulndb] Vulnerability DB successfully downloaded\n"
+
+	for _, tc := range []struct {
+		name     string
+		output   string
+		expected ScanErrorCategory
+	}{
+		{
+			name:     "fatal auth after a mirror fallback",
+			output:   mirrorFallback + "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "fatal database download",
+			output:   mirrorFallback + "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact from any source",
+			expected: ErrCategoryDBDownload,
+		},
+		{
+			name: "debug mode puts the error chain under the fatal line",
+			output: mirrorFallback + "2026-09-15T10:00:00Z\tFATAL\tFatal error\n" +
+				"  - image scan error\n  - GET https://registry/v2/: UNAUTHORIZED: authentication required\n",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "only the last fatal line counts",
+			output:   "2026-09-15T09:00:00Z\tFATAL\tFatal error\timage scan error: TOOMANYREQUESTS\n2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: context deadline exceeded",
+			expected: ErrCategoryTimeout,
+		},
+		{
+			// A child killed before it could report leaves no fatal line, so
+			// the whole buffer is classified as it always was.
+			name:     "no fatal line at all",
+			output:   mirrorFallback,
+			expected: ErrCategoryDBDownload,
+		},
+		{
+			name:     "empty output",
+			output:   "",
+			expected: ErrCategoryTrivyExec,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, classifyTrivyError(tc.output))
+		})
+	}
 }

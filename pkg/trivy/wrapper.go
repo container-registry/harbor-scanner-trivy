@@ -424,9 +424,27 @@ func setEnv(env []string, values ...string) []string {
 	return env
 }
 
+// fatalMarker delimits Trivy's fatal report, "<RFC3339>\tFATAL\t<message>".
+const fatalMarker = "\tFATAL\t"
+
+// fatalDiagnostics narrows the output to Trivy's fatal report, which carries
+// the whole wrapped error chain and continues on the following lines under
+// --debug. Everything above it is routine logging, and some of it reads like a
+// failure: a database mirror that is unreachable logs "Failed to download
+// artifact" and then succeeds from the next repository. Classifying the full
+// buffer turned such a scan, fatal on a registry 401, into a retryable
+// db_download. Output without a fatal report, from a child that was killed,
+// is classified whole as before.
+func fatalDiagnostics(output string) string {
+	if i := strings.LastIndex(output, fatalMarker); i >= 0 {
+		return output[i:]
+	}
+	return output
+}
+
 // classifyTrivyError categorizes Trivy CLI errors by pattern-matching the output.
 func classifyTrivyError(output string) ScanErrorCategory {
-	lower := strings.ToLower(output)
+	lower := strings.ToLower(fatalDiagnostics(output))
 	// Infrastructure failures are matched first: their messages routinely also
 	// carry the generic keywords ("error", "timeout") matched further down.
 	switch {
