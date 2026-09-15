@@ -2,6 +2,8 @@ package queue
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -27,17 +29,23 @@ func (w *streamWorker) monitorQueue(ctx context.Context) {
 func (w *streamWorker) observeQueue(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	success := true
+	var failure error
+	failed := func(query string, err error) {
+		w.metrics.Inc("queue_collection_errors_total", query)
+		if failure == nil {
+			failure = fmt.Errorf("%s: %w", query, err)
+		}
+	}
 	if count, err := w.rdb.HLen(ctx, w.stream+":quarantine").Result(); err == nil {
 		w.metrics.Set("queue_quarantined_jobs", float64(count))
 	} else {
-		success = false
+		failed("quarantine", err)
 		w.metrics.Delete("queue_quarantined_jobs")
 	}
 	if depth, err := w.rdb.XLen(ctx, w.stream).Result(); err == nil {
 		w.metrics.Set("queue_unacknowledged_jobs", float64(depth))
 	} else {
-		success = false
+		failed("length", err)
 		w.metrics.Delete("queue_unacknowledged_jobs")
 	}
 	if messages, err := w.rdb.XRangeN(ctx, w.stream, "-", "+", 1).Result(); err == nil {
@@ -50,13 +58,28 @@ func (w *streamWorker) observeQueue(ctx context.Context) {
 		}
 		w.metrics.Set("queue_oldest_age_seconds", age)
 	} else {
-		success = false
+		failed("oldest", err)
 		w.metrics.Delete("queue_oldest_age_seconds")
 	}
-	if success {
-		w.metrics.Set("queue_collection_success", 1)
-		w.metrics.Set("queue_collection_last_success_timestamp_seconds", float64(time.Now().Unix()))
-	} else {
+	w.reportCollection(failure)
+}
+
+// reportCollection logs state changes only. Collection samples every ten
+// seconds, so logging each failure would turn a Redis outage into a log flood
+// while the counter and the success gauge already carry the rate.
+func (w *streamWorker) reportCollection(failure error) {
+	if failure != nil {
 		w.metrics.Set("queue_collection_success", 0)
+		if !w.collectionFailing {
+			w.collectionFailing = true
+			slog.Error("Queue metric collection failed", slog.String("err", failure.Error()))
+		}
+		return
+	}
+	w.metrics.Set("queue_collection_success", 1)
+	w.metrics.Set("queue_collection_last_success_timestamp_seconds", float64(time.Now().Unix()))
+	if w.collectionFailing {
+		w.collectionFailing = false
+		slog.Info("Queue metric collection recovered")
 	}
 }

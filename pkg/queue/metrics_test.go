@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -226,4 +228,45 @@ func TestFailedQueueCollectionDropsStaleValues(t *testing.T) {
 func TestDisabledMetricsDoNotReadRedis(t *testing.T) {
 	worker := &streamWorker{} // No recorder or Redis client: any Redis read would panic.
 	worker.monitorQueue(context.Background())
+}
+
+func TestQueueOutageIsCountedPerQueryAndLoggedOnceOnEachTransition(t *testing.T) {
+	server, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
+	ctx := context.Background()
+	var logged []string
+	previous := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.MessageKey {
+				logged = append(logged, a.Value.String())
+			}
+			return a
+		},
+	})))
+
+	w.observeQueue(ctx)
+	require.Empty(t, logged)
+	for _, query := range []string{"quarantine", "length", "oldest"} {
+		require.Zero(t, metricCount(t, r, "queue_collection_errors_total", "query", query), query)
+	}
+
+	server.SetError("redis outage")
+	for range 3 {
+		w.observeQueue(ctx)
+	}
+	for _, query := range []string{"quarantine", "length", "oldest"} {
+		require.Equal(t, float64(3), metricCount(t, r, "queue_collection_errors_total", "query", query), query)
+	}
+	require.Equal(t, []string{"Queue metric collection failed"}, logged)
+
+	server.SetError("")
+	w.observeQueue(ctx)
+	w.observeQueue(ctx)
+	require.Equal(t, []string{"Queue metric collection failed", "Queue metric collection recovered"}, logged)
+	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
 }

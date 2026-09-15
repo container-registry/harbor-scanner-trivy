@@ -52,6 +52,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `queue_quarantined_jobs` | gauge | — | Malformed deliveries retained outside the active queue for inspection; use max across pods. Any nonzero value needs investigation. |
 | `queue_collection_success` | gauge | — | Whether the latest queue collection succeeded. Failed measurements are removed. |
 | `queue_collection_last_success_timestamp_seconds` | gauge | — | Last successful queue collection; use `time() - metric` for its age. |
+| `queue_collection_errors_total` | counter | query | Failed queue measurements by query (`quarantine`, `length`, `oldest`). Counts measurement failures, not scan failures. Each sample can fail all three queries, so this is roughly three times the number of failed samples during an outage. |
 | `queue_oldest_age_seconds` | gauge | — | Age of oldest unacknowledged delivery, sampled every ten seconds. |
 | `job_attempts_total` | counter | capability, format, outcome | Observed attempts, including retryable failures; not unique artifacts or terminal jobs. |
 | `job_failures_total` | counter | stage, category | Primary failures of controller executions. |
@@ -146,6 +147,10 @@ measurements cover every workload sharing the instance.
   or total container peak. If the child never starts or the adapter is killed,
   usage may be unavailable. Check the container termination reason to determine
   whether a signal was caused by OOM.
+- Queue collection failures are logged once per state change, not once per
+  sample, so a Redis outage produces one error line and one recovery line.
+  `rate(queue_collection_errors_total[5m])` is the machine-readable rate, and
+  `queue_collection_success` shows the current state.
 - Last-success and metadata timestamps remain absent until observed. An idle
   installation need not have a recent successful scan. Use collection-success
   and last-success timestamps together; failed samples remove invalid snapshot

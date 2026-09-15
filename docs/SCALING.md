@@ -113,6 +113,7 @@ The existing `/metrics` endpoint exports:
 - `harbor_scanner_trivy_job_duration_seconds`: attempt latency histogram, including report persistence.
 - `harbor_scanner_trivy_scan_retries_total` and `harbor_scanner_trivy_lease_losses_total`: recovery and ownership trouble.
 - `harbor_scanner_trivy_queue_unacknowledged_jobs` and `harbor_scanner_trivy_queue_oldest_age_seconds`: shared backlog, including pending scans. Use `max` across pods; `sum` would count the shared queue once per replica. Collection runs every ten seconds independently of scans, with a five-second timeout. Failed measurements are removed. Check `harbor_scanner_trivy_queue_collection_success` and the age of `harbor_scanner_trivy_queue_collection_last_success_timestamp_seconds` before interpreting missing queue data.
+- `harbor_scanner_trivy_queue_collection_errors_total{query="quarantine|length|oldest"}`: failed queue measurements, which say the queue could not be read rather than that scanning failed. The adapter logs the failure once when collection starts failing and once when it recovers, so alert on this counter and on `queue_collection_success`, not on log volume.
 
 Pair these with Harbor completion/failure rates, registry transfer metrics, pod CPU/memory/temporary-storage usage and the dedicated cache's memory, eviction, hit/miss and latency statistics. Raising replicas helps only while registry bandwidth, CPU, local storage, job delivery and cache service have spare capacity.
 

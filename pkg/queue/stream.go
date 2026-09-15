@@ -65,6 +65,8 @@ type streamWorker struct {
 	leaseDuration    time.Duration
 	cancel           context.CancelFunc
 	wg               sync.WaitGroup
+	// Owned by the monitor goroutine; see reportCollection.
+	collectionFailing bool
 }
 
 func NewWorker(config etc.JobQueue, rdb *redis.Client, controller scan.Controller, store persistence.Store, recorders ...*metrics.Recorder) Worker {
