@@ -125,7 +125,7 @@ func TestAnalysisCacheBackendInfo(t *testing.T) {
 			r := New(true)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			r.Start(ctx, etc.Config{Trivy: etc.Trivy{CacheBackend: configured}}, "test")()
+			r.Start(ctx, etc.Config{Trivy: etc.Trivy{CacheBackend: configured}}, "test", ext.DefaultAmbassador)()
 			require.Equal(t, 1, testutil.CollectAndCount(r.gauges["analysis_cache_backend_info"]))
 			require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["analysis_cache_backend_info"].WithLabelValues(want)))
 			families, err := r.Gatherer().Gather()
@@ -157,9 +157,9 @@ func TestCollectorShutdownAndOutputLimit(t *testing.T) {
 	cancel()
 	cfg := etc.Config{Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second}}
 	r := New(true)
-	r.Start(ctx, cfg, "test")()
+	r.Start(ctx, cfg, "test", ext.DefaultAmbassador)()
 	require.Zero(t, testutil.CollectAndCount(r.gauges["metadata_last_success_timestamp_seconds"]))
-	New(false).Start(context.Background(), cfg, "test")()
+	New(false).Start(context.Background(), cfg, "test", ext.DefaultAmbassador)()
 }
 
 func TestDisabledGathererIsEmpty(t *testing.T) {

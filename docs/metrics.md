@@ -20,8 +20,13 @@ policies remain outside this instrumentation.
 | `SCANNER_METRICS_CACHE_MAX_FILES` | `10000` | Maximum entries visited per cache sample, shared across directories; range 1–1000000. |
 
 A background loop reads cached files and filesystem statistics. Scrapes return
-the collected values without starting filesystem work. The engine version is obtained with a bounded
-`trivy version --format json` command, retried until available. File walks do not
+the collected values without starting filesystem work. The engine is sampled on every
+tick with a bounded `trivy version --format json` command, because an image upgrade
+replaces the binary and both databases change schema under a running pod. A failed
+probe removes `db_schema_version` and sets `metadata_collection_success` to 0, while
+`build_info` keeps the last known version: the binary has not changed. The adapter
+metadata API reuses that probe while it is younger than the collection interval, so
+Harbor's polling does not start a Trivy process per request. File walks do not
 follow symlinks. Missing or unsupported cache layouts produce collection failures and omit
 the affected size series. They do not report a zero size. Capacity areas and replicas may
 refer to the same filesystem: do not sum them as independent disks.
@@ -79,6 +84,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `db_next_update_timestamp_seconds` | gauge | database | Advertised database next update timestamp. |
 | `db_downloaded_timestamp_seconds` | gauge | database | Recorded local download timestamp, not download attempts. |
 | `db_updates_enabled` | gauge | database | Effective automatic database update policy. |
+| `db_schema_version` | gauge | database | Database schema version the engine reports. Zero means the database was never downloaded; the series is absent when the engine could not be probed. A change means the engine and the database have to agree again, which is what a `db_schema` scan failure reports. |
 | `analysis_cache_backend_info` | gauge | backend | Configured analysis-cache backend: `filesystem`, `redis`, `memory`, or `unknown`. Value is 1; no server URL or credentials are exposed. |
 | `metadata_collection_success` | gauge | — | Whether Trivy version and local vulnerability/Java metadata checks succeeded, including valid database absence. Does not test database integrity. |
 | `metadata_last_success_timestamp_seconds` | gauge | — | Last successful monitoring refresh of vulnerability/Java metadata; not database build or download time. |

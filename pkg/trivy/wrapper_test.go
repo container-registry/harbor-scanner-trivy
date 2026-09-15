@@ -21,6 +21,7 @@ import (
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 	"github.com/stretchr/testify/require"
 )
 
@@ -612,4 +613,27 @@ func TestScanDetailCarriesTheTailOfTheDiagnostics(t *testing.T) {
 	require.False(t, failure.Retryable)
 	require.Len(t, failure.Detail, detailLimit)
 	require.True(t, strings.HasSuffix(failure.Detail, `unsupported artifact type "application/vnd.cncf.helm.config.v1+json"`))
+}
+
+func TestGetVersionReusesTheBackgroundProbe(t *testing.T) {
+	engine := ext.NewMockAmbassador()
+	engine.On("RunCmd", mock.Anything).Return([]byte(`{"Version":"0.74.0",
+		"VulnerabilityDB":{"Version":2,"NextUpdate":"2026-09-16T10:00:00Z","UpdatedAt":"2026-09-15T10:00:00Z"}}`), []byte{}, nil)
+	recorder := metrics.New(true)
+	cfg := etc.Config{Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
+		Trivy: etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()}}
+	stop := recorder.Start(context.Background(), cfg, "adapter", engine)
+	require.Eventually(t, func() bool { _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	stop()
+
+	// No RunCmd expectation: reaching the CLI would fail the test.
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	vi, err := NewWrapper(cfg.Trivy, ambassador, recorder).GetVersion()
+	require.NoError(t, err)
+	require.Equal(t, "0.74.0", vi.Version)
+	require.NotNil(t, vi.VulnerabilityDB)
+	require.Equal(t, time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC), vi.VulnerabilityDB.UpdatedAt)
+	require.Nil(t, vi.JavaDB)
+	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
 }

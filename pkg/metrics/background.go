@@ -26,10 +26,11 @@ type databaseMetadata struct {
 
 // Start samples metadata and filesystems in one bounded background loop. The
 // returned function waits for cancellation/collection completion before shutdown.
-func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion string) func() {
+func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion string, ambassador ext.Ambassador) func() {
 	if r == nil {
 		return func() {}
 	}
+	r.version.ttl = cfg.Metrics.CollectionInterval
 	r.Set("worker_concurrency", float64(cfg.JobQueue.WorkerConcurrency))
 	backend := analysisCacheBackend(cfg.Trivy.CacheBackend)
 	r.Set("analysis_cache_backend_info", 1, backend)
@@ -51,21 +52,11 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 			if ctx.Err() != nil {
 				return
 			}
-			if version == "" {
-				versionCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
-				cmd := exec.CommandContext(versionCtx, "trivy", "--cache-dir", cfg.Trivy.CacheDir, "version", "--format", "json")
-				output, stderr, err := r.Run(versionCtx, "version", cmd, runLimited)
-				stop()
-				var info struct{ Version string }
-				if err == nil && json.Unmarshal(output, &info) == nil && info.Version != "" {
-					version = info.Version
-					r.Set("build_info", 1, adapterVersion, version)
-				} else if err != nil {
-					slog.Debug("Trivy version probe failed",
-						slog.String("err", err.Error()), slog.String("std_err", string(stderr)))
-				}
+			probed := r.probeEngine(ctx, cfg, ambassador, adapterVersion, version)
+			if probed != "" {
+				version = probed
 			}
-			r.collectMetadata(cfg.Trivy, version != "")
+			r.collectMetadata(cfg.Trivy, probed != "")
 			r.collectFilesystem(cfg.Trivy.CacheDir, "cache")
 			r.collectFilesystem(cfg.Trivy.ReportsDir, "reports")
 			if cfg.Metrics.CacheSizeEnabled {
@@ -94,15 +85,55 @@ func boolValue(b bool) float64 {
 	return 0
 }
 
-func runLimited(cmd *exec.Cmd) ([]byte, []byte, error) {
-	stdout := &ext.LimitedBuffer{Limit: ext.MaxStdout}
-	stderr := &ext.LimitedBuffer{Limit: ext.MaxStderr}
-	cmd.Stdout, cmd.Stderr = stdout, stderr
-	err := cmd.Run()
-	if err == nil && stdout.Truncated() {
-		err = errors.New("metadata output exceeds the output limit")
+// engineProbe is the subset of `trivy version --format json` the adapter reads.
+// The database blocks are omitted until the database has been downloaded.
+type engineProbe struct {
+	Version         string
+	VulnerabilityDB *struct{ Version int }
+	JavaDB          *struct{ Version int }
+}
+
+// probeEngine samples the engine on every tick rather than once. The binary is
+// replaced by image upgrades and both databases change schema under a running
+// pod, so a reading taken at startup silently goes stale. It returns the engine
+// version on success and an empty string on failure.
+func (r *Recorder) probeEngine(ctx context.Context, cfg etc.Config, ambassador ext.Ambassador, adapterVersion, previous string) string {
+	probeCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
+	defer stop()
+	cmd := exec.CommandContext(probeCtx, "trivy", "--cache-dir", cfg.Trivy.CacheDir, "version", "--format", "json")
+	output, stderr, err := r.Run(probeCtx, "version", cmd, ambassador.RunCmd)
+	var info engineProbe
+	if err == nil {
+		if err = json.Unmarshal(output, &info); err == nil && info.Version == "" {
+			err = errors.New("version missing from engine output")
+		}
 	}
-	return stdout.Bytes(), stderr.Bytes(), err
+	if err != nil {
+		slog.Debug("Trivy version probe failed",
+			slog.String("err", err.Error()), slog.String("std_err", string(stderr)))
+		for _, db := range []string{"vulnerability", "java"} {
+			r.Delete("db_schema_version", db)
+		}
+		return ""
+	}
+	// Keep the previous build_info series only while the binary is unchanged:
+	// an upgraded engine would otherwise leave two series claiming to be current.
+	if previous != "" && previous != info.Version {
+		r.Delete("build_info", adapterVersion, previous)
+	}
+	r.Set("build_info", 1, adapterVersion, info.Version)
+	for _, db := range []struct {
+		name string
+		meta *struct{ Version int }
+	}{{"vulnerability", info.VulnerabilityDB}, {"java", info.JavaDB}} {
+		schema := 0
+		if db.meta != nil {
+			schema = db.meta.Version
+		}
+		r.Set("db_schema_version", float64(schema), db.name)
+	}
+	r.cacheVersion(output)
+	return info.Version
 }
 
 func (r *Recorder) collectMetadata(cfg etc.Trivy, versionOK bool) {

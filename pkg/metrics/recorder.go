@@ -97,6 +97,7 @@ var catalog = []definition{
 	{"db_next_update_timestamp_seconds", "Advertised database next update timestamp.", "gauge", []string{"database"}, nil},
 	{"db_downloaded_timestamp_seconds", "Recorded local download timestamp, not download attempts.", "gauge", []string{"database"}, nil},
 	{"db_updates_enabled", "Effective automatic database update policy.", "gauge", []string{"database"}, nil},
+	{"db_schema_version", "Database schema version the engine reports; zero when the database was never downloaded.", "gauge", []string{"database"}, nil},
 	{"analysis_cache_backend_info", "Configured Trivy analysis-cache backend; database files remain local.", "gauge", []string{"backend"}, nil},
 	{"metadata_collection_success", "Whether Trivy version and local vulnerability/Java database metadata checks succeeded, including valid absence.", "gauge", nil, nil},
 	{"metadata_last_success_timestamp_seconds", "Last successful metadata refresh.", "gauge", nil, nil},
@@ -117,6 +118,38 @@ type Recorder struct {
 	definitions map[string]definition
 	mu          sync.Mutex
 	running     map[*time.Time]struct{}
+	version     versionCache
+}
+
+// versionCache lets the metadata API reuse the background probe. Harbor polls
+// metadata about twice a minute, and each poll would otherwise start a Trivy
+// process whose answer the background loop has already collected.
+type versionCache struct {
+	mu     sync.Mutex
+	output []byte
+	at     time.Time
+	ttl    time.Duration
+}
+
+func (r *Recorder) cacheVersion(output []byte) {
+	r.version.mu.Lock()
+	defer r.version.mu.Unlock()
+	r.version.output, r.version.at = output, time.Now()
+}
+
+// CachedVersion returns the most recent successful engine probe while it is
+// younger than the collection interval, so callers know it describes the
+// current state without measuring it again.
+func (r *Recorder) CachedVersion() ([]byte, bool) {
+	if r == nil {
+		return nil, false
+	}
+	r.version.mu.Lock()
+	defer r.version.mu.Unlock()
+	if r.version.ttl <= 0 || len(r.version.output) == 0 || time.Since(r.version.at) > r.version.ttl {
+		return nil, false
+	}
+	return r.version.output, true
 }
 
 func New(enabled bool) *Recorder {

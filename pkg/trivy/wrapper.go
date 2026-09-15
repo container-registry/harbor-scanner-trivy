@@ -442,6 +442,15 @@ func classifyTrivyError(output string) ScanErrorCategory {
 }
 
 func (w *wrapper) GetVersion() (VersionInfo, error) {
+	// Harbor polls metadata about twice a minute. Reuse the background probe
+	// while it is current instead of starting a Trivy process per poll.
+	if cached, ok := w.metrics.CachedVersion(); ok {
+		var vi VersionInfo
+		if err := json.Unmarshal(cached, &vi); err == nil {
+			return vi, nil
+		}
+	}
+
 	cmd, err := w.prepareVersionCmd()
 	if err != nil {
 		return VersionInfo{}, fmt.Errorf("failed preparing trivy version command: %w", err)

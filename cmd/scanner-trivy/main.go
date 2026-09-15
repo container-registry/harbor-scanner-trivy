@@ -74,7 +74,7 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 
 	recorder := metrics.New(config.API.MetricsEnabled)
 	recorder.RegisterRedis(rdb)
-	stopMetrics := recorder.Start(ctx, config, info.Version)
+	stopMetrics := recorder.Start(ctx, config, info.Version, ext.DefaultAmbassador)
 	defer stopMetrics()
 
 	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, recorder)
