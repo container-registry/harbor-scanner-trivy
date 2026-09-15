@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // Collection runs independently of scans using the shared Redis client.
@@ -47,6 +50,13 @@ func (w *streamWorker) observeQueue(ctx context.Context) {
 	} else {
 		failed("length", err)
 		w.metrics.Delete("queue_unacknowledged_jobs")
+	}
+	// XLEN and XRANGE answer without a consumer group, so a lost group leaves
+	// every other measurement healthy while no delivery can be read at all.
+	if groups, err := w.rdb.XInfoGroups(ctx, w.stream).Result(); err != nil {
+		failed("group", err)
+	} else if !slices.ContainsFunc(groups, func(g redis.XInfoGroup) bool { return g.Name == workerGroup }) {
+		failed("group", fmt.Errorf("consumer group %q is missing from stream %q", workerGroup, w.stream))
 	}
 	if messages, err := w.rdb.XRangeN(ctx, w.stream, "-", "+", 1).Result(); err == nil {
 		age := float64(0)

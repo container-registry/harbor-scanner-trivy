@@ -39,7 +39,7 @@ var values = map[string][]string{
 	"result":     {"lock_acquired", "lock_busy", "lock_error", "decode_error", "ok", "pending", "failed", "not_found", "error", "invalid_request", "not_applied", "success", "other"},
 	"method":     {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "other"},
 	"route":      {"/api/v1/scan", "/api/v1/scan/{scan_request_id}/report", "/api/v1/metadata", "unmatched", "other"},
-	"query":      {"quarantine", "length", "oldest", "other"},
+	"query":      {"quarantine", "length", "oldest", "group", "other"},
 	// Qualified by metric because the HTTP status domain of the shared "code"
 	// label is unrelated to a process exit status.
 	"subprocess_exit_code_total.code": {"0", "1", "2", "137", "143", "other"},
@@ -64,6 +64,7 @@ var catalog = []definition{
 	{"queue_quarantined_jobs", "Malformed deliveries retained for operator inspection; use max across pods.", "gauge", nil, nil},
 	{"queue_collection_success", "Whether all queue metrics were collected successfully.", "gauge", nil, nil},
 	{"queue_collection_errors_total", "Failed queue measurements by query; a scan failure is not counted here.", "counter", []string{"query"}, nil},
+	{"queue_group_recreated_total", "Consumer group recreations after the queue backend lost it; until each one, no delivery could be read.", "counter", nil, nil},
 	{"queue_collection_last_success_timestamp_seconds", "Unix timestamp of the last successful queue collection.", "gauge", nil, nil},
 	{"queue_oldest_age_seconds", "Age of oldest unacknowledged delivery; sampled every ten seconds.", "gauge", nil, nil},
 	{"build_info", "Adapter and Trivy binary versions.", "gauge", []string{"adapter_version", "trivy_version"}, nil},
@@ -196,7 +197,7 @@ func New(enabled bool) *Recorder {
 	for _, result := range []string{"lock_acquired", "lock_busy", "lock_error", "decode_error"} {
 		r.Add("job_dispatch_total", 0, result)
 	}
-	for _, query := range []string{"quarantine", "length", "oldest"} {
+	for _, query := range []string{"quarantine", "length", "oldest", "group"} {
 		r.Add("queue_collection_errors_total", 0, query)
 	}
 	for _, event := range values["event"] {

@@ -67,6 +67,8 @@ type streamWorker struct {
 	wg               sync.WaitGroup
 	// Owned by the monitor goroutine; see reportCollection.
 	collectionFailing bool
+	// Owned by the run goroutine; see recoverMissingGroup.
+	groupRecreations int
 }
 
 func NewWorker(config etc.JobQueue, rdb *redis.Client, controller scan.Controller, store persistence.Store, recorders ...*metrics.Recorder) Worker {
@@ -100,8 +102,8 @@ func (w *streamWorker) run(ctx context.Context) {
 		_ = cleanConsumers.Run(cleanup, w.rdb, []string{w.stream}, workerGroup, w.consumer, (2 * w.leaseDuration).Milliseconds()).Err()
 	}()
 	for ctx.Err() == nil {
-		err := w.rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err()
-		if err == nil || strings.HasPrefix(err.Error(), "BUSYGROUP") {
+		err := w.ensureGroup(ctx)
+		if err == nil {
 			break
 		}
 		slog.Error("Initializing scan stream", "error", err)
@@ -121,7 +123,9 @@ func (w *streamWorker) run(ctx context.Context) {
 			MinIdle: w.leaseDuration, Start: cursor, Count: 1,
 		}).Result()
 		if err != nil && !errors.Is(err, redis.Nil) {
-			slog.Error("Recovering scan delivery", "error", err)
+			if !w.recoverMissingGroup(ctx, err) {
+				slog.Error("Recovering scan delivery", "error", err)
+			}
 			if !waitRetry(ctx) {
 				return
 			}
@@ -139,7 +143,7 @@ func (w *streamWorker) run(ctx context.Context) {
 				continue
 			}
 			if readErr != nil {
-				if ctx.Err() == nil {
+				if !w.recoverMissingGroup(ctx, readErr) && ctx.Err() == nil {
 					slog.Error("Reading scan delivery", "error", readErr)
 				}
 				if !waitRetry(ctx) {
@@ -160,6 +164,39 @@ func (w *streamWorker) run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// ensureGroup creates the consumer group, treating an existing one as success.
+func (w *streamWorker) ensureGroup(ctx context.Context) error {
+	err := w.rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err()
+	if err != nil && strings.HasPrefix(err.Error(), "BUSYGROUP") {
+		return nil
+	}
+	return err
+}
+
+// recoverMissingGroup restores a consumer group the backend lost and reports
+// whether the error was that. A job Redis without persistence comes back empty,
+// and nothing recreated the group after startup, so every read failed with
+// NOGROUP forever: no scan was dispatched, and the loop logged once a second
+// for as long as it lasted. Recreating from "0" keeps deliveries that survived.
+func (w *streamWorker) recoverMissingGroup(ctx context.Context, cause error) bool {
+	if cause == nil || !strings.HasPrefix(cause.Error(), "NOGROUP") {
+		return false
+	}
+	if err := w.ensureGroup(ctx); err != nil {
+		if ctx.Err() == nil {
+			slog.Error("Recreating the scan consumer group failed", "error", err, "cause", cause.Error())
+		}
+		return true
+	}
+	w.groupRecreations++
+	w.metrics.Inc("queue_group_recreated_total")
+	// One line per recreation, never one per failed read.
+	slog.Warn("Recreated the scan consumer group lost by the queue backend",
+		"stream", w.stream, "group", workerGroup,
+		"recreations", w.groupRecreations, "cause", cause.Error())
+	return true
 }
 
 func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error {

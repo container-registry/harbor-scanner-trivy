@@ -210,6 +210,7 @@ func TestFailedQueueCollectionDropsStaleValues(t *testing.T) {
 	r := metrics.New(true)
 	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
 	ctx := context.Background()
+	require.NoError(t, w.ensureGroup(ctx))
 	w.observeQueue(ctx)
 	last, ok := gaugeValue(t, r, "queue_collection_last_success_timestamp_seconds")
 	require.True(t, ok)
@@ -235,6 +236,7 @@ func TestQueueOutageIsCountedPerQueryAndLoggedOnceOnEachTransition(t *testing.T)
 	r := metrics.New(true)
 	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
 	ctx := context.Background()
+	require.NoError(t, w.ensureGroup(ctx))
 	var logged []string
 	previous := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(previous) })
@@ -250,7 +252,7 @@ func TestQueueOutageIsCountedPerQueryAndLoggedOnceOnEachTransition(t *testing.T)
 
 	w.observeQueue(ctx)
 	require.Empty(t, logged)
-	for _, query := range []string{"quarantine", "length", "oldest"} {
+	for _, query := range []string{"quarantine", "length", "oldest", "group"} {
 		require.Zero(t, metricCount(t, r, "queue_collection_errors_total", "query", query), query)
 	}
 
@@ -258,7 +260,7 @@ func TestQueueOutageIsCountedPerQueryAndLoggedOnceOnEachTransition(t *testing.T)
 	for range 3 {
 		w.observeQueue(ctx)
 	}
-	for _, query := range []string{"quarantine", "length", "oldest"} {
+	for _, query := range []string{"quarantine", "length", "oldest", "group"} {
 		require.Equal(t, float64(3), metricCount(t, r, "queue_collection_errors_total", "query", query), query)
 	}
 	require.Equal(t, []string{"Queue metric collection failed"}, logged)
@@ -268,5 +270,52 @@ func TestQueueOutageIsCountedPerQueryAndLoggedOnceOnEachTransition(t *testing.T)
 	w.observeQueue(ctx)
 	require.Equal(t, []string{"Queue metric collection failed", "Queue metric collection recovered"}, logged)
 	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
+}
+
+func TestLostConsumerGroupIsRecreatedAndCounted(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	ctx := context.Background()
+	scanned := make(chan struct{}, 1)
+	w := NewWorker(cfg, rdb, scanFunc(func(ctx context.Context, key job.ScanJobKey, _ *harbor.ScanRequest) error {
+		select {
+		case scanned <- struct{}{}:
+		default:
+		}
+		return store.UpdateStatus(ctx, key, job.Finished)
+	}), store, r).(*streamWorker)
+	// A job backend without persistence comes back with no consumer group, and
+	// the group the worker created at startup is gone. Redis answers NOGROUP
+	// for a missing group and for a missing stream key alike.
+	require.NoError(t, w.ensureGroup(ctx))
+	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
+
+	// Sampled with no worker running, so nothing can repair the group first.
+	w.observeQueue(ctx)
+	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Zero(t, status, "a queue nothing can read from is not healthy")
+	require.Equal(t, float64(1), metricCount(t, r, "queue_collection_errors_total", "query", "group"))
+
+	w.Start(ctx)
+	t.Cleanup(w.Stop)
+	// The loop recreates the group at startup like any restart would, so take
+	// it away again to reach the state the loop itself has to recover from.
+	require.Eventually(t, func() bool {
+		groups, err := rdb.XInfoGroups(ctx, w.stream).Result()
+		return err == nil && len(groups) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
+
+	_, err := NewEnqueuer(cfg, store).Enqueue(ctx, testRequest())
+	require.NoError(t, err)
+	select {
+	case <-scanned:
+	case <-time.After(15 * time.Second):
+		t.Fatal("no delivery was dispatched after the consumer group was lost")
+	}
+	require.GreaterOrEqual(t, metricCount(t, r, "queue_group_recreated_total", "", ""), float64(1))
+	w.observeQueue(ctx)
+	status, _ = gaugeValue(t, r, "queue_collection_success")
 	require.Equal(t, float64(1), status)
 }
