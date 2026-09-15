@@ -3064,7 +3064,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Status of db/trivy.db and its metadata.json on each scanner pod. Trivy uses this local database to match packages against known vulnerabilities. Redis analysis caching does not replace this file.",
+      "description": "Status of db/trivy.db and its metadata.json on each scanner pod. Trivy uses this local database to match packages against known vulnerabilities. Redis analysis caching does not replace this file. Colours key on Trivy's own declared next-update time, not on a fixed dashboard rule: red means the local copy is past that point, orange means it falls due within 12 hours, green means it is current. Trivy re-checks the vulnerability DB every 24 hours.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3114,7 +3114,7 @@
                         "text": "Missing"
                       },
                       "1": {
-                        "color": "green",
+                        "color": "blue",
                         "index": 2,
                         "text": "Present"
                       },
@@ -3150,7 +3150,7 @@
                   {
                     "options": {
                       "0": {
-                        "color": "#9FA7B3",
+                        "color": "red",
                         "index": 1,
                         "text": "Disabled"
                       },
@@ -3260,10 +3260,23 @@
                 ]
               },
               {
-                "id": "color",
+                "id": "thresholds",
                 "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 43200
+                    },
+                    {
+                      "color": "red",
+                      "value": 86400
+                    }
+                  ]
                 }
               }
             ]
@@ -3271,7 +3284,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Next update check"
+              "options": "Next update in"
             },
             "properties": [
               {
@@ -3283,28 +3296,16 @@
                 "value": "Unknown"
               },
               {
-                "id": "color",
-                "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
-                }
-              },
-              {
                 "id": "mappings",
                 "value": [
                   {
                     "options": {
-                      "0": {
-                        "color": "blue",
-                        "index": 2,
-                        "text": "Eligible now"
-                      },
-                      "-1": {
+                      "-1000000000": {
                         "color": "#9FA7B3",
                         "index": 1,
                         "text": "Unknown"
                       },
-                      "-2": {
+                      "-2000000000": {
                         "color": "#9FA7B3",
                         "index": 0,
                         "text": "Updates disabled"
@@ -3313,6 +3314,40 @@
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0
+                    },
+                    {
+                      "color": "green",
+                      "value": 43200
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Replica"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
               }
             ]
           }
@@ -3393,7 +3428,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "label_replace(label_replace(((((clamp_min(harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} - time(), 0) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} == 1)) or on (cluster,namespace,scanner,pod) ((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} * 0 - 2) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} == 0))) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "expr": "label_replace(label_replace((((((harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} - time()) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} == 1)) or on (cluster,namespace,scanner,pod) ((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} * 0 - 2000000000) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"vulnerability\"} == 0))) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1000000000)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
           "format": "table",
           "instant": true,
           "range": false,
@@ -3426,7 +3461,7 @@
               "Value #B": "Update policy",
               "Value #C": "Content age",
               "Value #D": "Last download",
-              "Value #E": "Next update check",
+              "Value #E": "Next update in",
               "replica": "Replica"
             }
           }
@@ -3451,7 +3486,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Status of java-db/trivy-java.db and its metadata.json on each scanner pod. Trivy uses this local index to identify Java packages from JAR files. Redis analysis caching does not replace this file.",
+      "description": "Status of java-db/trivy-java.db and its metadata.json on each scanner pod. Trivy uses this local index to identify Java packages from JAR files. Redis analysis caching does not replace this file. Colours key on Trivy's own declared next-update time, not on a fixed dashboard rule: red means the local copy is past that point, orange means it falls due within 24 hours, green means it is current. Trivy caches the Java index for 3 days and only refreshes it while scanning an image that contains JAR files, so a quiet registry can sit past the refresh point until the next Java scan.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3496,12 +3531,12 @@
                   {
                     "options": {
                       "0": {
-                        "color": "#9FA7B3",
+                        "color": "red",
                         "index": 1,
                         "text": "Absent"
                       },
                       "1": {
-                        "color": "green",
+                        "color": "blue",
                         "index": 2,
                         "text": "Present"
                       },
@@ -3537,7 +3572,7 @@
                   {
                     "options": {
                       "0": {
-                        "color": "#9FA7B3",
+                        "color": "red",
                         "index": 1,
                         "text": "Disabled"
                       },
@@ -3647,10 +3682,23 @@
                 ]
               },
               {
-                "id": "color",
+                "id": "thresholds",
                 "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 172800
+                    },
+                    {
+                      "color": "red",
+                      "value": 259200
+                    }
+                  ]
                 }
               }
             ]
@@ -3658,7 +3706,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Next update check"
+              "options": "Next update in"
             },
             "properties": [
               {
@@ -3670,28 +3718,16 @@
                 "value": "Unknown"
               },
               {
-                "id": "color",
-                "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
-                }
-              },
-              {
                 "id": "mappings",
                 "value": [
                   {
                     "options": {
-                      "0": {
-                        "color": "blue",
-                        "index": 2,
-                        "text": "Eligible now"
-                      },
-                      "-1": {
+                      "-1000000000": {
                         "color": "#9FA7B3",
                         "index": 1,
                         "text": "Unknown"
                       },
-                      "-2": {
+                      "-2000000000": {
                         "color": "#9FA7B3",
                         "index": 0,
                         "text": "Updates disabled"
@@ -3700,6 +3736,40 @@
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0
+                    },
+                    {
+                      "color": "green",
+                      "value": 86400
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Replica"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
               }
             ]
           }
@@ -3780,7 +3850,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "label_replace(label_replace(((((clamp_min(harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} - time(), 0) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} == 1)) or on (cluster,namespace,scanner,pod) ((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} * 0 - 2) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} == 0))) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "expr": "label_replace(label_replace((((((harbor_scanner_trivy_db_next_update_timestamp_seconds{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} - time()) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} == 1)) or on (cluster,namespace,scanner,pod) ((harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} * 0 - 2000000000) and on (cluster,namespace,scanner,pod) (harbor_scanner_trivy_db_updates_enabled{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",database=\"java\"} == 0))) and on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) == 1)) or on (cluster,namespace,scanner,pod) (max by (cluster,namespace,scanner,pod) (up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",pod!=\"\"}) * 0 - 1000000000)), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
           "format": "table",
           "instant": true,
           "range": false,
@@ -3813,7 +3883,7 @@
               "Value #B": "Update policy",
               "Value #C": "Content age",
               "Value #D": "Last download",
-              "Value #E": "Next update check",
+              "Value #E": "Next update in",
               "replica": "Replica"
             }
           }
@@ -7922,7 +7992,7 @@
                   "text": "Missing"
                 },
                 "1": {
-                  "color": "green",
+                  "color": "blue",
                   "index": 1,
                   "text": "Present"
                 }
@@ -8017,12 +8087,12 @@
             {
               "options": {
                 "0": {
-                  "color": "#9FA7B3",
+                  "color": "red",
                   "index": 0,
                   "text": "Absent"
                 },
                 "1": {
-                  "color": "green",
+                  "color": "blue",
                   "index": 1,
                   "text": "Present"
                 }
