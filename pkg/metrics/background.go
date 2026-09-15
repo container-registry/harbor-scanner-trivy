@@ -59,9 +59,12 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 			r.collectMetadata(cfg.Trivy, probed != "")
 			r.collectFilesystem(cfg.Trivy.CacheDir, "cache")
 			r.collectFilesystem(cfg.Trivy.ReportsDir, "reports")
+			// Trivy extracts layers under the temp directory, which is often a
+			// different filesystem from the cache and fills up on its own.
+			r.collectFilesystem(os.TempDir(), "tmp")
 			if cfg.Metrics.CacheSizeEnabled {
 				walkCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
-				r.collectCache(walkCtx, cfg.Trivy.CacheDir, cfg.Metrics.CacheMaxFiles, backend)
+				r.collectCache(walkCtx, cfg.Trivy.CacheDir, os.TempDir(), cfg.Metrics.CacheMaxFiles, backend)
 				stop()
 			}
 			// Jitter avoids synchronized directory walks across scanner replicas.
@@ -216,7 +219,7 @@ func analysisCacheBackend(configured string) string {
 	}
 }
 
-func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int, backend string) {
+func (r *Recorder) collectCache(ctx context.Context, root, tempRoot string, maxFiles int, backend string) {
 	started := time.Now()
 	remaining := maxFiles
 	var firstErr error
@@ -244,7 +247,49 @@ func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int, 
 			r.Set("cache_size_bytes", float64(size), part.kind)
 		}
 	}
+	size, err := trivyTempBytes(ctx, tempRoot, &remaining)
+	if err != nil {
+		r.Delete("cache_size_bytes", "tmp_trivy")
+		if firstErr == nil {
+			firstErr = err
+		}
+	} else {
+		r.Set("cache_size_bytes", float64(size), "tmp_trivy")
+	}
 	r.collectionResult("cache_size", started, firstErr)
+}
+
+// trivyTempBytes sizes what the running and the abandoned children hold under
+// the temp directory. It is not cache: nothing reuses it, and it is the disk a
+// scan actually fails on.
+func trivyTempBytes(ctx context.Context, root string, remaining *int) (int64, error) {
+	// Listing the root costs an entry, like every other step of the walk, so an
+	// exhausted budget fails this sample too instead of reporting a partial one.
+	*remaining--
+	if *remaining < 0 {
+		return 0, errors.New("cache entry budget exceeded")
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "trivy-") {
+			continue
+		}
+		size, err := directoryBytes(ctx, filepath.Join(root, entry.Name()), remaining)
+		if errors.Is(err, fs.ErrNotExist) {
+			// These directories are removed as soon as their scan ends, so one
+			// vanishing mid-walk is expected rather than an incomplete sample.
+			continue
+		}
+		if err != nil {
+			return 0, err
+		}
+		total += size
+	}
+	return total, nil
 }
 
 // Walk one directory at a time without following symlinks or sorting/loading

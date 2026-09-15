@@ -88,13 +88,15 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `analysis_cache_backend_info` | gauge | backend | Configured analysis-cache backend: `filesystem`, `redis`, `memory`, or `unknown`. Value is 1; no server URL or credentials are exposed. |
 | `metadata_collection_success` | gauge | — | Whether Trivy version and local vulnerability/Java metadata checks succeeded, including valid database absence. Does not test database integrity. |
 | `metadata_last_success_timestamp_seconds` | gauge | — | Last successful monitoring refresh of vulnerability/Java metadata; not database build or download time. |
-| `cache_size_bytes` | gauge | kind | Logical regular-file bytes for the verified local cache layout. `kind="analysis"` is emitted only for the filesystem backend; DB and Java sizes remain local for every backend. |
+| `cache_size_bytes` | gauge | kind | Logical regular-file bytes for the verified local cache layout. `kind="analysis"` is emitted only for the filesystem backend; DB and Java sizes remain local for every backend. `kind="tmp_trivy"` is not cache: it is what running and abandoned children hold under the temp directory. |
 | `storage_capacity_bytes` | gauge | area | Filesystem capacity at the configured path; areas may share a filesystem. |
 | `storage_available_bytes` | gauge | area | Filesystem bytes available to the scanner at the configured path. |
 | `storage_inodes_available` | gauge | area | Available filesystem inodes where supported. |
 | `storage_collection_success` | gauge | collector | Whether the latest storage collector run succeeded. |
 | `storage_collection_duration_seconds` | histogram | collector | Background storage collection duration. |
 | `storage_last_success_timestamp_seconds` | gauge | collector | Last successful storage collection. |
+| `temp_dirs_reaped_total` | counter | — | Abandoned Trivy temp directories removed. Each one is a child that died without cleaning up, so a rising rate means scans are being killed. |
+| `temp_dirs_present` | gauge | — | Trivy temp directories left in place at the last sweep, including those of running scans. Sampled every ten minutes, not on scrape. |
 | `oldest_running_job_age_seconds` | gauge | — | Oldest local execution age; zero while idle. |
 | `redis_pool_connections` | gauge | state (`total`, `idle`) | In-memory client pool statistics; total includes idle. |
 | `redis_pool_size` | gauge | — | Effective base pool size, not the hard limit. |
@@ -148,6 +150,12 @@ measurements cover every workload sharing the instance.
   bytes-written-rate × TTL is not actual Redis resident memory. `GetConfig`
   derives a positive effective TTL from scan timeout when its setting is zero;
   direct store callers can still use zero to disable expiry.
+- `area="tmp"` covers `os.TempDir()`, where Trivy extracts layers. It is often
+  a different filesystem from the cache and fills up on its own. Trivy removes
+  its `$TMPDIR/trivy-<pid>` directory when it exits, but a child that is
+  OOM-killed never does, so the adapter sweeps directories whose pid is no
+  longer alive every ten minutes and counts them in `temp_dirs_reaped_total`.
+  Reaping runs even with metrics disabled; only the counters go away.
 - Child peak RSS is available after termination on Linux (converted from KiB)
   and macOS (already bytes). It is not live usage, a sum of concurrent children,
   or total container peak. If the child never starts or the adapter is killed,

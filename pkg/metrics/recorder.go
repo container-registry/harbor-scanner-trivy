@@ -31,9 +31,9 @@ var values = map[string][]string{
 	"record":     {"job", "report", "other"},
 	"operation":  {"enqueue", "status", "read", "report", "acknowledge", "other"},
 	"database":   {"vulnerability", "java", "other"},
-	"kind":       {"analysis", "vulnerability_db", "java_db", "other"},
-	"area":       {"cache", "reports", "other"},
-	"collector":  {"cache_size", "cache_filesystem", "reports_filesystem", "other"},
+	"kind":       {"analysis", "vulnerability_db", "java_db", "tmp_trivy", "other"},
+	"area":       {"cache", "reports", "tmp", "other"},
+	"collector":  {"cache_size", "cache_filesystem", "reports_filesystem", "tmp_filesystem", "other"},
 	"event":      {"lookup_hit", "lookup_miss", "lookup_error", "reuse_success", "fallback", "other"},
 	"reason":     {"success", "nonzero_exit", "signal", "timeout", "start_error", "other"},
 	"result":     {"lock_acquired", "lock_busy", "lock_error", "decode_error", "ok", "pending", "failed", "not_found", "error", "invalid_request", "not_applied", "success", "other"},
@@ -108,6 +108,8 @@ var catalog = []definition{
 	{"storage_collection_success", "Whether the latest storage collector run succeeded.", "gauge", []string{"collector"}, nil},
 	{"storage_collection_duration_seconds", "Background storage collection duration.", "histogram", []string{"collector"}, prometheus.DefBuckets},
 	{"storage_last_success_timestamp_seconds", "Last successful storage collection.", "gauge", []string{"collector"}, nil},
+	{"temp_dirs_reaped_total", "Abandoned Trivy temp directories removed; each one is a child that died without cleaning up.", "counter", nil, nil},
+	{"temp_dirs_present", "Trivy temp directories left in place at the last sweep, including those of running scans.", "gauge", nil, nil},
 }
 
 type Recorder struct {

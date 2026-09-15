@@ -74,9 +74,9 @@ func TestBoundedCacheCollection(t *testing.T) {
 		require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0o700))
 		require.NoError(t, os.WriteFile(filepath.Join(root, dir, "data"), []byte("12345"), 0o600))
 	}
-	r.collectCache(context.Background(), root, 20, "filesystem")
+	r.collectCache(context.Background(), root, t.TempDir(), 20, "filesystem")
 	require.Equal(t, float64(5), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("analysis")))
-	r.collectCache(context.Background(), root, 1, "filesystem")
+	r.collectCache(context.Background(), root, t.TempDir(), 1, "filesystem")
 	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
 	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 	ctx, cancel := context.WithCancel(context.Background())
@@ -104,8 +104,12 @@ func TestNonFilesystemCacheOmitsFanal(t *testing.T) {
 					require.NoError(t, os.Symlink(root, filepath.Join(root, "fanal")))
 				}
 				r.Set("cache_size_bytes", 999, "analysis")
-				r.collectCache(context.Background(), root, 4, backend)
-				require.Equal(t, 2, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+				// Four entries for the two database parts, one for the temp root.
+				r.collectCache(context.Background(), root, t.TempDir(), 5, backend)
+				// The two database parts plus the temp directories, which are
+				// reported for every backend.
+				require.Equal(t, 3, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+				require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
 				for _, kind := range []string{"vulnerability_db", "java_db"} {
 					require.Equal(t, float64(5), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
 				}
@@ -185,14 +189,14 @@ func TestNonRegularDatabasePathIsUnknown(t *testing.T) {
 func TestUninitializedCachePartsAreEmpty(t *testing.T) {
 	r := New(true)
 	root := t.TempDir()
-	r.collectCache(context.Background(), root, 20, "filesystem")
-	for _, kind := range []string{"analysis", "vulnerability_db", "java_db"} {
+	r.collectCache(context.Background(), root, t.TempDir(), 20, "filesystem")
+	for _, kind := range []string{"analysis", "vulnerability_db", "java_db", "tmp_trivy"} {
 		require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
 	}
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 	// Losing the entire mount/path must still invalidate the sample.
 	require.NoError(t, os.Remove(root))
-	r.collectCache(context.Background(), root, 20, "filesystem")
+	r.collectCache(context.Background(), root, filepath.Join(root, "gone"), 20, "filesystem")
 	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
 	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 }

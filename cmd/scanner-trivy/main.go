@@ -76,6 +76,10 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	recorder.RegisterRedis(rdb)
 	stopMetrics := recorder.Start(ctx, config, info.Version, ext.DefaultAmbassador)
 	defer stopMetrics()
+	// Reaping is not a metrics concern: a disabled recorder only silences its
+	// counters, the abandoned directories still have to go.
+	stopReaper := trivy.NewReaper(recorder).Start(ctx)
+	defer stopReaper()
 
 	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, recorder)
 	store := redis.NewStore(config.RedisStore, rdb, recorder)

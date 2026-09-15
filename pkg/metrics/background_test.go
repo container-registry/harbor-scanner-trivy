@@ -3,6 +3,9 @@ package metrics
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -129,4 +132,29 @@ func TestEveryTickProbesTheEngine(t *testing.T) {
 			t.Fatal("engine probe did not repeat")
 		}
 	}
+}
+
+func TestTempDirectoriesAreSizedSeparatelyFromTheCache(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"trivy-1", "trivy-2"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, name), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, name, "layer"), make([]byte, 1024), 0o600))
+	}
+	// Not Trivy's, and not counted.
+	require.NoError(t, os.WriteFile(filepath.Join(root, "scan_report.json"), make([]byte, 4096), 0o600))
+
+	budget := 100
+	size, err := trivyTempBytes(context.Background(), root, &budget)
+	require.NoError(t, err)
+	require.EqualValues(t, 2048, size)
+
+	// The walk shares the cache budget, so a flood of temp files cannot make
+	// the sample run unbounded.
+	exhausted := 1
+	_, err = trivyTempBytes(context.Background(), root, &exhausted)
+	require.ErrorContains(t, err, "budget exceeded")
+
+	missing := 100
+	_, err = trivyTempBytes(context.Background(), filepath.Join(root, "gone"), &missing)
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
