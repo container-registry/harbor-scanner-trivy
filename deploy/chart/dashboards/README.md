@@ -233,7 +233,12 @@ frequency does not change how often Prometheus collects samples.
   versus succeeded work, and sampler errors by query. The oldest-delivery age
   climbing while `jobs_in_progress` is 0 on every replica means nothing is
   consuming the stream; the alert "[Trivy] Deliveries stuck in queue while
-  workers idle" fires on that shape.
+  workers idle" fires on that shape. The row ends with the readiness checks
+  timeline (`ready{check}`: queue, worker, binary), which needs the
+  ops-visibility build.
+- Local disk: the temp-directory panel counts `$TMPDIR/trivy-<pid>` directories
+  and the reaper's removals; `storage_*{area="tmp"}` appears on the disk panels
+  automatically on that build.
 - Trivy CLI exit codes (Scanning and workers), the Schema column in both
   database tables and the `harbor_up{component="trivy"}` timeline in the
   Harbor row need the ops-visibility adapter build; they stay empty on older

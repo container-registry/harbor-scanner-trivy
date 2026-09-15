@@ -5306,7 +5306,7 @@
       "type": "timeseries",
       "id": 1104,
       "title": "Retries and lease losses",
-      "description": "scan_retries_total: a delivery was re-claimed after an interrupted execution (worker restart, lease expiry). lease_losses_total: a worker lost ownership while running. Both are recovery events; a steady rate points at workers being killed mid-scan (OOM, timeout) or Redis latency.",
+      "description": "scan_retries_total: a delivery was re-claimed after an interrupted execution (worker restart, lease expiry). lease_losses_total: a worker lost ownership while running. Both are recovery events; a steady rate points at workers being killed mid-scan (OOM, timeout) or Redis latency. queue_group_recreated_total: the worker recreated the consumer group after the job Redis lost it (ops-visibility build); any value means the Redis data was lost.",
       "targets": [
         {
           "datasource": {
@@ -5328,6 +5328,17 @@
           "expr": "sum(rate(harbor_scanner_trivy_lease_losses_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])) * 60",
           "legendFormat": "lease losses/min",
           "refId": "B",
+          "interval": "1m"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(harbor_scanner_trivy_queue_group_recreated_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])) * 60",
+          "legendFormat": "group recreations/min",
+          "refId": "C",
           "interval": "1m"
         }
       ],
@@ -5557,12 +5568,107 @@
       }
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#9FA7B3",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 85,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Failing"
+                },
+                "1": {
+                  "color": "blue",
+                  "index": 1,
+                  "text": "OK"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "alignValue": "center",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "type": "state-timeline",
+      "id": 1112,
+      "title": "Readiness checks",
+      "description": "harbor_scanner_trivy_ready{check} per replica, recorded on every /probe/ready call (ops-visibility build). queue: job Redis reachable and the consumer group exists; worker: the read loop or a lease renewal ran within three lease periods; binary: trivy is on the path. Any 0 returns 503 and takes the pod out of the Service. Database presence, disk and the analysis cache are deliberately not part of readiness.",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((max by (pod, check) (harbor_scanner_trivy_ready{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{replica}} \u00b7 {{check}}",
+          "refId": "A",
+          "interval": "1m"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 120,
+        "w": 24,
+        "h": 5
+      }
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 120
+        "y": 125
       },
       "id": 1080,
       "title": "Local disk \u2014 databases and reports",
@@ -5634,7 +5740,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 121
+        "y": 126
       },
       "id": 39,
       "options": {
@@ -5737,7 +5843,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 121
+        "y": 126
       },
       "id": 40,
       "options": {
@@ -5840,7 +5946,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 121
+        "y": 126
       },
       "id": 41,
       "options": {
@@ -5969,7 +6075,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 128
+        "y": 133
       },
       "id": 38,
       "options": {
@@ -6072,7 +6178,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 128
+        "y": 133
       },
       "id": 42,
       "options": {
@@ -6110,12 +6216,121 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "No observations",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "13.3.0-34259522365",
+      "type": "timeseries",
+      "id": 1113,
+      "title": "Trivy temp directories",
+      "description": "temp_dirs_present: $TMPDIR/trivy-<pid> directories on the pod; Trivy leaks one per OOMKilled or SIGKILLed child. temp_dirs_reaped_total: directories of dead processes removed by the adapter at startup and every ten minutes. Sizes are in cache_size_bytes{kind=\"tmp_trivy\"} when size collection is enabled; free space in storage_available_bytes{area=\"tmp\"} on the disk panels above.",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((max by (pod) (harbor_scanner_trivy_temp_dirs_present{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"})), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{replica}} \u00b7 present",
+          "refId": "A",
+          "interval": "1m"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_replace((sum by (pod) (rate(harbor_scanner_trivy_temp_dirs_reaped_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])) * 60), \"replica\", \"$1\", \"pod\", \"(.*)\"), \"replica\", \"$1\", \"pod\", \"harbor-scanner-(.*)\")",
+          "legendFormat": "{{replica}} \u00b7 reaped/min",
+          "refId": "B",
+          "interval": "1m"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 140,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 135
+        "y": 147
       },
       "id": 1081,
       "title": "Reports and persistence",
@@ -6187,7 +6402,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 136
+        "y": 148
       },
       "id": 45,
       "options": {
@@ -6291,7 +6506,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 136
+        "y": 148
       },
       "id": 46,
       "options": {
@@ -6395,7 +6610,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 136
+        "y": 148
       },
       "id": 47,
       "options": {
@@ -6561,7 +6776,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 143
+        "y": 155
       },
       "id": 48,
       "options": {
@@ -6665,7 +6880,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 143
+        "y": 155
       },
       "id": 49,
       "options": {
@@ -6769,7 +6984,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 143
+        "y": 155
       },
       "id": 50,
       "options": {
@@ -6934,7 +7149,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 150
+        "y": 162
       },
       "id": 51,
       "options": {
@@ -7038,7 +7253,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 150
+        "y": 162
       },
       "id": 52,
       "options": {
@@ -7082,7 +7297,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 157
+        "y": 169
       },
       "id": 1082,
       "title": "API",
@@ -7237,7 +7452,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 158
+        "y": 170
       },
       "id": 58,
       "options": {
@@ -7379,7 +7594,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 158
+        "y": 170
       },
       "id": 59,
       "options": {
@@ -7483,7 +7698,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 158
+        "y": 170
       },
       "id": 16,
       "options": {
@@ -7526,7 +7741,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 165
+        "y": 177
       },
       "id": 1083,
       "title": "Harbor scheduling context (optional)",
@@ -7598,7 +7813,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 166
+        "y": 178
       },
       "id": 62,
       "options": {
@@ -7733,7 +7948,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 166
+        "y": 178
       },
       "id": 64,
       "options": {
@@ -7861,7 +8076,7 @@
       ],
       "gridPos": {
         "x": 0,
-        "y": 173,
+        "y": 185,
         "w": 24,
         "h": 5
       }
@@ -7872,7 +8087,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 178
+        "y": 190
       },
       "id": 1084,
       "title": "Logs (optional)",
@@ -7888,7 +8103,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 179
+        "y": 191
       },
       "id": 66,
       "options": {
@@ -7934,7 +8149,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 179
+        "y": 191
       },
       "id": 67,
       "options": {
@@ -7976,7 +8191,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 188
+        "y": 200
       },
       "id": 1085,
       "panels": [
@@ -8093,7 +8308,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 189
+        "y": 201
       },
       "id": 1086,
       "title": "Monitoring diagnostics",
@@ -8161,7 +8376,7 @@
         "h": 7,
         "w": 6,
         "x": 0,
-        "y": 190
+        "y": 202
       },
       "id": 35,
       "options": {
@@ -8265,7 +8480,7 @@
         "h": 7,
         "w": 18,
         "x": 6,
-        "y": 190
+        "y": 202
       },
       "id": 36,
       "options": {
@@ -8596,7 +8811,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 197
+        "y": 209
       },
       "id": 43,
       "links": [
@@ -8740,7 +8955,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 204
+        "y": 216
       },
       "id": 91,
       "options": {
@@ -8785,7 +9000,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 211
+        "y": 223
       },
       "id": 1087,
       "title": "Database freshness history",
@@ -8901,7 +9116,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 212
+        "y": 224
       },
       "id": 94,
       "options": {
@@ -9046,7 +9261,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 212
+        "y": 224
       },
       "id": 95,
       "options": {
@@ -9143,7 +9358,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 219
+        "y": 231
       },
       "id": 85,
       "options": {
@@ -9243,7 +9458,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 219
+        "y": 231
       },
       "id": 88,
       "options": {
