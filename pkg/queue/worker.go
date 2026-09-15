@@ -17,6 +17,7 @@ type Worker interface {
 	Active() error
 }
 
-// healthTimeout bounds the readiness probe's own Redis call, well inside the
-// probe timeout so a slow backend fails the check rather than the probe.
-const healthTimeout = 5 * time.Second
+// healthTimeout bounds the readiness probe's own Redis call. It sits below the
+// chart's 3 s probe timeout, so a slow backend fails the check and names itself
+// rather than timing out the probe with no reason attached.
+const healthTimeout = 2 * time.Second

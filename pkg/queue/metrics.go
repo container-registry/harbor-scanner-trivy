@@ -29,8 +29,8 @@ func (w *streamWorker) monitorQueue(ctx context.Context) {
 	}
 }
 
-func (w *streamWorker) observeQueue(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+func (w *streamWorker) observeQueue(parent context.Context) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	var failure error
 	failed := func(query string, err error) {
@@ -70,6 +70,11 @@ func (w *streamWorker) observeQueue(ctx context.Context) {
 	} else {
 		failed("oldest", err)
 		w.metrics.Delete("queue_oldest_age_seconds")
+	}
+	// Shutdown cancels every call in flight. Reporting that as an outage would
+	// leave a failed collection as the last thing the pod ever said.
+	if parent.Err() != nil {
+		return
 	}
 	w.reportCollection(failure)
 }

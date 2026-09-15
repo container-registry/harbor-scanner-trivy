@@ -210,7 +210,7 @@ func TestFailedQueueCollectionDropsStaleValues(t *testing.T) {
 	r := metrics.New(true)
 	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
 	ctx := context.Background()
-	require.NoError(t, w.ensureGroup(ctx))
+	requireGroup(t, w)
 	w.observeQueue(ctx)
 	last, ok := gaugeValue(t, r, "queue_collection_last_success_timestamp_seconds")
 	require.True(t, ok)
@@ -231,12 +231,18 @@ func TestDisabledMetricsDoNotReadRedis(t *testing.T) {
 	worker.monitorQueue(context.Background())
 }
 
+func requireGroup(t *testing.T, w *streamWorker) {
+	t.Helper()
+	_, err := w.ensureGroup(context.Background())
+	require.NoError(t, err)
+}
+
 func TestQueueOutageIsCountedPerQueryAndLoggedOnceOnEachTransition(t *testing.T) {
 	server, rdb, store, cfg := setupQueue(t)
 	r := metrics.New(true)
 	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
 	ctx := context.Background()
-	require.NoError(t, w.ensureGroup(ctx))
+	requireGroup(t, w)
 	var logged []string
 	previous := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(previous) })
@@ -288,7 +294,7 @@ func TestLostConsumerGroupIsRecreatedAndCounted(t *testing.T) {
 	// A job backend without persistence comes back with no consumer group, and
 	// the group the worker created at startup is gone. Redis answers NOGROUP
 	// for a missing group and for a missing stream key alike.
-	require.NoError(t, w.ensureGroup(ctx))
+	requireGroup(t, w)
 	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
 
 	// Sampled with no worker running, so nothing can repair the group first.
@@ -314,7 +320,49 @@ func TestLostConsumerGroupIsRecreatedAndCounted(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("no delivery was dispatched after the consumer group was lost")
 	}
-	require.GreaterOrEqual(t, metricCount(t, r, "queue_group_recreated_total", "", ""), float64(1))
+	// One recreation per loss, not one per replica that noticed it.
+	require.Equal(t, float64(1), metricCount(t, r, "queue_group_recreated_total", "", ""))
+
+	// Sample only once the loop has stopped: observeQueue is the monitor
+	// goroutine's, and calling it from the test alongside a running worker is a
+	// data race, not a scenario the adapter has.
+	w.Stop()
+	w.observeQueue(ctx)
+	status, _ = gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
+}
+
+func TestConcurrentReplicasCountOneRecreation(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	ctx := context.Background()
+	workers := make([]*streamWorker, 4)
+	for i := range workers {
+		workers[i] = NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
+	}
+	requireGroup(t, workers[0])
+	require.NoError(t, rdb.XGroupDestroy(ctx, workers[0].stream, workerGroup).Err())
+
+	cause := errors.New("NOGROUP No such key or consumer group")
+	for _, w := range workers {
+		require.True(t, w.recoverMissingGroup(ctx, cause))
+	}
+	require.Equal(t, float64(1), metricCount(t, r, "queue_group_recreated_total", "", ""))
+}
+
+func TestCancelledCollectionIsNotAnOutage(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
+	requireGroup(t, w)
+	w.observeQueue(context.Background())
+	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
+
+	// Shutdown cancels the sampler mid-call; the last word on the queue must
+	// not be a failure the adapter caused by stopping.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 	w.observeQueue(ctx)
 	status, _ = gaugeValue(t, r, "queue_collection_success")
 	require.Equal(t, float64(1), status)
@@ -327,13 +375,13 @@ func TestWorkerHealthNeedsTheConsumerGroupNotJustAServer(t *testing.T) {
 
 	// A stream nothing has subscribed to answers XLEN but delivers nothing.
 	require.ErrorContains(t, w.Healthy(ctx), "consumer group")
-	require.NoError(t, w.ensureGroup(ctx))
+	requireGroup(t, w)
 	require.NoError(t, w.Healthy(ctx))
 
 	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
 	require.ErrorContains(t, w.Healthy(ctx), `consumer group "scanner" is missing`)
 
-	require.NoError(t, w.ensureGroup(ctx))
+	requireGroup(t, w)
 	server.SetError("redis outage")
 	require.ErrorContains(t, w.Healthy(ctx), "redis outage")
 	server.SetError("")

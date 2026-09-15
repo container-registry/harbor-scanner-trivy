@@ -107,7 +107,7 @@ func (w *streamWorker) run(ctx context.Context) {
 		_ = cleanConsumers.Run(cleanup, w.rdb, []string{w.stream}, workerGroup, w.consumer, (2 * w.leaseDuration).Milliseconds()).Err()
 	}()
 	for ctx.Err() == nil {
-		err := w.ensureGroup(ctx)
+		_, err := w.ensureGroup(ctx)
 		if err == nil {
 			break
 		}
@@ -119,7 +119,6 @@ func (w *streamWorker) run(ctx context.Context) {
 	cursor := "0-0"
 	var observed time.Time
 	for ctx.Err() == nil {
-		w.beat()
 		if time.Since(observed) >= 10*time.Second {
 			_ = cleanConsumers.Run(ctx, w.rdb, []string{w.stream}, workerGroup, "", (2 * w.leaseDuration).Milliseconds()).Err()
 			observed = time.Now()
@@ -137,6 +136,9 @@ func (w *streamWorker) run(ctx context.Context) {
 			}
 			continue
 		}
+		// Beat on an answered read, not on entering the loop: a loop spinning
+		// on a backend that refuses every call is not a working worker.
+		w.beat()
 		cursor = next
 		if cursor == "" {
 			cursor = "0-0"
@@ -146,6 +148,7 @@ func (w *streamWorker) run(ctx context.Context) {
 				Group: workerGroup, Consumer: w.consumer, Streams: []string{w.stream, ">"}, Count: 1, Block: time.Second,
 			}).Result()
 			if errors.Is(readErr, redis.Nil) {
+				w.beat()
 				continue
 			}
 			if readErr != nil {
@@ -157,6 +160,7 @@ func (w *streamWorker) run(ctx context.Context) {
 				}
 				continue
 			}
+			w.beat()
 			for _, stream := range streams {
 				messages = append(messages, stream.Messages...)
 			}
@@ -203,13 +207,27 @@ func (w *streamWorker) Active() error {
 	return nil
 }
 
-// ensureGroup creates the consumer group, treating an existing one as success.
-func (w *streamWorker) ensureGroup(ctx context.Context) error {
-	err := w.rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err()
-	if err != nil && strings.HasPrefix(err.Error(), "BUSYGROUP") {
-		return nil
+// isRedisError reports whether err carries a Redis reply with the given prefix,
+// whatever the client wrapped it in.
+func isRedisError(err error, prefix string) bool {
+	for ; err != nil; err = errors.Unwrap(err) {
+		if strings.HasPrefix(err.Error(), prefix) {
+			return true
+		}
 	}
-	return err
+	return false
+}
+
+// ensureGroup creates the consumer group and reports whether this call is the
+// one that created it. An existing group is success, but not a creation: every
+// replica races to recreate a lost group, and counting all of them would report
+// one loss as many.
+func (w *streamWorker) ensureGroup(ctx context.Context) (bool, error) {
+	err := w.rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err()
+	if isRedisError(err, "BUSYGROUP") {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // recoverMissingGroup restores a consumer group the backend lost and reports
@@ -218,13 +236,17 @@ func (w *streamWorker) ensureGroup(ctx context.Context) error {
 // NOGROUP forever: no scan was dispatched, and the loop logged once a second
 // for as long as it lasted. Recreating from "0" keeps deliveries that survived.
 func (w *streamWorker) recoverMissingGroup(ctx context.Context, cause error) bool {
-	if cause == nil || !strings.HasPrefix(cause.Error(), "NOGROUP") {
+	if !isRedisError(cause, "NOGROUP") {
 		return false
 	}
-	if err := w.ensureGroup(ctx); err != nil {
+	created, err := w.ensureGroup(ctx)
+	if err != nil {
 		if ctx.Err() == nil {
 			slog.Error("Recreating the scan consumer group failed", "error", err, "cause", cause.Error())
 		}
+		return true
+	}
+	if !created {
 		return true
 	}
 	w.groupRecreations++
