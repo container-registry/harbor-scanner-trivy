@@ -620,8 +620,10 @@ func TestGetVersionReusesTheBackgroundProbe(t *testing.T) {
 	engine.On("RunCmd", mock.Anything).Return([]byte(`{"Version":"0.74.0",
 		"VulnerabilityDB":{"Version":2,"NextUpdate":"2026-09-16T10:00:00Z","UpdatedAt":"2026-09-15T10:00:00Z"}}`), []byte{}, nil)
 	recorder := metrics.New(true)
-	cfg := etc.Config{Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
-		Trivy: etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()}}
+	cfg := etc.Config{
+		Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
+		Trivy:   etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()},
+	}
 	stop := recorder.Start(context.Background(), cfg, "adapter", engine)
 	require.Eventually(t, func() bool { _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
 	stop()

@@ -21,7 +21,7 @@ func (r *Recorder) Run(ctx context.Context, command string, cmd *exec.Cmd, run f
 		switch {
 		case cmd.ProcessState == nil:
 			reason = "start_error"
-		// A cancelled context kills the child, and Wait then reports the signal
+		// A canceled context kills the child, and Wait then reports the signal
 		// rather than the deadline. Only the context separates an expired
 		// timeout from an external kill such as an OOM.
 		case errors.Is(ctx.Err(), context.DeadlineExceeded):
