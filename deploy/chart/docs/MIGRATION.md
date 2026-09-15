@@ -80,14 +80,17 @@ variable was renamed or removed, so an upstream configuration keeps working.
 | `trivy.skipVersionCheck` | `SCANNER_TRIVY_SKIP_VERSION_CHECK` | `true` | Trivy no longer fetches its update notice and announcements per scan | `trivy.skipVersionCheck: false` |
 | `trivy.disableTelemetry` | `SCANNER_TRIVY_DISABLE_TELEMETRY` | `true` | Trivy no longer sends anonymous usage data to `check.trivy.dev` per scan | `trivy.disableTelemetry: false` |
 
-`trivy.maxImageSize` bounds the memory and work of analysing an oversized
-image, not the bandwidth spent on it: Trivy gates the compressed size from the
-manifest before pulling, but reaches the uncompressed size only after
-downloading every layer into its temp directory, so setting it raises temp disk
-use while a scan runs. It and `trivy.childGoMemLimit` are new and off by default,
-except that an empty `childGoMemLimit` derives `GOMEMLIMIT` for the Trivy child
-from the pod's cgroup memory limit. Set it to `off` to leave the child
-environment exactly as the pod defines it.
+`trivy.maxImageSize` is new and off by default. It gates the compressed size
+from the manifest before anything is pulled, then adds up the uncompressed size
+as layers download and fails the scan as soon as the running total exceeds the
+limit, so an oversized image usually stops partway through rather than after a
+full download. The layers it does fetch stay in Trivy's temp directory for the
+rest of the scan, so the check raises temp disk use for the scans it allows.
+
+`trivy.childGoMemLimit` is new but **not** off by default: left empty it derives
+`GOMEMLIMIT` for the Trivy child from the pod's cgroup memory limit, which is a
+behaviour change against the upstream adapter. `off` is the opt-out and leaves
+the child environment exactly as the pod defines it.
 
 ### Removed
 

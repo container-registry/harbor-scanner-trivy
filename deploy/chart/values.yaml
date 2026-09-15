@@ -493,12 +493,13 @@ trivy:
   # calls out to `check.trivy.dev`, which costs latency on every scan and fails
   # in an air-gapped install.
   disableTelemetry: true
-  # -- Refuse images larger than this, e.g. `10GB`. Empty means no limit. Trivy
-  # checks the compressed size from the manifest before pulling, but reaches the
-  # uncompressed size only after downloading every layer into its temp
-  # directory, where the analysis then re-reads them. So this bounds the memory
-  # and work of analysing an oversized image, not the bandwidth spent on it, and
-  # it raises temp disk use while a scan runs.
+  # -- Refuse images larger than this, e.g. `10GB`. Empty means no limit. The
+  # compressed size is checked from the manifest before anything is pulled. The
+  # uncompressed size is added up as layers download into Trivy's temp
+  # directory and fails the scan as soon as the running total exceeds the limit,
+  # so an oversized image usually stops partway through rather than after a full
+  # download. The layers it does fetch stay in the temp directory for the rest
+  # of the scan, so the check raises temp disk use for the scans it allows.
   maxImageSize: ""
   # -- Soft heap limit for the Trivy child process (`GOMEMLIMIT`). Empty derives
   # 80% of the pod's memory limit from the cgroup, so a heavy scan is slowed by

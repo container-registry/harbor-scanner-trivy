@@ -23,7 +23,7 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 
 ## Readiness semantics
 
-`/probe/ready` returns 503 only when the pod genuinely cannot serve: the job Redis is unreachable or the consumer group is missing, the worker loop has not run within three lease periods, or the `trivy` binary is not on the path. It deliberately ignores database presence, disk space and the analysis cache. A pod that leaves the Service makes Harbor's `/api/v1/metadata` ping fail, Harbor then records no capabilities for the scanner, rejects scans as "does not support scanning artifact with mime type", and a scan-all started in that state finishes as Success with zero scans (`src/controller/scan/base_controller.go:539` in Harbor). Readiness is therefore narrow on purpose; the wider conditions are gauges and alerts.
+`/probe/ready` returns 503 only when the pod genuinely cannot serve: the job Redis is unreachable or the consumer group is missing, the worker loop has not run within three lease periods, or the `trivy` binary is not on the path. The worker's heartbeat is written on an answered read and on each lease renewal, so a scan that outlasts three lease periods keeps the pod ready while a loop that stopped does not. It deliberately ignores database presence, disk space and the analysis cache. A pod that leaves the Service makes Harbor's `/api/v1/metadata` ping fail, Harbor then records no capabilities for the scanner, rejects scans as "does not support scanning artifact with mime type", and a scan-all started in that state finishes as Success with zero scans (`src/controller/scan/base_controller.go:539` in Harbor). Readiness is therefore narrow on purpose; the wider conditions are gauges and alerts.
 
 `/probe/healthy` answers 200 unconditionally. Harbor's own health checker reads it with a 60 s timeout every 10 s and publishes it as `harbor_up{component="trivy"}`, so that metric only proves the HTTP listener answers.
 
@@ -33,7 +33,7 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 
 | Category | Meaning | Retried | Action |
 |---|---|---|---|
-| `rate_limit` | TOOMANYREQUESTS / 429 from a registry or DB mirror | yes | Point `SCANNER_TRIVY_DB_REPOSITORY` and `SCANNER_TRIVY_JAVA_DB_REPOSITORY` at a mirror list you control; keep the default `mirror.gcr.io` entry first. A 429 whose body is not a registry error (proxy, WAF) is not retried by Trivy and skips the mirror list. |
+| `rate_limit` | TOOMANYREQUESTS / 429 from a registry or DB mirror | yes | Point `SCANNER_TRIVY_DB_REPOSITORY` and `SCANNER_TRIVY_JAVA_DB_REPOSITORY` at a mirror list you control. The chart sets them to `ghcr.io/aquasecurity/trivy-db` and `ghcr.io/aquasecurity/trivy-java-db`, so Trivy's own `mirror.gcr.io` fallback is not in play unless you add it; putting a mirror first is an override you make, not a default you keep. A 429 whose body is not a registry error (proxy, WAF) is not retried by Trivy and skips the mirror list. |
 | `db_download` | DB or Java DB could not be downloaded or extracted | yes | Check egress to the mirrors; check `storage_available_bytes{area="cache"}`: an extraction failure has already deleted the previous DB (`pkg/downloader/download.go:58`), so the next scan needs a full download. |
 | `db_schema` | Local DB schema does not match the engine, or `--skip-db-update` was combined with an old schema | no | A rolled-back image against a shared cache, or an air-gapped upgrade across a schema boundary. Refresh the side-loaded DB or clear `db/` on the volume. |
 | `unsupported_artifact` | The artifact is not an image (Helm chart, SBOM, signature) | no | Nothing to fix on the scanner; Harbor should not have dispatched it. |
@@ -77,7 +77,7 @@ The queue is a Redis Stream with a consumer group (`<namespace>:stream:v1:scan_a
 
 ## Memory and GOMEMLIMIT
 
-Trivy sets no Go memory limit; files below 100 MiB are read whole into memory and `--parallel` (default 5) analyses layers and files concurrently. The adapter sets `GOMEMLIMIT` for the child to 80% of the cgroup limit by default (`SCANNER_TRIVY_CHILD_GOMEMLIMIT`, `off` to disable), which turns most OOMKills into slower garbage-collected scans. `subprocess_max_rss_bytes` records each child's peak. Secret scanning is the expensive scanner; `SCANNER_TRIVY_SECURITY_CHECKS=vuln` disables it. `SCANNER_TRIVY_MAX_IMAGE_SIZE` refuses oversized images, but the uncompressed check downloads the layers first.
+Trivy sets no Go memory limit; files below 100 MiB are read whole into memory and `--parallel` (default 5) analyses layers and files concurrently. The adapter sets `GOMEMLIMIT` for the child to 80% of the cgroup limit by default (`SCANNER_TRIVY_CHILD_GOMEMLIMIT`, `off` to disable), which turns most OOMKills into slower garbage-collected scans. `subprocess_max_rss_bytes` records each child's peak. Secret scanning is the expensive scanner; `SCANNER_TRIVY_SECURITY_CHECKS=vuln` disables it. `SCANNER_TRIVY_MAX_IMAGE_SIZE` refuses oversized images: the compressed size is checked from the manifest before anything is pulled, and the uncompressed size is added up as layers download, failing the scan as soon as the running total exceeds the limit, with up to `--parallel` layers in flight. The layers it does fetch stay in the temp directory for the rest of the scan.
 
 ## Timeouts
 
@@ -103,4 +103,4 @@ Adapter (JSON `msg` field): `Running trivy failed` with `category` and `exit_cod
 
 Trivy (stderr, tab separated `time LEVEL [prefix] message`): `[vulndb] Downloading vulnerability DB...`, `Failed to download artifact`, `Trying to download artifact from other repository...`, `Java DB is cached for 3 days`, `The first run cannot skip downloading DB`, `Trivy version is old`, `--skip-db-update cannot be specified with the old DB schema`, `layer cache missing`, `cache may be in use by another process`, `context deadline exceeded`, `unsupported artifact type`, `[secret] The size of the scanned file is too large`.
 
-Harbor core: `failed to ping scanner`, `delete robot account failed`, `%d vulnerabilities' severity changed`. Jobservice: `Job 'IMAGE_SCAN:…' exit with error`, `Report with mime type … is not ready yet, retry after`, `Parse `Refresh-After` error`.
+Harbor core: `failed to ping scanner`, `delete robot account failed`, `%d vulnerabilities' severity changed`. Jobservice: `Job 'IMAGE_SCAN:…' exit with error`, `Report with mime type … is not ready yet, retry after`, ``Parse `Refresh-After` error``.

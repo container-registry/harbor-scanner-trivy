@@ -27,7 +27,10 @@ tick with a bounded `trivy version --format json` command, because an image upgr
 replaces the binary and both databases change schema under a running pod. The engine
 reports only the schema of the database on disk, never the schema its binary was built
 against. A failed probe removes `db_schema_version` and sets `metadata_collection_success` to 0, while
-`build_info` keeps the last known version: the binary has not changed. The adapter
+`build_info` keeps the last version that was read. That series is the last known
+answer, not a guarantee that the binary is unchanged: pair it with
+`metadata_collection_success` before trusting it, and with
+`metadata_last_success_timestamp_seconds` to see how old it is. The adapter
 metadata API reuses that probe while it is younger than the collection interval, so
 Harbor's polling does not start a Trivy process per request. File walks do not
 follow symlinks. Missing or unsupported cache layouts produce collection failures and omit
@@ -48,7 +51,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 
 | Suffix | Type | Application labels | Meaning |
 |---|---|---|---|
-| `build_info` | gauge | adapter_version, trivy_version | Adapter and Trivy binary versions. |
+| `build_info` | gauge | adapter_version, trivy_version | Adapter and Trivy binary versions. The Trivy version is the last one a probe read successfully and is kept when a probe fails, so it can be stale: read it with `metadata_collection_success`. |
 | `http_requests_total` | counter | route, method, code | API requests by route template. |
 | `http_request_duration_seconds` | histogram | route, method | API handler duration. |
 | `jobs_enqueued_total` | counter | capability, format | Durably enqueued tasks. |
