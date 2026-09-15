@@ -9,12 +9,12 @@ import (
 )
 
 // Run records a child attempt without changing its invocation or error behavior.
-func (r *Recorder) Run(ctx context.Context, command string, cmd *exec.Cmd, run func(*exec.Cmd) ([]byte, error)) ([]byte, error) {
+func (r *Recorder) Run(ctx context.Context, command string, cmd *exec.Cmd, run func(*exec.Cmd) ([]byte, []byte, error)) ([]byte, []byte, error) {
 	if r == nil {
 		return run(cmd)
 	}
 	started := time.Now()
-	output, err := run(cmd)
+	stdout, stderr, err := run(cmd)
 	outcome, reason := "success", "success"
 	if err != nil {
 		outcome = "failed"
@@ -42,5 +42,5 @@ func (r *Recorder) Run(ctx context.Context, command string, cmd *exec.Cmd, run f
 	if rss, ok := maxRSS(cmd.ProcessState); ok {
 		r.Observe("subprocess_max_rss_bytes", rss, command)
 	}
-	return output, err
+	return stdout, stderr, err
 }

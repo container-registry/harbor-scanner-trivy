@@ -8,6 +8,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 )
 
 func TestExpiredDeadlineIsNotReportedAsSignal(t *testing.T) {
@@ -16,7 +18,7 @@ func TestExpiredDeadlineIsNotReportedAsSignal(t *testing.T) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sleep", "30")
 	cmd.WaitDelay = time.Second
-	_, err := r.Run(ctx, "image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
+	_, _, err := r.Run(ctx, "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) { return ext.DefaultAmbassador.RunCmd(cmd) })
 	require.Error(t, err)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "timeout")))
 	require.Zero(t, testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "signal")))
@@ -26,7 +28,7 @@ func TestExpiredDeadlineIsNotReportedAsSignal(t *testing.T) {
 func TestExternalKillWithoutDeadlineIsASignal(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command("sh", "-c", "kill -9 $$")
-	_, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
+	_, _, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) { return ext.DefaultAmbassador.RunCmd(cmd) })
 	require.Error(t, err)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "signal")))
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exit_code_total"].WithLabelValues("image", "other")))
@@ -36,7 +38,7 @@ func TestExitStatusIsRecordedForEveryStartedChild(t *testing.T) {
 	r := New(true)
 	for _, code := range []string{"0", "1", "2", "9"} {
 		cmd := exec.Command("sh", "-c", "exit "+code)
-		_, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
+		_, _, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) { return ext.DefaultAmbassador.RunCmd(cmd) })
 		if code == "0" {
 			require.NoError(t, err)
 		} else {
@@ -55,7 +57,7 @@ func TestExitStatusIsRecordedForEveryStartedChild(t *testing.T) {
 func TestChildThatNeverStartsHasNoExitStatus(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command(t.TempDir() + "/does-not-exist")
-	_, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
+	_, _, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) { return ext.DefaultAmbassador.RunCmd(cmd) })
 	require.Error(t, err)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "start_error")))
 	require.Zero(t, testutil.CollectAndCount(r.counters["subprocess_exit_code_total"]))

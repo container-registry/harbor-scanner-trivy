@@ -52,7 +52,7 @@ func TestScanErrorPreservesCauseAndClassificationAfterRedaction(t *testing.T) {
 			report, err := os.CreateTemp(t.TempDir(), "report")
 			require.NoError(t, err)
 			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
-			ambassador.On("RunCmd", mock.Anything).Return([]byte("redis cache unavailable"), fmt.Errorf("cache: %w", cause))
+			ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte("redis cache unavailable"), fmt.Errorf("cache: %w", cause))
 			w := NewWrapper(etc.Trivy{CacheBackend: "redis://:cache@redis:6379/0", CacheTTL: time.Hour}, ambassador)
 			_, err = w.Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 			var scanErr *ScanError
@@ -254,7 +254,7 @@ func TestWrapper_Scan(t *testing.T) {
 				"alpine:3.10.2",
 			},
 		}),
-		).Return([]byte{}, nil)
+		).Return([]byte{}, []byte{}, nil)
 
 		imageRef := ImageRef{
 			Name: "alpine:3.10.2",
@@ -331,7 +331,7 @@ func TestWrapper_Scan(t *testing.T) {
 				sbomPath,
 			},
 		}),
-		).Return([]byte{}, nil)
+		).Return([]byte{}, []byte{}, nil)
 
 		imageRef := ImageRef{
 			Name: "alpine@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
@@ -369,7 +369,7 @@ func TestWrapper_GetVersion(t *testing.T) {
 		Path: "/usr/local/bin/trivy",
 		Args: expectedCmdArgs,
 	},
-	).Return(b, nil)
+	).Return(b, []byte{}, nil)
 
 	vi, err := NewWrapper(config, ambassador).GetVersion()
 	require.NoError(t, err)
@@ -400,7 +400,7 @@ func TestMalformedReportHasReportParseCategory(t *testing.T) {
 	report, err := os.Open(path)
 	require.NoError(t, err)
 	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
-	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, nil)
+	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte{}, nil)
 	wrapper := NewWrapper(etc.Trivy{}, ambassador)
 	_, err = wrapper.Scan(context.Background(), ImageRef{Name: "alpine:latest", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 	var scanErr *ScanError
@@ -443,7 +443,7 @@ func TestExecutionRetryPolicy(t *testing.T) {
 			report, err := os.CreateTemp(t.TempDir(), "report")
 			require.NoError(t, err)
 			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
-			ambassador.On("RunCmd", mock.Anything).Return([]byte(tc.output), &exec.ExitError{})
+			ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte(tc.output), &exec.ExitError{})
 			_, err = NewWrapper(etc.Trivy{}, ambassador).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 			var failure *ScanError
 			require.ErrorAs(t, err, &failure)
@@ -562,4 +562,54 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 
 func TestDigestDigitsAreNotARateLimit(t *testing.T) {
 	require.Equal(t, ErrCategoryTrivyExec, classifyTrivyError("run error: layer sha256:429aa1b0 has 429000 bytes"))
+}
+
+func TestFailureIsDiagnosedFromStderrAndTrimmedToItsTail(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		stdout, stderr string
+		expected       ScanErrorCategory
+	}{
+		{"stderr wins", "downloading db\n", "FATAL\tFatal error\tTOOMANYREQUESTS: retry-after: 60", ErrCategoryRateLimit},
+		{"stdout is the fallback", "FATAL\tFatal error\tTOOMANYREQUESTS: retry-after: 60", "   \n", ErrCategoryRateLimit},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ambassador := ext.NewMockAmbassador()
+			ambassador.On("Environ").Return([]string{})
+			ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+			img := &fake.FakeImage{}
+			img.ManifestReturns(&v1.Manifest{}, nil)
+			ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+			report, err := os.CreateTemp(t.TempDir(), "report")
+			require.NoError(t, err)
+			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+			ambassador.On("RunCmd", mock.Anything).Return([]byte(tc.stdout), []byte(tc.stderr), &exec.ExitError{})
+			_, err = NewWrapper(etc.Trivy{}, ambassador).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+			var failure *ScanError
+			require.ErrorAs(t, err, &failure)
+			require.Equal(t, tc.expected, failure.Category)
+			ambassador.AssertExpectations(t)
+		})
+	}
+}
+
+func TestScanDetailCarriesTheTailOfTheDiagnostics(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	img := &fake.FakeImage{}
+	img.ManifestReturns(&v1.Manifest{}, nil)
+	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+	report, err := os.CreateTemp(t.TempDir(), "report")
+	require.NoError(t, err)
+	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+	stderr := strings.Repeat("noisy debug line\n", 1000) + "FATAL\tFatal error\tunsupported artifact type \"application/vnd.cncf.helm.config.v1+json\""
+	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte(stderr), &exec.ExitError{})
+	_, err = NewWrapper(etc.Trivy{}, ambassador).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	var failure *ScanError
+	require.ErrorAs(t, err, &failure)
+	require.Equal(t, ErrCategoryUnsupportedArtifact, failure.Category)
+	require.False(t, failure.Retryable)
+	require.Len(t, failure.Detail, detailLimit)
+	require.True(t, strings.HasSuffix(failure.Detail, `unsupported artifact type "application/vnd.cncf.helm.config.v1+json"`))
 }

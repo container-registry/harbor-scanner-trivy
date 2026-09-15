@@ -1,13 +1,13 @@
 package metrics
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"math/rand/v2"
 	"os"
 	"os/exec"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 )
 
 type databaseMetadata struct {
@@ -53,12 +54,15 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 			if version == "" {
 				versionCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
 				cmd := exec.CommandContext(versionCtx, "trivy", "--cache-dir", cfg.Trivy.CacheDir, "version", "--format", "json")
-				output, err := r.Run(versionCtx, "version", cmd, runLimited)
+				output, stderr, err := r.Run(versionCtx, "version", cmd, runLimited)
 				stop()
 				var info struct{ Version string }
 				if err == nil && json.Unmarshal(output, &info) == nil && info.Version != "" {
 					version = info.Version
 					r.Set("build_info", 1, adapterVersion, version)
+				} else if err != nil {
+					slog.Debug("Trivy version probe failed",
+						slog.String("err", err.Error()), slog.String("std_err", string(stderr)))
 				}
 			}
 			r.collectMetadata(cfg.Trivy, version != "")
@@ -90,22 +94,15 @@ func boolValue(b bool) float64 {
 	return 0
 }
 
-// Limit command output even if a broken binary emits unbounded data.
-type limitedBuffer struct{ bytes.Buffer }
-
-func (b *limitedBuffer) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > 1<<20 {
-		return 0, errors.New("metadata output exceeds 1 MiB")
-	}
-	return b.Buffer.Write(p)
-}
-
-func runLimited(cmd *exec.Cmd) ([]byte, error) {
-	var output limitedBuffer
-	cmd.Stdout = &output
-	cmd.Stderr = io.Discard
+func runLimited(cmd *exec.Cmd) ([]byte, []byte, error) {
+	stdout := &ext.LimitedBuffer{Limit: ext.MaxStdout}
+	stderr := &ext.LimitedBuffer{Limit: ext.MaxStderr}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
 	err := cmd.Run()
-	return output.Bytes(), err
+	if err == nil && stdout.Truncated() {
+		err = errors.New("metadata output exceeds the output limit")
+	}
+	return stdout.Bytes(), stderr.Bytes(), err
 }
 
 func (r *Recorder) collectMetadata(cfg etc.Trivy, versionOK bool) {

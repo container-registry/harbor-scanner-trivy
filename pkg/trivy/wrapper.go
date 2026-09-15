@@ -24,6 +24,10 @@ type Format string
 const (
 	trivyCmd = "trivy"
 
+	// Harbor shows the detail in its scan status, so it carries the tail of the
+	// diagnostics, where the failure is reported, not the whole output.
+	detailLimit = 4 << 10
+
 	FormatJSON      Format = "json"
 	FormatSPDX      Format = "spdx-json"
 	FormatCycloneDX Format = "cyclonedx"
@@ -149,29 +153,36 @@ func (w *wrapper) scan(ctx context.Context, imageRef ImageRef, opt ScanOption, u
 	logger.Debug("Exec command with args", slog.String("path", cmd.Path),
 		slog.String("args", strings.Join(cmd.Args, " ")))
 
-	stdout, err := w.metrics.Run(ctx, string(target.kind), cmd, w.ambassador.RunCmd)
+	stdout, stderr, err := w.metrics.Run(ctx, string(target.kind), cmd, w.ambassador.RunCmd)
+	// The report goes to --output, so stdout holds diagnostics at most. Fall
+	// back to it for binaries and wrappers that do not log to stderr.
+	diagnostics := string(stderr)
+	if strings.TrimSpace(diagnostics) == "" {
+		diagnostics = string(stdout)
+	}
 	if err != nil {
 		// Classify before redaction: a short password may also occur in an error keyword.
-		category := classifyTrivyError(string(stdout))
-		output := w.redactCacheCredentials(string(stdout))
+		category := classifyTrivyError(diagnostics)
+		output := w.redactCacheCredentials(diagnostics)
 		targetName, _ := target.Name()
 		logger.Error("Running trivy failed",
 			slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
-			slog.String("std_out", output),
+			slog.String("std_err", output),
+			slog.String("std_out", w.redactCacheCredentials(string(stdout))),
 			slog.String("category", string(category)),
 		)
 		return Report{}, target.fromAccessory, &ScanError{
 			Category:  category,
 			Retryable: retryable(category),
 			ImageRef:  targetName,
-			Detail:    output,
+			Detail:    tail(output, detailLimit),
 			Cause:     &redactedError{cause: err, message: w.redactCacheCredentials(err.Error())},
 		}
 	}
 
 	logger.Debug("Running trivy finished",
 		slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
-		slog.String("std_out", w.redactCacheCredentials(string(stdout))),
+		slog.String("std_err", w.redactCacheCredentials(diagnostics)),
 	)
 
 	report, err := w.parseReport(opt.Format, reportFile)
@@ -436,9 +447,9 @@ func (w *wrapper) GetVersion() (VersionInfo, error) {
 		return VersionInfo{}, fmt.Errorf("failed preparing trivy version command: %w", err)
 	}
 
-	versionOutput, err := w.metrics.Run(context.Background(), "version", cmd, w.ambassador.RunCmd)
+	versionOutput, versionErrors, err := w.metrics.Run(context.Background(), "version", cmd, w.ambassador.RunCmd)
 	if err != nil {
-		return VersionInfo{}, fmt.Errorf("failed running trivy version command: %w: %v", err, string(versionOutput))
+		return VersionInfo{}, fmt.Errorf("failed running trivy version command: %w: %v", err, string(versionErrors))
 	}
 
 	var vi VersionInfo
@@ -466,6 +477,13 @@ func (w *wrapper) prepareVersionCmd() (*exec.Cmd, error) {
 
 	cmd := exec.Command(name, args...)
 	return cmd, nil
+}
+
+func tail(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	return strings.ToValidUTF8(text[len(text)-limit:], "")
 }
 
 func exitCode(cmd *exec.Cmd) int {

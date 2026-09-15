@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
 )
@@ -139,16 +140,19 @@ func TestAnalysisCacheBackendInfo(t *testing.T) {
 func TestSubprocessFailureAndUnavailableUsage(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command(filepath.Join(t.TempDir(), "does-not-exist"))
-	_, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
+	_, _, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) { return ext.DefaultAmbassador.RunCmd(cmd) })
 	require.Error(t, err)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "start_error")))
 	require.Zero(t, testutil.CollectAndCount(r.histograms["subprocess_max_rss_bytes"]))
 }
 
 func TestCollectorShutdownAndOutputLimit(t *testing.T) {
-	var buffer limitedBuffer
-	_, err := buffer.Write([]byte(strings.Repeat("x", (1<<20)+1)))
-	require.Error(t, err)
+	buffer := ext.LimitedBuffer{Limit: ext.MaxStdout}
+	written, err := buffer.Write([]byte(strings.Repeat("x", ext.MaxStdout+1)))
+	require.NoError(t, err)
+	require.Equal(t, ext.MaxStdout+1, written)
+	require.True(t, buffer.Truncated())
+	require.Len(t, buffer.Bytes(), ext.MaxStdout)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cfg := etc.Config{Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second}}
@@ -196,9 +200,9 @@ func TestUninitializedCachePartsAreEmpty(t *testing.T) {
 func TestSuccessfulChildWithRunnerErrorIsNotNonzeroExit(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command("sh", "-c", "exit 0")
-	_, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, error) {
+	_, _, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) {
 		require.NoError(t, cmd.Run())
-		return nil, io.ErrUnexpectedEOF
+		return nil, nil, io.ErrUnexpectedEOF
 	})
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "other")))

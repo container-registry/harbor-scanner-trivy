@@ -259,7 +259,7 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 	})
 	if err != nil {
 		result = "error"
-		reqLog.Error("Error while getting scan job")
+		reqLog.Error("Error while getting scan job", slog.String("err", err.Error()))
 		h.WriteJSONError(res, api.Error{
 			HTTPCode: http.StatusInternalServerError,
 			Message:  fmt.Sprintf("getting scan job: %v", err),
