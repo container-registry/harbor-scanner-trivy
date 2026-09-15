@@ -5546,7 +5546,7 @@
       "type": "timeseries",
       "id": 1106,
       "title": "Queue sampler errors",
-      "description": "harbor_scanner_trivy_queue_collection_errors_total by query (quarantine, length, oldest). Requires the ops-visibility adapter build; empty on older images. Complements the sampler status timeline with the failing query.",
+      "description": "harbor_scanner_trivy_queue_collection_errors_total by query (quarantine, length, oldest, group). group is the consumer group check: stream length and age answer without it, so a backend that lost the group looks healthy on every other query while no delivery can be read. Requires the ops-visibility adapter build; empty on older images. Complements the sampler status timeline with the failing query.",
       "targets": [
         {
           "datasource": {
@@ -8060,7 +8060,7 @@
       "type": "state-timeline",
       "id": 1110,
       "title": "Harbor: trivy component health (harbor_up)",
-      "description": "harbor_up{component=\"trivy\"} from the Harbor exporter. It reflects only the bundled Trivy registration and only the adapter's /probe/healthy, which answers 200 unconditionally (until the ops-visibility build). Green here does not mean scans work; it means the adapter's HTTP listener answers. It reads 0 for ~10 s after every core restart.",
+      "description": "harbor_up{component=\"trivy\"} from the Harbor exporter. It reflects only the bundled Trivy registration and only the adapter's /probe/healthy, which answers 200 unconditionally: readiness is where the adapter reports whether it can actually scan. Healthy here does not mean scans work; it means the adapter's HTTP listener answers. It reads 0 for ~10 s after every core restart.",
       "targets": [
         {
           "datasource": {

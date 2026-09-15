@@ -146,7 +146,11 @@ class DashboardTest(unittest.TestCase):
             panels = sections[section]
             self.assertEqual(len(panels), 1)
             self.assertEqual(panels[0]["type"], "table")
-            self.assertEqual(len(panels[0]["targets"]), 5)
+            # Presence, updated-at, next-update, downloaded-at, updates-enabled
+            # and the schema version the engine reports for this database.
+            self.assertEqual(len(panels[0]["targets"]), 6)
+            self.assertIn("harbor_scanner_trivy_db_schema_version",
+                          panels[0]["targets"][5]["expr"])
             for panel in panels:
                 for target in panel["targets"]:
                     self.assertIn(f'database="{database}"', target["expr"])
