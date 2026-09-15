@@ -30,7 +30,7 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 	if r == nil {
 		return func() {}
 	}
-	r.version.ttl = cfg.Metrics.CollectionInterval
+	r.version.ttl = 2 * cfg.Metrics.CollectionInterval
 	r.Set("worker_concurrency", float64(cfg.JobQueue.WorkerConcurrency))
 	backend := analysisCacheBackend(cfg.Trivy.CacheBackend)
 	r.Set("analysis_cache_backend_info", 1, backend)
@@ -117,6 +117,7 @@ func (r *Recorder) probeEngine(ctx context.Context, cfg etc.Config, ambassador e
 		for _, db := range []string{"vulnerability", "java"} {
 			r.Delete("db_schema_version", db)
 		}
+		r.InvalidateVersion()
 		return ""
 	}
 	// Keep the previous build_info series only while the binary is unchanged:

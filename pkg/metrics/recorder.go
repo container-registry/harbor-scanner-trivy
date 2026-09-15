@@ -142,9 +142,23 @@ func (r *Recorder) cacheVersion(output []byte) {
 	r.version.output, r.version.at = output, time.Now()
 }
 
+// InvalidateVersion drops the cached probe. A failed probe means the cached
+// answer no longer describes the engine, and a reader that cannot decode it
+// proves the same thing from the other side.
+func (r *Recorder) InvalidateVersion() {
+	if r == nil {
+		return
+	}
+	r.version.mu.Lock()
+	defer r.version.mu.Unlock()
+	r.version.output, r.version.at = nil, time.Time{}
+}
+
 // CachedVersion returns the most recent successful engine probe while it is
-// younger than the collection interval, so callers know it describes the
-// current state without measuring it again.
+// younger than two collection intervals, so callers know it describes the
+// current state without measuring it again. Two, because the collection
+// interval carries jitter: at exactly one interval every probe would leave a
+// gap for Harbor's next poll to fall into.
 func (r *Recorder) CachedVersion() ([]byte, bool) {
 	if r == nil {
 		return nil, false

@@ -47,11 +47,16 @@ func cgroupMemoryLimit(paths ...string) (int64, bool) {
 		if err != nil {
 			continue
 		}
-		limit, err := strconv.ParseInt(strings.TrimSpace(string(content)), 10, 64)
+		// The file that answered is the authority. A v1 path can still exist on
+		// a v2 host through the hybrid hierarchy, holding a finite number for a
+		// hierarchy nothing enforces, so an unlimited v2 answer ends the search
+		// rather than falling through to it.
+		value := strings.TrimSpace(string(content))
+		limit, err := strconv.ParseInt(value, 10, 64)
 		// "max" in v2 and a saturated counter in v1 both mean unlimited, which
 		// is the state the runtime is already in.
 		if err != nil || limit <= 0 || limit >= 1<<62 {
-			continue
+			return 0, false
 		}
 		return limit, true
 	}

@@ -33,6 +33,14 @@ func TestChildGoMemLimitFallsBackToTheSecondCgroupPath(t *testing.T) {
 	require.Equal(t, "800000000", childGoMemLimit("", filepath.Join(t.TempDir(), "absent"), v1))
 }
 
+func TestUnlimitedV2EndsTheSearch(t *testing.T) {
+	// A v1 path survives on a v2 host through the hybrid hierarchy, holding a
+	// number nothing enforces. The file that answered first is the authority.
+	v2, v1 := cgroupFile(t, "max"), cgroupFile(t, "1000000000")
+	require.Empty(t, childGoMemLimit("", v2, v1))
+	require.Equal(t, "800000000", childGoMemLimit("", filepath.Join(t.TempDir(), "absent"), v1))
+}
+
 func TestChildGoMemLimitHonoursExplicitSettings(t *testing.T) {
 	require.Empty(t, childGoMemLimit("off", cgroupFile(t, "2147483648")))
 	require.Equal(t, "2GiB", childGoMemLimit("2GiB", cgroupFile(t, "2147483648")))

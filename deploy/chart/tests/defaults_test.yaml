@@ -188,3 +188,15 @@ tests:
           content:
             name: SCANNER_TRIVY_CHILD_GOMEMLIMIT
             value: "off"
+
+  - it: lets an explicitly empty image source turn the flag off
+    set:
+      trivy.imageSrc: ""
+    asserts:
+      # The adapter reads a set-but-empty variable as "do not pass the flag",
+      # which is how the upstream behaviour is restored.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_IMAGE_SRC
+            value: ""

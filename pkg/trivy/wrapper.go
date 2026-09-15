@@ -70,6 +70,9 @@ type wrapper struct {
 	config     etc.Trivy
 	ambassador ext.Ambassador
 	binary     binaryCheck
+	// One line per process: a cache the adapter cannot read is one fault, not
+	// one per metadata poll.
+	versionDecode sync.Once
 }
 
 // binaryCheck caches the PATH lookup. Readiness is polled every few seconds and
@@ -528,9 +531,19 @@ func (w *wrapper) GetVersion() (VersionInfo, error) {
 	// while it is current instead of starting a Trivy process per poll.
 	if cached, ok := w.metrics.CachedVersion(); ok {
 		var vi VersionInfo
-		if err := json.Unmarshal(cached, &vi); err == nil {
-			return vi, nil
+		if err := json.Unmarshal(cached, &vi); err != nil {
+			// The probe accepted output this cannot read, so the two disagree
+			// about what the engine says. Running the command per poll instead
+			// is the cost the cache exists to avoid, and it would hide the
+			// disagreement, so report it once and fail the call.
+			w.metrics.InvalidateVersion()
+			w.versionDecode.Do(func() {
+				slog.Error("Cached Trivy version output cannot be decoded",
+					slog.String("err", err.Error()))
+			})
+			return VersionInfo{}, fmt.Errorf("decoding the cached trivy version: %w", err)
 		}
+		return vi, nil
 	}
 
 	cmd, err := w.prepareVersionCmd()

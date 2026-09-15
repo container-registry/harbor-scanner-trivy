@@ -697,6 +697,33 @@ func TestGetVersionReusesTheBackgroundProbe(t *testing.T) {
 	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
 }
 
+func TestUnreadableCachedVersionFailsInsteadOfSpawningPerPoll(t *testing.T) {
+	engine := ext.NewMockAmbassador()
+	// The probe reads only the versions, so it accepts this; the metadata API
+	// needs the timestamps and cannot.
+	engine.On("RunCmd", mock.Anything).Return([]byte(`{"Version":"0.74.0","VulnerabilityDB":{"Version":2,"UpdatedAt":"yesterday"}}`), []byte{}, nil)
+	recorder := metrics.New(true)
+	cfg := etc.Config{
+		Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
+		Trivy:   etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()},
+	}
+	stop := recorder.Start(context.Background(), cfg, "adapter", engine)
+	require.Eventually(t, func() bool { _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	stop()
+
+	// No RunCmd expectation: falling through to the CLI would fail the test,
+	// which is the point. Harbor polls this twice a minute.
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	_, err := NewWrapper(cfg.Trivy, ambassador, recorder).GetVersion()
+	require.ErrorContains(t, err, "decoding the cached trivy version")
+	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
+
+	// The unusable answer is dropped, so the next probe can replace it.
+	_, ok := recorder.CachedVersion()
+	require.False(t, ok)
+}
+
 func TestScanCommandCarriesTheDefaultEngineFlags(t *testing.T) {
 	ambassador := ext.NewMockAmbassador()
 	ambassador.On("Environ").Return([]string{"GOMEMLIMIT=inherited", "KEEP=yes"})

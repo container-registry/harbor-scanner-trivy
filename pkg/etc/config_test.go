@@ -45,6 +45,22 @@ func TestGetLogLevel(t *testing.T) {
 	}
 }
 
+func TestExplicitlyEmptyValueOverridesTheDefault(t *testing.T) {
+	// The chart renders imageSrc: "" as SCANNER_TRIVY_IMAGE_SRC="", which has
+	// to mean "leave the flag off" rather than fall back to the default.
+	t.Run("set to empty", func(t *testing.T) {
+		setEnvs(t, Envs{"SCANNER_TRIVY_IMAGE_SRC": ""})
+		cfg, err := GetConfig()
+		require.NoError(t, err)
+		require.Empty(t, cfg.Trivy.ImageSrc)
+	})
+	t.Run("not set at all", func(t *testing.T) {
+		cfg, err := GetConfig()
+		require.NoError(t, err)
+		require.Equal(t, "remote", cfg.Trivy.ImageSrc)
+	})
+}
+
 func TestGetConfig(t *testing.T) {
 	testCases := []struct {
 		name           string

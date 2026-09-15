@@ -89,6 +89,35 @@ func TestUpgradedEngineReplacesItsBuildInfoSeries(t *testing.T) {
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["build_info"].WithLabelValues("adapter", "0.75.0")))
 }
 
+func TestFailedProbeDropsTheCachedVersion(t *testing.T) {
+	r := New(true)
+	cfg := probeConfig(time.Minute)
+	r.version.ttl = 2 * cfg.Metrics.CollectionInterval
+	require.Equal(t, "0.74.0", r.probeEngine(context.Background(), cfg, fakeEngine(t, bothDatabases, nil), "adapter", ""))
+	_, ok := r.CachedVersion()
+	require.True(t, ok)
+
+	// The engine stopped answering, so the cached answer no longer describes
+	// it and the metadata API must ask for itself.
+	require.Empty(t, r.probeEngine(context.Background(), cfg, fakeEngine(t, "", errors.New("exit status 1")), "adapter", "0.74.0"))
+	_, ok = r.CachedVersion()
+	require.False(t, ok)
+}
+
+func TestCachedVersionOutlivesOneCollectionInterval(t *testing.T) {
+	// The interval carries jitter, so a TTL of exactly one interval leaves a
+	// gap between probes for Harbor's next poll to fall into.
+	r := New(true)
+	stop := r.Start(context.Background(), probeConfig(time.Hour), "adapter", fakeEngine(t, bothDatabases, nil))
+	defer stop()
+	require.Eventually(t, func() bool { _, ok := r.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	r.version.mu.Lock()
+	r.version.at = time.Now().Add(-90 * time.Minute)
+	r.version.mu.Unlock()
+	_, ok := r.CachedVersion()
+	require.True(t, ok)
+}
+
 func TestCachedVersionExpiresWithTheCollectionInterval(t *testing.T) {
 	r := New(true)
 	r.version.ttl = 20 * time.Millisecond

@@ -778,7 +778,7 @@
         },
         "childGoMemLimit": {
           "type": "string",
-          "pattern": "^$|^off$|^[0-9]+(\\.[0-9]+)?\\s*([kKmMgGtT]i?[bB]?)?$"
+          "pattern": "^(|off|[0-9]+([KMGT]iB)?)$"
         },
         "vexSource": {
           "type": "string",
