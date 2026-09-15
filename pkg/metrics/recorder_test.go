@@ -139,7 +139,7 @@ func TestAnalysisCacheBackendInfo(t *testing.T) {
 func TestSubprocessFailureAndUnavailableUsage(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command(filepath.Join(t.TempDir(), "does-not-exist"))
-	_, err := r.Run("image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
+	_, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
 	require.Error(t, err)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "start_error")))
 	require.Zero(t, testutil.CollectAndCount(r.histograms["subprocess_max_rss_bytes"]))
@@ -196,7 +196,7 @@ func TestUninitializedCachePartsAreEmpty(t *testing.T) {
 func TestSuccessfulChildWithRunnerErrorIsNotNonzeroExit(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command("sh", "-c", "exit 0")
-	_, err := r.Run("image", cmd, func(cmd *exec.Cmd) ([]byte, error) {
+	_, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, error) {
 		require.NoError(t, cmd.Run())
 		return nil, io.ErrUnexpectedEOF
 	})

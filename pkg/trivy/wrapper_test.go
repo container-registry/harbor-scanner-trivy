@@ -453,3 +453,113 @@ func TestExecutionRetryPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
+	tests := []struct {
+		name      string
+		output    string
+		expected  ScanErrorCategory
+		retryable bool
+	}{
+		{
+			name:      "registry rate limit",
+			output:    "FATAL\tFatal error\timage scan error: TOOMANYREQUESTS: retry-after: 60, allowed: 100/minute",
+			expected:  ErrCategoryRateLimit,
+			retryable: true,
+		},
+		{
+			name:      "numeric rate limit status",
+			output:    "FATAL\tFatal error\tGET https://registry/v2/token: status code 429",
+			expected:  ErrCategoryRateLimit,
+			retryable: true,
+		},
+		{
+			name:      "database download failure",
+			output:    "FATAL\tFatal error\tinit error: DB error: failed to download artifact from any source: 3 errors occurred",
+			expected:  ErrCategoryDBDownload,
+			retryable: true,
+		},
+		{
+			name:      "java database failure",
+			output:    "FATAL\tFatal error\tjava DB error: failed to initialize the Java DB",
+			expected:  ErrCategoryDBDownload,
+			retryable: true,
+		},
+		{
+			// Trivy logs the advice and returns the schema mismatch wrapped in
+			// "DB error:", so both keywords reach the classifier together.
+			name:      "outdated binary",
+			output:    "ERROR\tTrivy version is old. Update to the latest version.\nFATAL\tFatal error\tDB error: the version of DB schema doesn't match. Local DB: 3, Expected: 2",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "schema mismatch with updates disabled",
+			output:    "FATAL\tFatal error\tDB error: validate error: --skip-db-update cannot be specified with the old DB schema. Local DB: 2, Expected: 3",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "java schema mismatch with updates disabled",
+			output:    "FATAL\tFatal error\tJava DB error: '--skip-java-db-update' cannot be specified on the first run",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "schema version mismatch",
+			output:    "FATAL\tFatal error\tthe local DB doesn't match the schema version required by this binary",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "artifact that is not an image",
+			output:    `FATAL	Fatal error	unsupported artifact type "application/vnd.cncf.helm.config.v1+json" for image "registry/chart:1.0"`,
+			expected:  ErrCategoryUnsupportedArtifact,
+			retryable: false,
+		},
+		{
+			name:      "cache miss",
+			output:    "FATAL\tFatal error\tlayer cache missing: sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
+			name:      "expired deadline",
+			output:    "FATAL\tFatal error\timage scan error: context deadline exceeded",
+			expected:  ErrCategoryTimeout,
+			retryable: true,
+		},
+		{
+			name:      "broken layer archive",
+			output:    "FATAL\tFatal error\trun error: walk error: failed to extract the archive: unexpected EOF",
+			expected:  ErrCategoryUnscannable,
+			retryable: false,
+		},
+		{
+			// Known ordering hazard: a timed-out extraction is reported as a
+			// timeout, because "timeout" is matched before the archive keywords.
+			name:      "broken layer archive reported after a timeout",
+			output:    "FATAL\tFatal error\trun error: timeout: failed to extract the archive",
+			expected:  ErrCategoryTimeout,
+			retryable: true,
+		},
+		{
+			name:      "registry rejects the credentials",
+			output:    "FATAL\tFatal error\timage scan error: GET https://registry/v2/library/alpine/manifests/latest: UNAUTHORIZED: authentication required",
+			expected:  ErrCategoryAuth,
+			retryable: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyTrivyError(tt.output)
+			require.Equal(t, tt.expected, got)
+			require.Equal(t, tt.retryable, retryable(got))
+		})
+	}
+}
+
+func TestDigestDigitsAreNotARateLimit(t *testing.T) {
+	require.Equal(t, ErrCategoryTrivyExec, classifyTrivyError("run error: layer sha256:429aa1b0 has 429000 bytes"))
+}

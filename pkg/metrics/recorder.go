@@ -26,7 +26,7 @@ var values = map[string][]string{
 	"outcome":    {"success", "failed", "error", "not_found", "not_applied", "other"},
 	"command":    {"image", "sbom", "version", "other"},
 	"stage":      {"status", "target", "auth", "scan", "transform", "report", "internal", "other"},
-	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "internal", "unknown", "other"},
+	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "rate_limit", "db_download", "db_schema", "unsupported_artifact", "internal", "unknown", "other"},
 	"encoding":   {"raw", "compressed", "other"},
 	"record":     {"job", "report", "other"},
 	"operation":  {"enqueue", "status", "read", "report", "acknowledge", "other"},
@@ -35,10 +35,13 @@ var values = map[string][]string{
 	"area":       {"cache", "reports", "other"},
 	"collector":  {"cache_size", "cache_filesystem", "reports_filesystem", "other"},
 	"event":      {"lookup_hit", "lookup_miss", "lookup_error", "reuse_success", "fallback", "other"},
-	"reason":     {"success", "nonzero_exit", "signal", "start_error", "other"},
+	"reason":     {"success", "nonzero_exit", "signal", "timeout", "start_error", "other"},
 	"result":     {"lock_acquired", "lock_busy", "lock_error", "decode_error", "ok", "pending", "failed", "not_found", "error", "invalid_request", "not_applied", "success", "other"},
 	"method":     {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "other"},
 	"route":      {"/api/v1/scan", "/api/v1/scan/{scan_request_id}/report", "/api/v1/metadata", "unmatched", "other"},
+	// Qualified by metric because the HTTP status domain of the shared "code"
+	// label is unrelated to a process exit status.
+	"subprocess_exit_code_total.code": {"0", "1", "2", "137", "143", "other"},
 }
 
 type definition struct {
@@ -76,7 +79,8 @@ var catalog = []definition{
 	{"last_scan_success_timestamp_seconds", "Last successfully persisted completion; absent until observed.", "gauge", nil, nil},
 	{"scan_timeout_seconds", "Configured Trivy CLI timeout, not the entire job budget.", "gauge", nil, nil},
 	{"subprocess_duration_seconds", "Trivy child process duration.", "histogram", []string{"command", "outcome"}, executionBuckets},
-	{"subprocess_exits_total", "Trivy child termination reason; signal does not imply OOM.", "counter", []string{"command", "reason"}, nil},
+	{"subprocess_exits_total", "Trivy child termination reason; timeouts are reported separately, so signal means an external kill such as OOM.", "counter", []string{"command", "reason"}, nil},
+	{"subprocess_exit_code_total", "Trivy child exit status; absent when the child never started.", "counter", []string{"command", "code"}, nil},
 	{"subprocess_max_rss_bytes", "Completed child peak RSS, not container peak or live usage.", "histogram", []string{"command"}, prometheus.ExponentialBuckets(1<<20, 2, 15)},
 	{"sbom_accessory_events_total", "SBOM accessory lookup and fallback events (multiple per job).", "counter", []string{"event"}, nil},
 	{"report_size_bytes", "Matched raw and compressed report sizes on applied writes.", "histogram", []string{"capability", "format", "encoding"}, byteBuckets},
@@ -205,10 +209,14 @@ func (r *Recorder) normalize(name string, labels []string) []string {
 	}
 	out := slices.Clone(labels)
 	for i, label := range d.labels {
-		if allowed, ok := values[label]; ok && !slices.Contains(allowed, out[i]) {
+		allowed, ok := values[name+"."+label]
+		if !ok {
+			allowed, ok = values[label]
+		}
+		if ok && !slices.Contains(allowed, out[i]) {
 			out[i] = "other"
 		}
-		if label == "code" && !validCode(out[i]) {
+		if label == "code" && !ok && !validCode(out[i]) {
 			out[i] = "other"
 		}
 	}

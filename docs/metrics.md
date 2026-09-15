@@ -62,7 +62,8 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `last_scan_success_timestamp_seconds` | gauge | — | Last successfully persisted completion; absent until observed. |
 | `scan_timeout_seconds` | gauge | — | Configured Trivy CLI timeout, not the entire job budget. |
 | `subprocess_duration_seconds` | histogram | command, outcome | Trivy child process duration. |
-| `subprocess_exits_total` | counter | command, reason | Trivy child termination reason; signal does not imply OOM. |
+| `subprocess_exits_total` | counter | command, reason | Trivy child termination reason: `success`, `nonzero_exit`, `timeout`, `signal`, `start_error`. Timeouts are reported separately, so `signal` means an external kill such as an OOM. |
+| `subprocess_exit_code_total` | counter | command, code | Trivy child exit status (`0`, `1`, `2`, `137`, `143`, `other`). Absent when the child never started, so it does not count `start_error` terminations. A child killed by a signal has no exit status and counts as `other`. |
 | `subprocess_max_rss_bytes` | histogram | command | Completed child peak RSS, not container peak or live usage. |
 | `sbom_accessory_events_total` | counter | event | SBOM accessory lookup and fallback events (multiple per job). |
 | `report_size_bytes` | histogram | capability, format, encoding | Matched raw and compressed report sizes on applied writes. |
@@ -123,6 +124,12 @@ measurements cover every workload sharing the instance.
   where possible. Store errors can additionally reflect a failed status write.
   Child stderr classification remains heuristic; exact diagnostic detail stays
   in logs. Error labels never contain raw stderr or image identifiers.
+- `category="rate_limit"` and `category="db_download"` are retryable infrastructure
+  failures: a throttling registry, or a vulnerability/Java database that could not be
+  fetched. `category="db_schema"` (binary and database schema disagree) and
+  `category="unsupported_artifact"` (the reference is not a scannable image) are
+  terminal, so the worker does not retry them. A schema or flag complaint is
+  classified before the download rules because Trivy wraps both in `DB error:`.
 - Report-size raw/compressed observations describe the same applied report write.
   Calculate a byte-weighted compression ratio from the sums. Dividing unrelated
   percentiles does not give that ratio.

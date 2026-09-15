@@ -53,7 +53,7 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 			if version == "" {
 				versionCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
 				cmd := exec.CommandContext(versionCtx, "trivy", "--cache-dir", cfg.Trivy.CacheDir, "version", "--format", "json")
-				output, err := r.Run("version", cmd, runLimited)
+				output, err := r.Run(versionCtx, "version", cmd, runLimited)
 				stop()
 				var info struct{ Version string }
 				if err == nil && json.Unmarshal(output, &info) == nil && info.Version != "" {

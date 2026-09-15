@@ -20,7 +20,24 @@ const (
 	ErrCategoryTimeout     ScanErrorCategory = "timeout"
 	ErrCategoryReportParse ScanErrorCategory = "report_parse"
 	ErrCategoryCache       ScanErrorCategory = "cache"
+
+	ErrCategoryRateLimit           ScanErrorCategory = "rate_limit"
+	ErrCategoryDBDownload          ScanErrorCategory = "db_download"
+	ErrCategoryDBSchema            ScanErrorCategory = "db_schema"
+	ErrCategoryUnsupportedArtifact ScanErrorCategory = "unsupported_artifact"
 )
+
+// retryable reports whether a further attempt can plausibly succeed. Unknown CLI
+// failures stay retryable within the worker's attempt limit. A schema mismatch
+// needs a new binary or database and an unsupported artifact never becomes
+// scannable, so both are terminal.
+func retryable(category ScanErrorCategory) bool {
+	switch category {
+	case ErrCategoryAuth, ErrCategoryUnscannable, ErrCategoryDBSchema, ErrCategoryUnsupportedArtifact:
+		return false
+	}
+	return true
+}
 
 // ScanError provides structured context about scan failures.
 type ScanError struct {
@@ -42,6 +59,17 @@ func (e *ScanError) Error() string {
 
 func (e *ScanError) Unwrap() error {
 	return e.Cause
+}
+
+// hasToken reports whether message contains value as a standalone token, so a
+// digest or size that merely embeds the digits does not match.
+func hasToken(message, value string) bool {
+	for _, word := range strings.Fields(message) {
+		if strings.Trim(word, "\"':;,()[]") == value {
+			return true
+		}
+	}
+	return false
 }
 
 // Recognize HTTP statuses and registry error prefixes, not arbitrary counts or

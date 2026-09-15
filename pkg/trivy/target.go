@@ -108,7 +108,7 @@ func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassa
 		category := classifyRemoteError(err)
 		return ScanTarget{}, &ScanError{
 			Category:  category,
-			Retryable: category != ErrCategoryAuth,
+			Retryable: retryable(category),
 			ImageRef:  imageRef.Name,
 			Detail:    "fetching image from registry",
 			Cause:     err,
@@ -124,7 +124,7 @@ func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassa
 	if err != nil {
 		return ScanTarget{}, &ScanError{
 			Category:  ErrCategoryManifest,
-			Retryable: classifyRemoteError(err) != ErrCategoryAuth,
+			Retryable: retryable(classifyRemoteError(err)),
 			ImageRef:  imageRef.Name,
 			Detail:    "getting image manifest",
 			Cause:     err,
@@ -288,6 +288,9 @@ func classifyRemoteError(err error) ScanErrorCategory {
 	authFailure := isAuthenticationErrorMessage(msg)
 	var registryError *transport.Error
 	if errors.As(err, &registryError) {
+		if registryError.StatusCode == http.StatusTooManyRequests {
+			return ErrCategoryRateLimit
+		}
 		authFailure = registryError.StatusCode == http.StatusUnauthorized || registryError.StatusCode == http.StatusForbidden
 	}
 	switch {

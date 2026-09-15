@@ -149,7 +149,7 @@ func (w *wrapper) scan(ctx context.Context, imageRef ImageRef, opt ScanOption, u
 	logger.Debug("Exec command with args", slog.String("path", cmd.Path),
 		slog.String("args", strings.Join(cmd.Args, " ")))
 
-	stdout, err := w.metrics.Run(string(target.kind), cmd, w.ambassador.RunCmd)
+	stdout, err := w.metrics.Run(ctx, string(target.kind), cmd, w.ambassador.RunCmd)
 	if err != nil {
 		// Classify before redaction: a short password may also occur in an error keyword.
 		category := classifyTrivyError(string(stdout))
@@ -162,7 +162,7 @@ func (w *wrapper) scan(ctx context.Context, imageRef ImageRef, opt ScanOption, u
 		)
 		return Report{}, target.fromAccessory, &ScanError{
 			Category:  category,
-			Retryable: category != ErrCategoryAuth && category != ErrCategoryUnscannable,
+			Retryable: retryable(category),
 			ImageRef:  targetName,
 			Detail:    output,
 			Cause:     &redactedError{cause: err, message: w.redactCacheCredentials(err.Error())},
@@ -393,6 +393,26 @@ func (w *wrapper) cacheEnv(env []string) []string {
 // classifyTrivyError categorizes Trivy CLI errors by pattern-matching the output.
 func classifyTrivyError(output string) ScanErrorCategory {
 	lower := strings.ToLower(output)
+	// Infrastructure failures are matched first: their messages routinely also
+	// carry the generic keywords ("error", "timeout") matched further down.
+	switch {
+	case strings.Contains(lower, "toomanyrequests") || hasToken(lower, "429"):
+		return ErrCategoryRateLimit
+	// Terminal schema and flag complaints precede the download rules: Trivy
+	// wraps them in "DB error:" and "Java DB error:", which the retryable
+	// download rules below would otherwise swallow.
+	case strings.Contains(lower, "trivy version is old") ||
+		strings.Contains(lower, "--skip-db-update cannot be specified") ||
+		(strings.Contains(lower, "--skip-java-db-update") && strings.Contains(lower, "cannot be specified")) ||
+		(strings.Contains(lower, "doesn't match") && strings.Contains(lower, "schema")):
+		return ErrCategoryDBSchema
+	case strings.Contains(lower, "failed to download artifact") ||
+		strings.Contains(lower, "db error:") ||
+		(strings.Contains(lower, "java db") && strings.Contains(lower, "error")):
+		return ErrCategoryDBDownload
+	case strings.Contains(lower, "unsupported artifact type"):
+		return ErrCategoryUnsupportedArtifact
+	}
 	if strings.Contains(lower, "redis cache") || strings.Contains(lower, "layer cache missing") || strings.Contains(lower, "cache may be in use") {
 		return ErrCategoryCache
 	}
@@ -416,7 +436,7 @@ func (w *wrapper) GetVersion() (VersionInfo, error) {
 		return VersionInfo{}, fmt.Errorf("failed preparing trivy version command: %w", err)
 	}
 
-	versionOutput, err := w.metrics.Run("version", cmd, w.ambassador.RunCmd)
+	versionOutput, err := w.metrics.Run(context.Background(), "version", cmd, w.ambassador.RunCmd)
 	if err != nil {
 		return VersionInfo{}, fmt.Errorf("failed running trivy version command: %w: %v", err, string(versionOutput))
 	}

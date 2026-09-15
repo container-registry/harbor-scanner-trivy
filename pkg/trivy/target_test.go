@@ -157,6 +157,11 @@ func TestClassifyRemoteError(t *testing.T) {
 			expected: ErrCategoryTimeout,
 		},
 		{
+			name:     "structured 429",
+			err:      fmt.Errorf("fetching manifest: %w", &transport.Error{StatusCode: 429}),
+			expected: ErrCategoryRateLimit,
+		},
+		{
 			name:     "generic error",
 			err:      errors.New("some unknown error"),
 			expected: ErrCategoryImageFetch,
