@@ -473,7 +473,12 @@ func classifyTrivyError(output string) ScanErrorCategory {
 	// Infrastructure failures are matched first: their messages routinely also
 	// carry the generic keywords ("error", "timeout") matched further down.
 	switch {
-	case strings.Contains(lower, "toomanyrequests") || hasToken(lower, "429"):
+	// A bare 429 also appears in digests, byte counts and CVE identifiers, so
+	// the status needs the words around it.
+	case strings.Contains(lower, "toomanyrequests") ||
+		strings.Contains(lower, "429 too many requests") ||
+		strings.Contains(lower, "status 429") ||
+		strings.Contains(lower, "status code 429"):
 		return ErrCategoryRateLimit
 	// Terminal schema and flag complaints precede the download rules: Trivy
 	// wraps them in "DB error:" and "Java DB error:", which the retryable
@@ -493,7 +498,9 @@ func classifyTrivyError(output string) ScanErrorCategory {
 		strings.Contains(lower, "unable to initialize fs cache") ||
 		strings.Contains(lower, "unable to open cache db") ||
 		strings.Contains(lower, "failed to create cache dir") ||
-		strings.Contains(lower, "fanal"):
+		// The bbolt file, not a repository whose path happens to contain
+		// "fanal". A cache directory failure carries one of the messages above.
+		strings.Contains(lower, "fanal.db"):
 		return ErrCategoryCache
 	case strings.Contains(lower, "failed to download artifact") ||
 		strings.Contains(lower, "db error:") ||

@@ -176,6 +176,28 @@ func TestClassifyRemoteError(t *testing.T) {
 	}
 }
 
+func TestManifestFailureReportsWhatFailedNotOnlyWhere(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		expected  ScanErrorCategory
+		retryable bool
+	}{
+		{"credentials refused", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 401}), ErrCategoryAuth, false},
+		{"registry throttling", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 429}), ErrCategoryRateLimit, true},
+		{"anything else", errors.New("unexpected end of JSON input"), ErrCategoryManifest, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			category := classifyRemoteError(tc.err)
+			if category == ErrCategoryImageFetch {
+				category = ErrCategoryManifest
+			}
+			require.Equal(t, tc.expected, category)
+			require.Equal(t, tc.retryable, retryable(category))
+		})
+	}
+}
+
 func TestClassifyTrivyError(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -581,8 +581,45 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 	}
 }
 
-func TestDigestDigitsAreNotARateLimit(t *testing.T) {
-	require.Equal(t, ErrCategoryTrivyExec, classifyTrivyError("run error: layer sha256:429aa1b0 has 429000 bytes"))
+func TestClassifierNeedsMoreThanAMatchingSubstring(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		output   string
+		expected ScanErrorCategory
+	}{
+		{
+			// 429 turns up in digests, byte counts and CVE identifiers.
+			name:     "digits that are not a status",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\trun error: layer sha256:429aa1b0 of 429000 bytes, CVE-2021-42900",
+			expected: ErrCategoryTrivyExec,
+		},
+		{
+			name:     "status words around the number",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tGET https://registry/v2/token: unexpected status code 429",
+			expected: ErrCategoryRateLimit,
+		},
+		{
+			name:     "the status phrase itself",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tGET https://registry/v2/: 429 Too Many Requests",
+			expected: ErrCategoryRateLimit,
+		},
+		{
+			// The analysis cache is a bolt file; an image may simply be named
+			// after it.
+			name:     "an image named after the cache",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry.example/v2/fanal/manifests/latest: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "the bolt file itself",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: unable to open cache DB: /home/scanner/.cache/trivy/fanal/fanal.db: permission denied",
+			expected: ErrCategoryCache,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, classifyTrivyError(tc.output))
+		})
+	}
 }
 
 func TestFailureIsDiagnosedFromStderrAndTrimmedToItsTail(t *testing.T) {

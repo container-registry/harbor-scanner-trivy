@@ -61,22 +61,17 @@ func (e *ScanError) Unwrap() error {
 	return e.Cause
 }
 
-// hasToken reports whether message contains value as a standalone token, so a
-// digest or size that merely embeds the digits does not match.
-func hasToken(message, value string) bool {
-	for _, word := range strings.Fields(message) {
-		if strings.Trim(word, "\"':;,()[]") == value {
-			return true
-		}
-	}
-	return false
-}
+// Punctuation around a word in a log line, stripped before comparing it to a
+// status or a keyword.
+const tokenPunctuation = "\"':;,()[]"
+
+func trimToken(word string) string { return strings.Trim(word, tokenPunctuation) }
 
 // Recognize HTTP statuses and registry error prefixes, not arbitrary counts or
 // descriptive words in CLI stderr. Typed registry errors use their HTTP status.
 func isAuthenticationErrorMessage(message string) bool {
 	words := strings.Fields(strings.ToLower(message))
-	token := func(i int) string { return strings.Trim(words[i], "\"':;,()[]") }
+	token := func(i int) string { return trimToken(words[i]) }
 	for i := range words {
 		word := token(i)
 		if word == "401" || word == "403" {
