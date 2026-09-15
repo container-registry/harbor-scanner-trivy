@@ -158,7 +158,9 @@ measurements cover every workload sharing the instance.
   derives a positive effective TTL from scan timeout when its setting is zero;
   direct store callers can still use zero to disable expiry.
 - `area="tmp"` covers `os.TempDir()`, where Trivy extracts layers. It is often
-  a different filesystem from the cache and fills up on its own. Trivy removes
+  a different filesystem from the cache and fills up on its own.
+  `SCANNER_TRIVY_MAX_IMAGE_SIZE` adds to it rather than bounding it: reaching
+  the uncompressed size means writing every layer there first. Trivy removes
   its `$TMPDIR/trivy-<pid>` directory when it exits, but a child that is
   OOM-killed never does, so the adapter sweeps directories whose pid is no
   longer alive every ten minutes and counts them in `temp_dirs_reaped_total`.

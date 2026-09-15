@@ -441,7 +441,7 @@ Kubernetes: `>=1.28.0-0`
 | trivy.imageSrc | string | `"remote"` | Where Trivy looks for the image (`remote`, `docker`, `containerd`, `podman`). The adapter always scans a registry, so `remote` skips the probes Trivy would otherwise make for local container runtime sockets that a scanner pod does not have. Empty leaves the flag off and restores Trivy's own default. |
 | trivy.insecure | bool | `false` | Skip TLS verification against the scanned registry. |
 | trivy.javaDBRepository | string | `"ghcr.io/aquasecurity/trivy-java-db"` | OCI repository serving the Trivy Java DB. |
-| trivy.maxImageSize | string | `""` | Refuse images larger than this before pulling them, e.g. `10GB`. Empty means no limit. A too-large image is reported as a scan failure instead of consuming the pod's memory and disk until it is OOM-killed. |
+| trivy.maxImageSize | string | `""` | Refuse images larger than this, e.g. `10GB`. Empty means no limit. Trivy checks the compressed size from the manifest before pulling, but reaches the uncompressed size only after downloading every layer into its temp directory, where the analysis then re-reads them. So this bounds the memory and work of analysing an oversized image, not the bandwidth spent on it, and it raises temp disk use while a scan runs. |
 | trivy.offlineScan | bool | `false` | Disable external API calls used to identify dependencies. |
 | trivy.reportsDir | string | `"/home/scanner/.cache/reports"` | Trivy reports directory. Must sit under the mounted cache volume. |
 | trivy.securityChecks | string | `"vuln"` | Comma-separated Trivy scanners (`SCANNER_TRIVY_SECURITY_CHECKS`), e.g. `vuln` or `vuln,secret`. |

@@ -212,7 +212,7 @@ The adapter reads all configuration from environment variables at startup; it ha
 | `SCANNER_TRIVY_IMAGE_SRC` | `remote` | Where Trivy looks for the image, passed as `--image-src`. The adapter always scans a registry, so the default skips Trivy's probes for local Docker, containerd and Podman sockets. Empty restores Trivy's own default |
 | `SCANNER_TRIVY_SKIP_VERSION_CHECK` | `true` | Suppress Trivy's update notice and announcements, which it fetches over the network on every scan |
 | `SCANNER_TRIVY_DISABLE_TELEMETRY` | `true` | Stop Trivy sending anonymous usage data to `check.trivy.dev` on every scan |
-| `SCANNER_TRIVY_MAX_IMAGE_SIZE` | N/A | Refuse images larger than this before pulling them, e.g. `10GB`. Unset means no limit |
+| `SCANNER_TRIVY_MAX_IMAGE_SIZE` | N/A | Refuse images larger than this, e.g. `10GB`. Unset means no limit. The compressed size is read from the manifest before pulling, but the uncompressed size is known only after every layer has been downloaded into Trivy's temp directory, so this bounds analysis memory and work rather than download bandwidth, and raises temp disk use while a scan runs |
 | `SCANNER_TRIVY_CHILD_GOMEMLIMIT` | N/A | Soft heap limit (`GOMEMLIMIT`) for the Trivy child. Unset derives 80% of the cgroup memory limit, so a heavy scan is slowed by garbage collection rather than OOM-killed; `off` passes the inherited environment through unchanged; any other value is used verbatim |
 
 ### Store and job queue
