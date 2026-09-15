@@ -1,5 +1,7 @@
 # Operational metrics
 
+Operational guidance for these signals, alert by alert, is in [OPERATIONS.md](OPERATIONS.md).
+
 The adapter exposes Prometheus metrics on the existing API listener at `/metrics`.
 `SCANNER_API_SERVER_METRICS_ENABLED=false` disables `/metrics` (scrapes return
 404), application recording and background collection. Scrapes use the API

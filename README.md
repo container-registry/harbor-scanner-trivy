@@ -155,7 +155,9 @@ respective inputs, linked from a comment on the PR. How releases are cut, and wh
 ## Operational metrics
 
 The [operational metrics guide](docs/metrics.md) explains collection settings and how to read the scanner,
-worker, database, storage, report and Redis pool measurements.
+worker, database, storage, report and Redis pool measurements. The
+[operations runbook](docs/OPERATIONS.md) maps each signal to what it means
+and what to do when it moves, including the Harbor-side caveats.
 
 ## Configuration
 
