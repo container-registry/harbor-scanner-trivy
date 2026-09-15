@@ -77,7 +77,7 @@ func TestRestAPI(t *testing.T) {
 			Commit:  "abc",
 			Date:    "2019-01-04T12:40",
 		},
-		etc.Config{Trivy: trivyConf}, enqueuer, store, wrapper)
+		etc.Config{Trivy: trivyConf}, enqueuer, store, wrapper, nil)
 
 	ts := httptest.NewServer(app)
 	t.Cleanup(ts.Close)

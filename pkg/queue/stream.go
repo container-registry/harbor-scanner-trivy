@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
@@ -69,6 +71,9 @@ type streamWorker struct {
 	collectionFailing bool
 	// Owned by the run goroutine; see recoverMissingGroup.
 	groupRecreations int
+	// Unix seconds of the last read-loop iteration or lease renewal; read by
+	// the readiness probe from another goroutine.
+	heartbeat atomic.Int64
 }
 
 func NewWorker(config etc.JobQueue, rdb *redis.Client, controller scan.Controller, store persistence.Store, recorders ...*metrics.Recorder) Worker {
@@ -114,6 +119,7 @@ func (w *streamWorker) run(ctx context.Context) {
 	cursor := "0-0"
 	var observed time.Time
 	for ctx.Err() == nil {
+		w.beat()
 		if time.Since(observed) >= 10*time.Second {
 			_ = cleanConsumers.Run(ctx, w.rdb, []string{w.stream}, workerGroup, "", (2 * w.leaseDuration).Milliseconds()).Err()
 			observed = time.Now()
@@ -164,6 +170,37 @@ func (w *streamWorker) run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (w *streamWorker) beat() { w.heartbeat.Store(time.Now().Unix()) }
+
+// Healthy checks what delivery actually depends on. XLEN would answer from a
+// backend that lost the consumer group, which is the state in which nothing can
+// be read at all.
+func (w *streamWorker) Healthy(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
+	defer cancel()
+	groups, err := w.rdb.XInfoGroups(ctx, w.stream).Result()
+	if err != nil {
+		return fmt.Errorf("reading consumer groups of %q: %w", w.stream, err)
+	}
+	if !slices.ContainsFunc(groups, func(g redis.XInfoGroup) bool { return g.Name == workerGroup }) {
+		return fmt.Errorf("consumer group %q is missing from stream %q", workerGroup, w.stream)
+	}
+	return nil
+}
+
+// Active reports the read loop dead once it has missed three lease periods. A
+// scan in progress keeps renewing its lease, so a long scan beats too.
+func (w *streamWorker) Active() error {
+	last := w.heartbeat.Load()
+	if last == 0 {
+		return errors.New("worker has not started reading deliveries")
+	}
+	if age := time.Since(time.Unix(last, 0)); age > 3*w.leaseDuration {
+		return fmt.Errorf("worker last read a delivery %s ago", age.Round(time.Second))
+	}
+	return nil
 }
 
 // ensureGroup creates the consumer group, treating an existing one as success.
@@ -240,6 +277,9 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 					cancel()
 					return
 				}
+				// A scan can outlast three lease periods, and the loop does not
+				// iterate while it runs: a renewed lease is the proof of life.
+				w.beat()
 			}
 		}
 	}()

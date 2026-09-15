@@ -40,6 +40,7 @@ var values = map[string][]string{
 	"method":     {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "other"},
 	"route":      {"/api/v1/scan", "/api/v1/scan/{scan_request_id}/report", "/api/v1/metadata", "unmatched", "other"},
 	"query":      {"quarantine", "length", "oldest", "group", "other"},
+	"check":      {"queue", "worker", "binary", "other"},
 	// Qualified by metric because the HTTP status domain of the shared "code"
 	// label is unrelated to a process exit status.
 	"subprocess_exit_code_total.code": {"0", "1", "2", "137", "143", "other"},
@@ -79,6 +80,7 @@ var catalog = []definition{
 	{"queue_wait_duration_seconds", "Adapter enqueue-to-lock-acquisition duration, excluding Harbor's queue.", "histogram", []string{"capability"}, executionBuckets},
 	{"jobs_in_progress", "Locally executing jobs.", "gauge", nil, nil},
 	{"worker_concurrency", "Configured local worker capacity.", "gauge", nil, nil},
+	{"ready", "Result of each readiness check, recorded when the probe runs; absent for a component this process does not own.", "gauge", []string{"check"}, nil},
 	{"last_scan_success_timestamp_seconds", "Last successfully persisted completion; absent until observed.", "gauge", nil, nil},
 	{"scan_timeout_seconds", "Configured Trivy CLI timeout, not the entire job budget.", "gauge", nil, nil},
 	{"subprocess_duration_seconds", "Trivy child process duration.", "histogram", []string{"command", "outcome"}, executionBuckets},

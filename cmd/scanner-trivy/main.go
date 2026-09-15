@@ -87,7 +87,7 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	enqueuer := queue.NewEnqueuer(config.JobQueue, store, recorder)
 	worker := queue.NewWorker(config.JobQueue, rdb, controller, store, recorder)
 
-	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, recorder)
+	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, worker, recorder)
 	apiServer, err := api.NewServer(config.API, apiHandler)
 	if err != nil {
 		return fmt.Errorf("new api server: %w", err)

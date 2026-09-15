@@ -101,7 +101,12 @@ resources:
 
 # -- Container probes, passed through verbatim. The chart fills in
 # `scheme: HTTPS` when `api.tls.enabled` is set and no scheme is given. Set a
-# probe to `null` to drop it.
+# probe to `null` to drop it. `/probe/ready` returns 503 when the job backend is
+# unreachable or has lost the worker's consumer group, when the read loop has
+# stopped, or when the Trivy binary is missing, and names the failing checks in
+# its body; it ignores database freshness and disk space, which do not stop the
+# pod serving. `/probe/healthy` is unconditional, so a readiness failure never
+# restarts the pod.
 probes:
   startup:
     httpGet:

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -60,12 +61,36 @@ type BearerAuth struct {
 type Wrapper interface {
 	Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error)
 	GetVersion() (VersionInfo, error)
+	// Available reports whether the Trivy binary can be executed at all.
+	Available() error
 }
 
 type wrapper struct {
 	metrics    *metrics.Recorder
 	config     etc.Trivy
 	ambassador ext.Ambassador
+	binary     binaryCheck
+}
+
+// binaryCheck caches the PATH lookup. Readiness is polled every few seconds and
+// the answer changes only when the image or a mount does.
+type binaryCheck struct {
+	mu      sync.Mutex
+	checked time.Time
+	err     error
+}
+
+const binaryCheckTTL = time.Minute
+
+func (w *wrapper) Available() error {
+	w.binary.mu.Lock()
+	defer w.binary.mu.Unlock()
+	if !w.binary.checked.IsZero() && time.Since(w.binary.checked) < binaryCheckTTL {
+		return w.binary.err
+	}
+	_, err := w.ambassador.LookPath(trivyCmd)
+	w.binary.checked, w.binary.err = time.Now(), err
+	return err
 }
 
 func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metrics.Recorder) Wrapper {

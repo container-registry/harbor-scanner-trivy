@@ -319,3 +319,50 @@ func TestLostConsumerGroupIsRecreatedAndCounted(t *testing.T) {
 	status, _ = gaugeValue(t, r, "queue_collection_success")
 	require.Equal(t, float64(1), status)
 }
+
+func TestWorkerHealthNeedsTheConsumerGroupNotJustAServer(t *testing.T) {
+	server, rdb, store, cfg := setupQueue(t)
+	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true)).(*streamWorker)
+	ctx := context.Background()
+
+	// A stream nothing has subscribed to answers XLEN but delivers nothing.
+	require.ErrorContains(t, w.Healthy(ctx), "consumer group")
+	require.NoError(t, w.ensureGroup(ctx))
+	require.NoError(t, w.Healthy(ctx))
+
+	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
+	require.ErrorContains(t, w.Healthy(ctx), `consumer group "scanner" is missing`)
+
+	require.NoError(t, w.ensureGroup(ctx))
+	server.SetError("redis outage")
+	require.ErrorContains(t, w.Healthy(ctx), "redis outage")
+	server.SetError("")
+	require.NoError(t, w.Healthy(ctx))
+}
+
+func TestWorkerIsActiveWhileItReadsOrRenewsALease(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true)).(*streamWorker)
+	require.ErrorContains(t, w.Active(), "has not started")
+
+	w.beat()
+	require.NoError(t, w.Active())
+
+	// A scan longer than three lease periods keeps beating through its lease
+	// renewals; only a loop that stopped goes stale.
+	w.heartbeat.Store(time.Now().Add(-2 * w.leaseDuration).Unix())
+	require.NoError(t, w.Active())
+	w.heartbeat.Store(time.Now().Add(-4 * w.leaseDuration).Unix())
+	require.ErrorContains(t, w.Active(), "last read a delivery")
+}
+
+func TestStartedWorkerBeatsAndReportsHealthy(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true))
+	ctx := context.Background()
+	w.Start(ctx)
+	t.Cleanup(w.Stop)
+	require.Eventually(t, func() bool {
+		return w.Active() == nil && w.Healthy(ctx) == nil
+	}, 5*time.Second, 10*time.Millisecond)
+}

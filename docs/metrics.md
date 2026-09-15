@@ -67,6 +67,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `queue_wait_duration_seconds` | histogram | capability | Adapter enqueue-to-lock-acquisition duration, excluding Harbor's queue. |
 | `jobs_in_progress` | gauge | — | Locally executing jobs. |
 | `worker_concurrency` | gauge | — | Configured local worker capacity. |
+| `ready` | gauge | check | Result of each readiness check (`queue`, `worker`, `binary`), recorded when the probe runs. A check this process does not own has no series: an API built without a worker reports neither `queue` nor `worker`. |
 | `last_scan_success_timestamp_seconds` | gauge | — | Last successfully persisted completion; absent until observed. |
 | `scan_timeout_seconds` | gauge | — | Configured Trivy CLI timeout, not the entire job budget. |
 | `subprocess_duration_seconds` | histogram | command, outcome | Trivy child process duration. |
@@ -157,6 +158,17 @@ measurements cover every workload sharing the instance.
   bytes-written-rate × TTL is not actual Redis resident memory. `GetConfig`
   derives a positive effective TTL from scan timeout when its setting is zero;
   direct store callers can still use zero to disable expiry.
+- `/probe/ready` fails only for what stops this pod from serving: the job
+  backend answering and still holding the worker's consumer group (`queue`), the
+  read loop having iterated or renewed a lease within three lease periods
+  (`worker`), and the Trivy binary being on `PATH` (`binary`, cached for a
+  minute). Database freshness, disk space and the analysis cache are deliberately
+  not readiness. A 503 removes the pod from the Service, Harbor's metadata ping
+  then fails, its `Metadata` goes nil, and a scan-all in that state finishes as
+  Success having scanned nothing; a stale database still produces reports. Alert
+  on `db_next_update_timestamp_seconds` and `storage_available_bytes` instead.
+  `/probe/healthy` stays unconditional, so a failing readiness check never
+  restarts the pod.
 - `area="tmp"` covers `os.TempDir()`, where Trivy extracts layers. It is often
   a different filesystem from the cache and fills up on its own.
   `SCANNER_TRIVY_MAX_IMAGE_SIZE` adds to it rather than bounding it: reaching
