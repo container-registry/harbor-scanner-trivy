@@ -73,8 +73,8 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `last_scan_success_timestamp_seconds` | gauge | — | Last successfully persisted completion; absent until observed. |
 | `scan_timeout_seconds` | gauge | — | Configured Trivy CLI timeout, not the entire job budget. |
 | `subprocess_duration_seconds` | histogram | command, outcome | Trivy child process duration. |
-| `subprocess_exits_total` | counter | command, reason | Trivy child termination reason: `success`, `nonzero_exit`, `timeout`, `signal`, `start_error`. Timeouts are reported separately, so `signal` means an external kill such as an OOM. |
-| `subprocess_exit_code_total` | counter | command, code | Trivy child exit status (`0`, `1`, `2`, `137`, `143`, `other`). Absent when the child never started, so it does not count `start_error` terminations. A child killed by a signal has no exit status and counts as `other`. |
+| `subprocess_exits_total` | counter | command, reason | Trivy child termination reason: `success`, `nonzero_exit`, `timeout`, `canceled`, `signal`, `start_error`, `other`. `timeout` is the adapter's own deadline and `canceled` its own cancellation (shutdown, lease loss), so `signal` means a kill from outside the adapter. `other` is a child that exited 0 while the runner still failed, which is a bug in the adapter rather than in Trivy. |
+| `subprocess_exit_code_total` | counter | command, code | Trivy child exit status (`0`, `1`, `2`, `137`, `143`, `other`). A killed child is reported as 128+signal, so SIGKILL is `137` and SIGTERM `143`, the same numbers a shell and a container runtime use. The adapter kills the child on its own deadline too, so `137` alone does not identify an OOM: pair it with `reason` and the container's termination reason. Absent when the child never started, so it does not count `start_error` terminations. |
 | `subprocess_max_rss_bytes` | histogram | command | Completed child peak RSS, not container peak or live usage. |
 | `sbom_accessory_events_total` | counter | event | SBOM accessory lookup and fallback events (multiple per job). |
 | `report_size_bytes` | histogram | capability, format, encoding | Matched raw and compressed report sizes on applied writes. |
@@ -184,8 +184,9 @@ measurements cover every workload sharing the instance.
 - Child peak RSS is available after termination on Linux (converted from KiB)
   and macOS (already bytes). It is not live usage, a sum of concurrent children,
   or total container peak. If the child never starts or the adapter is killed,
-  usage may be unavailable. Check the container termination reason to determine
-  whether a signal was caused by OOM.
+  usage may be unavailable. `reason="signal"` with code `137` is the OOM
+  candidate, but the kernel's OOM killer and any other SIGKILL look identical
+  here: check the container's termination reason to tell them apart.
 - Queue collection failures are logged once per state change, not once per
   sample, so a Redis outage produces one error line and one recovery line.
   `rate(queue_collection_errors_total[5m])` is the machine-readable rate, and

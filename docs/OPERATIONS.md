@@ -45,7 +45,9 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 | `trivy_execution` | Any other non-zero exit | yes | Read the stderr tail in the adapter log (`ScanError.Detail` carries the last 4 KiB). |
 | `storage_full`, `storage_io` | ENOSPC / EIO from the adapter's own file operations | yes | Disk. A full disk inside the Trivy child shows up as `trivy_execution` with "no space left on device" in the detail. |
 
-`subprocess_exits_total{reason}`: `timeout` is the adapter's deadline, `signal` is an external kill (OOMKill, SIGTERM), `nonzero_exit` is Trivy's own exit 1, `start_error` means the binary could not start. `subprocess_exit_code_total{code}` keeps the numeric code: Trivy only exits 0 or 1 by itself; 137 is SIGKILL, 143 SIGTERM.
+`subprocess_exits_total{reason}`: `timeout` is the adapter's own deadline, `canceled` its own cancellation (shutdown or a lost lease), `signal` a kill from outside the adapter (OOMKill, an operator's SIGTERM), `nonzero_exit` is Trivy's own exit 1, `start_error` means the binary could not start, and `other` is a child that exited 0 while the run still failed, which points at the adapter rather than at Trivy. A child that reached its own exit status keeps `nonzero_exit` even if the context expired meanwhile.
+
+`subprocess_exit_code_total{code}` keeps the numeric status, reporting a killed child as 128+signal like a shell does: Trivy only exits 0 or 1 by itself, 137 is SIGKILL and 143 SIGTERM. The adapter also kills the child when its own deadline expires, so 137 does not identify an OOM on its own; read it together with `reason` and the container's termination reason.
 
 ## Vulnerability DB and Java DB lifecycle
 

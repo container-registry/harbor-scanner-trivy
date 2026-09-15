@@ -3124,7 +3124,7 @@
       "type": "timeseries",
       "id": 1107,
       "title": "Trivy CLI exit codes",
-      "description": "harbor_scanner_trivy_subprocess_exit_code_total by numeric code (0, 1, 2, 137, 143, other). Trivy itself only exits 0 or 1; 137 is SIGKILL (OOM), 143 SIGTERM. Requires the ops-visibility build; the exit reasons panel next to it works on all builds.",
+      "description": "harbor_scanner_trivy_subprocess_exit_code_total by numeric status (0, 1, 2, 137, 143, other). Trivy itself only exits 0 or 1; a killed child is reported as 128+signal, so 137 is SIGKILL and 143 SIGTERM. The adapter kills the child on its own timeout too, so 137 does not identify an OOM on its own: read it with the exit reasons panel next to it and the container's termination reason. Requires the ops-visibility build; the exit reasons panel works on all builds.",
       "targets": [
         {
           "datasource": {
