@@ -224,7 +224,20 @@ frequency does not change how often Prometheus collects samples.
   integrity, scan success, content age and download age need their own checks.
 - Redis / Valkey analysis cache: dedicated server-memory, hit-rate and eviction
   cards link to the Valkey dashboard. Redis job/report client pool has a separate
-  row: it measures adapter connections, not Trivy CLI cache connections.
+  row: it measures adapter connections, not Trivy CLI cache connections, and
+  now includes the pool hit ratio and stale-connection rate.
+- Queue health (Redis Streams): the sampler status per replica
+  (`queue_collection_success`, which also fails when the consumer group is
+  missing on ops-visibility builds), quarantined deliveries, the age of the
+  oldest unread delivery, retries and lease losses, enqueued versus attempted
+  versus succeeded work, and sampler errors by query. The oldest-delivery age
+  climbing while `jobs_in_progress` is 0 on every replica means nothing is
+  consuming the stream; the alert "[Trivy] Deliveries stuck in queue while
+  workers idle" fires on that shape.
+- Trivy CLI exit codes (Scanning and workers), the Schema column in both
+  database tables and the `harbor_up{component="trivy"}` timeline in the
+  Harbor row need the ops-visibility adapter build; they stay empty on older
+  images. `harbor_up` reflects only the adapter's unconditional `/probe/healthy`.
 - Filesystem analysis cache: collapsed and shown only when
   `analysis_cache_backend_info{backend="filesystem"}` reports the active backend
   at the selected range's end. Redis, memory, and older adapters without this
