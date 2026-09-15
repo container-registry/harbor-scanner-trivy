@@ -146,7 +146,9 @@ measurements cover every workload sharing the instance.
   fetched. `category="db_schema"` (binary and database schema disagree) and
   `category="unsupported_artifact"` (the reference is not a scannable image) are
   terminal, so the worker does not retry them. A schema or flag complaint is
-  classified before the download rules because Trivy wraps both in `DB error:`.
+  classified before the download rules, and so is a `cache` fault: Trivy reaches
+  its bolt analysis cache through the same `DB error:` wrapper as a database
+  download, and the two need different responses from an operator.
 - Report-size raw/compressed observations describe the same applied report write.
   Calculate a byte-weighted compression ratio from the sums. Dividing unrelated
   percentiles does not give that ratio.

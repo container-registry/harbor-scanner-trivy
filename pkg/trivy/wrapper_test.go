@@ -519,6 +519,26 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 			retryable: false,
 		},
 		{
+			// A bolt cache fault reaches the classifier wrapped in "DB error:",
+			// which the download rules would otherwise claim.
+			name:      "analysis cache cannot be opened",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: unable to initialize cache: unable to initialize fs cache: unable to open cache DB: timeout: /home/scanner/.cache/trivy/fanal/fanal.db: resource temporarily unavailable",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
+			name:      "another process holds the cache",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: cache may be in use by another process: timeout",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
+			name:      "cache directory cannot be created",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: unable to initialize cache: failed to create cache dir: mkdir /home/scanner/.cache/trivy: read-only file system",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
 			name:      "cache miss",
 			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tlayer cache missing: sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
 			expected:  ErrCategoryCache,

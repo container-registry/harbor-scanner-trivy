@@ -483,15 +483,24 @@ func classifyTrivyError(output string) ScanErrorCategory {
 		(strings.Contains(lower, "--skip-java-db-update") && strings.Contains(lower, "cannot be specified")) ||
 		(strings.Contains(lower, "doesn't match") && strings.Contains(lower, "schema")):
 		return ErrCategoryDBSchema
+	// Trivy's analysis cache is a bolt file it opens through the same wrappers
+	// as a database download, so a cache fault reports "DB error:" too. It is a
+	// local storage problem, not a mirror problem, and recognizing it first is
+	// what keeps the two apart.
+	case strings.Contains(lower, "redis cache") ||
+		strings.Contains(lower, "layer cache missing") ||
+		strings.Contains(lower, "cache may be in use") ||
+		strings.Contains(lower, "unable to initialize fs cache") ||
+		strings.Contains(lower, "unable to open cache db") ||
+		strings.Contains(lower, "failed to create cache dir") ||
+		strings.Contains(lower, "fanal"):
+		return ErrCategoryCache
 	case strings.Contains(lower, "failed to download artifact") ||
 		strings.Contains(lower, "db error:") ||
 		(strings.Contains(lower, "java db") && strings.Contains(lower, "error")):
 		return ErrCategoryDBDownload
 	case strings.Contains(lower, "unsupported artifact type"):
 		return ErrCategoryUnsupportedArtifact
-	}
-	if strings.Contains(lower, "redis cache") || strings.Contains(lower, "layer cache missing") || strings.Contains(lower, "cache may be in use") {
-		return ErrCategoryCache
 	}
 	switch {
 	case isAuthenticationErrorMessage(lower):
