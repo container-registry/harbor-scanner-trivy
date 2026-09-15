@@ -68,6 +68,30 @@ Two things are worth checking on a running install:
 | `securityContext` | privileged/readOnlyRootFilesystem only | plus `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]` | Passes kube-linter and Trivy's config checks unchanged |
 | `podSecurityContext` | no `runAsGroup`/`seccompProfile` | adds both | Same |
 
+### Changed Trivy invocation defaults
+
+These three change how the adapter invokes Trivy compared with the upstream
+`goharbor/harbor-scanner-trivy`, which passes none of them. No environment
+variable was renamed or removed, so an upstream configuration keeps working.
+
+| Value | Env | Default | What changes | Restore upstream behaviour |
+|-------|-----|---------|--------------|----------------------------|
+| `trivy.imageSrc` | `SCANNER_TRIVY_IMAGE_SRC` | `remote` | Trivy no longer probes for local Docker, containerd and Podman sockets before pulling from the registry. A scanner pod has none of them | `trivy.imageSrc: ""` |
+| `trivy.skipVersionCheck` | `SCANNER_TRIVY_SKIP_VERSION_CHECK` | `true` | Trivy no longer fetches its update notice and announcements per scan | `trivy.skipVersionCheck: false` |
+| `trivy.disableTelemetry` | `SCANNER_TRIVY_DISABLE_TELEMETRY` | `true` | Trivy no longer sends anonymous usage data to `check.trivy.dev` per scan | `trivy.disableTelemetry: false` |
+
+`trivy.maxImageSize` is new and off by default. It gates the compressed size
+from the manifest before anything is pulled, then adds up the uncompressed size
+as layers download and fails the scan as soon as the running total exceeds the
+limit, so an oversized image usually stops partway through rather than after a
+full download. The layers it does fetch stay in Trivy's temp directory for the
+rest of the scan, so the check raises temp disk use for the scans it allows.
+
+`trivy.childGoMemLimit` is new but **not** off by default: left empty it derives
+`GOMEMLIMIT` for the Trivy child from the pod's cgroup memory limit, which is a
+behaviour change against the upstream adapter. `off` is the opt-out and leaves
+the child environment exactly as the pod defines it.
+
 ### Removed
 
 `scanner.trivy.ignorePolicy` still exists, but the ConfigMap it renders was

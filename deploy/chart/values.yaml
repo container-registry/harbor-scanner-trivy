@@ -101,7 +101,12 @@ resources:
 
 # -- Container probes, passed through verbatim. The chart fills in
 # `scheme: HTTPS` when `api.tls.enabled` is set and no scheme is given. Set a
-# probe to `null` to drop it.
+# probe to `null` to drop it. `/probe/ready` returns 503 when the job backend is
+# unreachable or has lost the worker's consumer group, when the read loop has
+# stopped, or when the Trivy binary is missing, and names the failing checks in
+# its body; it ignores database freshness and disk space, which do not stop the
+# pod serving. `/probe/healthy` is unconditional, so a readiness failure never
+# restarts the pod.
 probes:
   startup:
     httpGet:
@@ -475,6 +480,34 @@ trivy:
   # -- Serve scans from a pre-existing SBOM accessory attached to the image
   # instead of re-scanning its layers.
   useSBOMAccessory: false
+  # -- Where Trivy looks for the image (`remote`, `docker`, `containerd`,
+  # `podman`). The adapter always scans a registry, so `remote` skips the probes
+  # Trivy would otherwise make for local container runtime sockets that a
+  # scanner pod does not have. Empty leaves the flag off and restores Trivy's
+  # own default.
+  imageSrc: remote
+  # -- Suppress Trivy's update notice and announcements, which it fetches from
+  # the network on every scan.
+  skipVersionCheck: true
+  # -- Stop Trivy sending anonymous usage data to Aqua. Each scan otherwise
+  # calls out to `check.trivy.dev`, which costs latency on every scan and fails
+  # in an air-gapped install.
+  disableTelemetry: true
+  # -- Refuse images larger than this, e.g. `10GB`. Empty means no limit. The
+  # compressed size is checked from the manifest before anything is pulled. The
+  # uncompressed size is added up as layers download into Trivy's temp
+  # directory and fails the scan as soon as the running total exceeds the limit,
+  # so an oversized image usually stops partway through rather than after a full
+  # download. The layers it does fetch stay in the temp directory for the rest
+  # of the scan, so the check raises temp disk use for the scans it allows.
+  maxImageSize: ""
+  # -- Soft heap limit for the Trivy child process (`GOMEMLIMIT`). Empty derives
+  # 80% of the pod's memory limit from the cgroup, so a heavy scan is slowed by
+  # garbage collection instead of being OOM-killed. `off` passes the pod
+  # environment through unchanged; any other value is handed to Trivy verbatim
+  # (`2GiB`, `1073741824`). It is a soft limit: it cannot stop a single
+  # allocation from exceeding the pod's memory limit.
+  childGoMemLimit: ""
   # -- VEX source used to filter vulnerabilities: `oci` or `repo`.
   vexSource: ""
   # -- Skip updating the VEX repository.

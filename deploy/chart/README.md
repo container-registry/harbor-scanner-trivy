@@ -377,7 +377,7 @@ Kubernetes: `>=1.28.0-0`
 | podSecurityContext | object | `{"fsGroup":10000,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod-level security context. `fsGroup` must match the volume owner for the Trivy cache PVC to be writable. |
 | podSpecOverrides | object | `{}` | Deep-merged into the pod spec, for fields the chart does not template (`runtimeClassName`, `hostNetwork`, `enableServiceLinks`, `nodeName`, `shareProcessNamespace`, `readinessGates`). Yours wins on conflict. |
 | priorityClassName | string | `""` | PriorityClass for the adapter pods. |
-| probes | object | `{"liveness":{"failureThreshold":10,"httpGet":{"path":"/probe/healthy","port":"api-server"},"periodSeconds":10,"timeoutSeconds":3},"readiness":{"failureThreshold":3,"httpGet":{"path":"/probe/ready","port":"api-server"},"periodSeconds":10,"timeoutSeconds":3},"startup":{"failureThreshold":30,"httpGet":{"path":"/probe/healthy","port":"api-server"},"periodSeconds":2,"timeoutSeconds":3}}` | Container probes, passed through verbatim. The chart fills in `scheme: HTTPS` when `api.tls.enabled` is set and no scheme is given. Set a probe to `null` to drop it. |
+| probes | object | `{"liveness":{"failureThreshold":10,"httpGet":{"path":"/probe/healthy","port":"api-server"},"periodSeconds":10,"timeoutSeconds":3},"readiness":{"failureThreshold":3,"httpGet":{"path":"/probe/ready","port":"api-server"},"periodSeconds":10,"timeoutSeconds":3},"startup":{"failureThreshold":30,"httpGet":{"path":"/probe/healthy","port":"api-server"},"periodSeconds":2,"timeoutSeconds":3}}` | Container probes, passed through verbatim. The chart fills in `scheme: HTTPS` when `api.tls.enabled` is set and no scheme is given. Set a probe to `null` to drop it. `/probe/ready` returns 503 when the job backend is unreachable or has lost the worker's consumer group, when the read loop has stopped, or when the Trivy binary is missing, and names the failing checks in its body; it ignores database freshness and disk space, which do not stop the pod serving. `/probe/healthy` is unconditional, so a readiness failure never restarts the pod. |
 | proxy.httpProxy | string | `""` | HTTP proxy URL. |
 | proxy.httpsProxy | string | `""` | HTTPS proxy URL. |
 | proxy.noProxy | string | `""` | Comma-separated hosts the proxy settings do not apply to. Redis and the Harbor registry normally belong here. |
@@ -427,8 +427,10 @@ Kubernetes: `>=1.28.0-0`
 | trivy.cacheRedisKey | string | `""` | Client private key for a Redis scan cache (path inside the container). |
 | trivy.cacheRedisTLS | bool | `false` | Use TLS with public certificates for a Redis scan cache. |
 | trivy.cacheTTL | string | `"168h"` | TTL for Redis/Valkey analysis entries, set on writes (reads do not renew it). Must be positive; choose it above the rescan interval with margin. Configure instance-level maxmemory and eviction separately; TTL is not a capacity cap. |
+| trivy.childGoMemLimit | string | `""` | Soft heap limit for the Trivy child process (`GOMEMLIMIT`). Empty derives 80% of the pod's memory limit from the cgroup, so a heavy scan is slowed by garbage collection instead of being OOM-killed. `off` passes the pod environment through unchanged; any other value is handed to Trivy verbatim (`2GiB`, `1073741824`). It is a soft limit: it cannot stop a single allocation from exceeding the pod's memory limit. |
 | trivy.dbRepository | string | `"ghcr.io/aquasecurity/trivy-db"` | OCI repository serving the Trivy vulnerability DB. |
 | trivy.debugMode | string | `true` when `logLevel` is `debug`/`trace`, `false` otherwise | Trivy debug mode. |
+| trivy.disableTelemetry | bool | `true` | Stop Trivy sending anonymous usage data to Aqua. Each scan otherwise calls out to `check.trivy.dev`, which costs latency on every scan and fails in an air-gapped install. |
 | trivy.existingIgnorePolicyConfigMap | string | `""` | Existing ConfigMap holding the Rego policy. Wins over `ignorePolicy`. |
 | trivy.existingSecret | string | `""` | Existing Secret holding the GitHub token. Wins over `gitHubToken`. |
 | trivy.existingSecretKey | string | `"gitHubToken"` | Key within `trivy.existingSecret`. |
@@ -436,8 +438,10 @@ Kubernetes: `>=1.28.0-0`
 | trivy.ignorePolicy | string | `""` | Rego policy filtering scan results, rendered into a chart-managed ConfigMap. See <https://trivy.dev/latest/docs/configuration/filtering/>. |
 | trivy.ignorePolicyKey | string | `"policy.rego"` | Key within the ignore-policy ConfigMap. |
 | trivy.ignoreUnfixed | bool | `false` | Report only vulnerabilities with a known fix. |
+| trivy.imageSrc | string | `"remote"` | Where Trivy looks for the image (`remote`, `docker`, `containerd`, `podman`). The adapter always scans a registry, so `remote` skips the probes Trivy would otherwise make for local container runtime sockets that a scanner pod does not have. Empty leaves the flag off and restores Trivy's own default. |
 | trivy.insecure | bool | `false` | Skip TLS verification against the scanned registry. |
 | trivy.javaDBRepository | string | `"ghcr.io/aquasecurity/trivy-java-db"` | OCI repository serving the Trivy Java DB. |
+| trivy.maxImageSize | string | `""` | Refuse images larger than this, e.g. `10GB`. Empty means no limit. The compressed size is checked from the manifest before anything is pulled. The uncompressed size is added up as layers download into Trivy's temp directory and fails the scan as soon as the running total exceeds the limit, so an oversized image usually stops partway through rather than after a full download. The layers it does fetch stay in the temp directory for the rest of the scan, so the check raises temp disk use for the scans it allows. |
 | trivy.offlineScan | bool | `false` | Disable external API calls used to identify dependencies. |
 | trivy.reportsDir | string | `"/home/scanner/.cache/reports"` | Trivy reports directory. Must sit under the mounted cache volume. |
 | trivy.securityChecks | string | `"vuln"` | Comma-separated Trivy scanners (`SCANNER_TRIVY_SECURITY_CHECKS`), e.g. `vuln` or `vuln,secret`. |
@@ -445,6 +449,7 @@ Kubernetes: `>=1.28.0-0`
 | trivy.skipJavaDBUpdate | bool | `false` | Skip Java DB downloads. Enable only when you mount a pre-populated `trivy-java.db` at `<cacheDir>/java-db/trivy-java.db`. |
 | trivy.skipUpdate | bool | `false` | Skip Trivy DB downloads. Enable only when you mount a pre-populated `trivy.db` at `<cacheDir>/db/trivy.db`. |
 | trivy.skipVEXRepoUpdate | bool | `false` | Skip updating the VEX repository. |
+| trivy.skipVersionCheck | bool | `true` | Suppress Trivy's update notice and announcements, which it fetches from the network on every scan. |
 | trivy.timeout | string | `"5m0s"` | Time budget for a single scan. Must be greater than zero and at most 24h; the adapter refuses to start outside that range. Also sets the default scan job TTL (`2 * timeout + 3s`) when `store.redisScanJobTTL` is unset. |
 | trivy.useSBOMAccessory | bool | `false` | Serve scans from a pre-existing SBOM accessory attached to the image instead of re-scanning its layers. |
 | trivy.vexSource | string | `""` | VEX source used to filter vulnerabilities: `oci` or `repo`. |

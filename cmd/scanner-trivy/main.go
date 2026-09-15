@@ -74,8 +74,12 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 
 	recorder := metrics.New(config.API.MetricsEnabled)
 	recorder.RegisterRedis(rdb)
-	stopMetrics := recorder.Start(ctx, config, info.Version)
+	stopMetrics := recorder.Start(ctx, config, info.Version, ext.DefaultAmbassador)
 	defer stopMetrics()
+	// Reaping is not a metrics concern: a disabled recorder only silences its
+	// counters, the abandoned directories still have to go.
+	stopReaper := trivy.NewReaper(recorder).Start(ctx)
+	defer stopReaper()
 
 	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, recorder)
 	store := redis.NewStore(config.RedisStore, rdb, recorder)
@@ -83,7 +87,7 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 	enqueuer := queue.NewEnqueuer(config.JobQueue, store, recorder)
 	worker := queue.NewWorker(config.JobQueue, rdb, controller, store, recorder)
 
-	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, recorder)
+	apiHandler := v1.NewAPIHandler(info, config, enqueuer, store, wrapper, worker, recorder)
 	apiServer, err := api.NewServer(config.API, apiHandler)
 	if err != nil {
 		return fmt.Errorf("new api server: %w", err)

@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
@@ -65,6 +67,13 @@ type streamWorker struct {
 	leaseDuration    time.Duration
 	cancel           context.CancelFunc
 	wg               sync.WaitGroup
+	// Owned by the monitor goroutine; see reportCollection.
+	collectionFailing bool
+	// Owned by the run goroutine; see recoverMissingGroup.
+	groupRecreations int
+	// Unix seconds of the last read-loop iteration or lease renewal; read by
+	// the readiness probe from another goroutine.
+	heartbeat atomic.Int64
 }
 
 func NewWorker(config etc.JobQueue, rdb *redis.Client, controller scan.Controller, store persistence.Store, recorders ...*metrics.Recorder) Worker {
@@ -98,8 +107,8 @@ func (w *streamWorker) run(ctx context.Context) {
 		_ = cleanConsumers.Run(cleanup, w.rdb, []string{w.stream}, workerGroup, w.consumer, (2 * w.leaseDuration).Milliseconds()).Err()
 	}()
 	for ctx.Err() == nil {
-		err := w.rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err()
-		if err == nil || strings.HasPrefix(err.Error(), "BUSYGROUP") {
+		_, err := w.ensureGroup(ctx)
+		if err == nil {
 			break
 		}
 		slog.Error("Initializing scan stream", "error", err)
@@ -119,12 +128,17 @@ func (w *streamWorker) run(ctx context.Context) {
 			MinIdle: w.leaseDuration, Start: cursor, Count: 1,
 		}).Result()
 		if err != nil && !errors.Is(err, redis.Nil) {
-			slog.Error("Recovering scan delivery", "error", err)
+			if !w.recoverMissingGroup(ctx, err) {
+				slog.Error("Recovering scan delivery", "error", err)
+			}
 			if !waitRetry(ctx) {
 				return
 			}
 			continue
 		}
+		// Beat on an answered read, not on entering the loop: a loop spinning
+		// on a backend that refuses every call is not a working worker.
+		w.beat()
 		cursor = next
 		if cursor == "" {
 			cursor = "0-0"
@@ -134,10 +148,11 @@ func (w *streamWorker) run(ctx context.Context) {
 				Group: workerGroup, Consumer: w.consumer, Streams: []string{w.stream, ">"}, Count: 1, Block: time.Second,
 			}).Result()
 			if errors.Is(readErr, redis.Nil) {
+				w.beat()
 				continue
 			}
 			if readErr != nil {
-				if ctx.Err() == nil {
+				if !w.recoverMissingGroup(ctx, readErr) && ctx.Err() == nil {
 					slog.Error("Reading scan delivery", "error", readErr)
 				}
 				if !waitRetry(ctx) {
@@ -145,6 +160,7 @@ func (w *streamWorker) run(ctx context.Context) {
 				}
 				continue
 			}
+			w.beat()
 			for _, stream := range streams {
 				messages = append(messages, stream.Messages...)
 			}
@@ -158,6 +174,88 @@ func (w *streamWorker) run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (w *streamWorker) beat() { w.heartbeat.Store(time.Now().Unix()) }
+
+// Healthy checks what delivery actually depends on. XLEN would answer from a
+// backend that lost the consumer group, which is the state in which nothing can
+// be read at all.
+func (w *streamWorker) Healthy(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
+	defer cancel()
+	groups, err := w.rdb.XInfoGroups(ctx, w.stream).Result()
+	if err != nil {
+		return fmt.Errorf("reading consumer groups of %q: %w", w.stream, err)
+	}
+	if !slices.ContainsFunc(groups, func(g redis.XInfoGroup) bool { return g.Name == workerGroup }) {
+		return fmt.Errorf("consumer group %q is missing from stream %q", workerGroup, w.stream)
+	}
+	return nil
+}
+
+// Active reports the read loop dead once it has missed three lease periods. A
+// scan in progress keeps renewing its lease, so a long scan beats too.
+func (w *streamWorker) Active() error {
+	last := w.heartbeat.Load()
+	if last == 0 {
+		return errors.New("worker has not started reading deliveries")
+	}
+	if age := time.Since(time.Unix(last, 0)); age > 3*w.leaseDuration {
+		return fmt.Errorf("worker last read a delivery %s ago", age.Round(time.Second))
+	}
+	return nil
+}
+
+// isRedisError reports whether err carries a Redis reply with the given prefix,
+// whatever the client wrapped it in.
+func isRedisError(err error, prefix string) bool {
+	for ; err != nil; err = errors.Unwrap(err) {
+		if strings.HasPrefix(err.Error(), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureGroup creates the consumer group and reports whether this call is the
+// one that created it. An existing group is success, but not a creation: every
+// replica races to recreate a lost group, and counting all of them would report
+// one loss as many.
+func (w *streamWorker) ensureGroup(ctx context.Context) (bool, error) {
+	err := w.rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err()
+	if isRedisError(err, "BUSYGROUP") {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// recoverMissingGroup restores a consumer group the backend lost and reports
+// whether the error was that. A job Redis without persistence comes back empty,
+// and nothing recreated the group after startup, so every read failed with
+// NOGROUP forever: no scan was dispatched, and the loop logged once a second
+// for as long as it lasted. Recreating from "0" keeps deliveries that survived.
+func (w *streamWorker) recoverMissingGroup(ctx context.Context, cause error) bool {
+	if !isRedisError(cause, "NOGROUP") {
+		return false
+	}
+	created, err := w.ensureGroup(ctx)
+	if err != nil {
+		if ctx.Err() == nil {
+			slog.Error("Recreating the scan consumer group failed", "error", err, "cause", cause.Error())
+		}
+		return true
+	}
+	if !created {
+		return true
+	}
+	w.groupRecreations++
+	w.metrics.Inc("queue_group_recreated_total")
+	// One line per recreation, never one per failed read.
+	slog.Warn("Recreated the scan consumer group lost by the queue backend",
+		"stream", w.stream, "group", workerGroup,
+		"recreations", w.groupRecreations, "cause", cause.Error())
+	return true
 }
 
 func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error {
@@ -201,6 +299,9 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 					cancel()
 					return
 				}
+				// A scan can outlast three lease periods, and the loop does not
+				// iterate while it runs: a renewed lease is the proof of life.
+				w.beat()
 			}
 		}
 	}()

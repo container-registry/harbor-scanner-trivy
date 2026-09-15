@@ -1,13 +1,13 @@
 package metrics
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"math/rand/v2"
 	"os"
 	"os/exec"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 )
 
 type databaseMetadata struct {
@@ -25,10 +26,11 @@ type databaseMetadata struct {
 
 // Start samples metadata and filesystems in one bounded background loop. The
 // returned function waits for cancellation/collection completion before shutdown.
-func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion string) func() {
+func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion string, ambassador ext.Ambassador) func() {
 	if r == nil {
 		return func() {}
 	}
+	r.version.ttl = 2 * cfg.Metrics.CollectionInterval
 	r.Set("worker_concurrency", float64(cfg.JobQueue.WorkerConcurrency))
 	backend := analysisCacheBackend(cfg.Trivy.CacheBackend)
 	r.Set("analysis_cache_backend_info", 1, backend)
@@ -50,23 +52,19 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 			if ctx.Err() != nil {
 				return
 			}
-			if version == "" {
-				versionCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
-				cmd := exec.CommandContext(versionCtx, "trivy", "--cache-dir", cfg.Trivy.CacheDir, "version", "--format", "json")
-				output, err := r.Run("version", cmd, runLimited)
-				stop()
-				var info struct{ Version string }
-				if err == nil && json.Unmarshal(output, &info) == nil && info.Version != "" {
-					version = info.Version
-					r.Set("build_info", 1, adapterVersion, version)
-				}
+			probed := r.probeEngine(ctx, cfg, ambassador, adapterVersion, version)
+			if probed != "" {
+				version = probed
 			}
-			r.collectMetadata(cfg.Trivy, version != "")
+			r.collectMetadata(cfg.Trivy, probed != "")
 			r.collectFilesystem(cfg.Trivy.CacheDir, "cache")
 			r.collectFilesystem(cfg.Trivy.ReportsDir, "reports")
+			// Trivy extracts layers under the temp directory, which is often a
+			// different filesystem from the cache and fills up on its own.
+			r.collectFilesystem(os.TempDir(), "tmp")
 			if cfg.Metrics.CacheSizeEnabled {
 				walkCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
-				r.collectCache(walkCtx, cfg.Trivy.CacheDir, cfg.Metrics.CacheMaxFiles, backend)
+				r.collectCache(walkCtx, cfg.Trivy.CacheDir, os.TempDir(), cfg.Metrics.CacheMaxFiles, backend)
 				stop()
 			}
 			// Jitter avoids synchronized directory walks across scanner replicas.
@@ -90,22 +88,59 @@ func boolValue(b bool) float64 {
 	return 0
 }
 
-// Limit command output even if a broken binary emits unbounded data.
-type limitedBuffer struct{ bytes.Buffer }
-
-func (b *limitedBuffer) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > 1<<20 {
-		return 0, errors.New("metadata output exceeds 1 MiB")
-	}
-	return b.Buffer.Write(p)
+// engineProbe is the subset of `trivy version --format json` the adapter reads.
+// The database blocks are omitted until the database has been downloaded.
+type engineProbe struct {
+	Version         string
+	VulnerabilityDB *struct{ Version int }
+	JavaDB          *struct{ Version int }
 }
 
-func runLimited(cmd *exec.Cmd) ([]byte, error) {
-	var output limitedBuffer
-	cmd.Stdout = &output
-	cmd.Stderr = io.Discard
-	err := cmd.Run()
-	return output.Bytes(), err
+// probeEngine samples the engine on every tick rather than once. The binary is
+// replaced by image upgrades and both databases change schema under a running
+// pod, so a reading taken at startup silently goes stale. It returns the engine
+// version on success and an empty string on failure.
+func (r *Recorder) probeEngine(ctx context.Context, cfg etc.Config, ambassador ext.Ambassador, adapterVersion, previous string) string {
+	probeCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
+	defer stop()
+	cmd := exec.CommandContext(probeCtx, "trivy", "--cache-dir", cfg.Trivy.CacheDir, "version", "--format", "json")
+	output, stderr, err := r.Run(probeCtx, "version", cmd, ambassador.RunCmd)
+	var info engineProbe
+	if err == nil {
+		if err = json.Unmarshal(output, &info); err == nil && info.Version == "" {
+			err = errors.New("version missing from engine output")
+		}
+	}
+	if err != nil {
+		slog.Debug("Trivy version probe failed",
+			slog.String("err", err.Error()), slog.String("std_err", string(stderr)))
+		for _, db := range []string{"vulnerability", "java"} {
+			r.Delete("db_schema_version", db)
+		}
+		r.InvalidateVersion()
+		return ""
+	}
+	// Keep the previous build_info series only while the binary is unchanged:
+	// an upgraded engine would otherwise leave two series claiming to be current.
+	if previous != "" && previous != info.Version {
+		r.Delete("build_info", adapterVersion, previous)
+	}
+	r.Set("build_info", 1, adapterVersion, info.Version)
+	for _, db := range []struct {
+		name string
+		meta *struct{ Version int }
+	}{{"vulnerability", info.VulnerabilityDB}, {"java", info.JavaDB}} {
+		// The engine omits the block until the database has been downloaded.
+		// There is no schema version to report then, and a zero would read as
+		// one; db_present already carries the absence.
+		if db.meta == nil {
+			r.Delete("db_schema_version", db.name)
+			continue
+		}
+		r.Set("db_schema_version", float64(db.meta.Version), db.name)
+	}
+	r.cacheVersion(output)
+	return info.Version
 }
 
 func (r *Recorder) collectMetadata(cfg etc.Trivy, versionOK bool) {
@@ -188,7 +223,7 @@ func analysisCacheBackend(configured string) string {
 	}
 }
 
-func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int, backend string) {
+func (r *Recorder) collectCache(ctx context.Context, root, tempRoot string, maxFiles int, backend string) {
 	started := time.Now()
 	remaining := maxFiles
 	var firstErr error
@@ -200,7 +235,7 @@ func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int, 
 			continue
 		}
 		path := filepath.Join(root, part.dir)
-		size, err := directoryBytes(ctx, path, &remaining)
+		size, err := directoryBytes(ctx, path, &remaining, failOnUnsupported)
 		var pathErr *fs.PathError
 		// An uninitialized cache part is empty. A vanished descendant or missing
 		// cache root is an incomplete collection, not a zero-byte observation.
@@ -216,12 +251,86 @@ func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int, 
 			r.Set("cache_size_bytes", float64(size), part.kind)
 		}
 	}
+	size, err := trivyTempBytes(ctx, tempRoot, &remaining)
+	if err != nil {
+		r.Delete("cache_size_bytes", "tmp_trivy")
+		if firstErr == nil {
+			firstErr = err
+		}
+	} else {
+		r.Set("cache_size_bytes", float64(size), "tmp_trivy")
+	}
 	r.collectionResult("cache_size", started, firstErr)
 }
 
+// trivyTempBytes sizes what the running and the abandoned children hold under
+// the temp directory. It is not cache: nothing reuses it, and it is the disk a
+// scan actually fails on.
+func trivyTempBytes(ctx context.Context, root string, remaining *int) (int64, error) {
+	// Listing the root costs an entry, like every other step of the walk, so an
+	// exhausted budget fails this sample too instead of reporting a partial one.
+	*remaining--
+	if *remaining < 0 {
+		return 0, errors.New("cache entry budget exceeded")
+	}
+	dir, err := os.Open(root)
+	if err != nil {
+		return 0, err
+	}
+	defer dir.Close()
+	var total int64
+	var partial error
+	for {
+		// The temp root holds every process's scratch directory, not only
+		// Trivy's, so read it in chunks instead of loading the whole listing.
+		entries, readErr := dir.ReadDir(256)
+		for _, entry := range entries {
+			if !entry.IsDir() || !strings.HasPrefix(entry.Name(), tempDirPrefix) {
+				continue
+			}
+			path := filepath.Join(root, entry.Name())
+			size, err := directoryBytes(ctx, path, remaining, skipUnsupported)
+			var pathErr *fs.PathError
+			if errors.As(err, &pathErr) && errors.Is(err, fs.ErrNotExist) {
+				if pathErr.Path == path {
+					// The whole directory went with the scan that owned it,
+					// which is how these are supposed to end.
+					continue
+				}
+				// Something inside it vanished mid-walk, so the total would be
+				// short. Report no total rather than a wrong one.
+				partial = err
+				continue
+			}
+			if err != nil {
+				return 0, err
+			}
+			total += size
+		}
+		if errors.Is(readErr, io.EOF) {
+			return total, partial
+		}
+		if readErr != nil {
+			return 0, readErr
+		}
+	}
+}
+
+// tempDirPrefix is Trivy's per-process scratch directory, $TMPDIR/trivy-<pid>.
+// pkg/trivy owns the reaper for these; pkg/metrics only sizes them, and cannot
+// import it without a cycle.
+const tempDirPrefix = "trivy-"
+
+// An extracted image layer legitimately contains symlinks, devices and sockets,
+// which are not cache entries and must not fail the sample that meets them.
+const (
+	failOnUnsupported = false
+	skipUnsupported   = true
+)
+
 // Walk one directory at a time without following symlinks or sorting/loading
 // entire directories. The shared entry budget bounds memory and work per sample.
-func directoryBytes(ctx context.Context, path string, remaining *int) (int64, error) {
+func directoryBytes(ctx context.Context, path string, remaining *int, skipUnsupportedEntries bool) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -237,6 +346,9 @@ func directoryBytes(ctx context.Context, path string, remaining *int) (int64, er
 		return info.Size(), nil
 	}
 	if !info.IsDir() {
+		if skipUnsupportedEntries {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("unsupported cache entry type: %s", info.Mode().Type())
 	}
 	f, err := os.Open(path)
@@ -248,7 +360,7 @@ func directoryBytes(ctx context.Context, path string, remaining *int) (int64, er
 	for {
 		entries, readErr := f.ReadDir(128)
 		for _, entry := range entries {
-			n, err := directoryBytes(ctx, filepath.Join(path, entry.Name()), remaining)
+			n, err := directoryBytes(ctx, filepath.Join(path, entry.Name()), remaining, skipUnsupportedEntries)
 			if err != nil {
 				return 0, err
 			}

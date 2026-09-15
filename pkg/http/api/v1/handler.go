@@ -43,10 +43,11 @@ type requestHandler struct {
 	enqueuer queue.Enqueuer
 	store    persistence.Store
 	wrapper  trivy.Wrapper
+	worker   queue.Worker
 	api.BaseHandler
 }
 
-func NewAPIHandler(info etc.BuildInfo, config etc.Config, enqueuer queue.Enqueuer, store persistence.Store, wrapper trivy.Wrapper, recorders ...*metrics.Recorder) http.Handler {
+func NewAPIHandler(info etc.BuildInfo, config etc.Config, enqueuer queue.Enqueuer, store persistence.Store, wrapper trivy.Wrapper, worker queue.Worker, recorders ...*metrics.Recorder) http.Handler {
 	handler := &requestHandler{
 		metrics:  metrics.Optional(recorders),
 		info:     info,
@@ -54,6 +55,7 @@ func NewAPIHandler(info etc.BuildInfo, config etc.Config, enqueuer queue.Enqueue
 		enqueuer: enqueuer,
 		store:    store,
 		wrapper:  wrapper,
+		worker:   worker,
 	}
 
 	router := mux.NewRouter()
@@ -259,7 +261,7 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 	})
 	if err != nil {
 		result = "error"
-		reqLog.Error("Error while getting scan job")
+		reqLog.Error("Error while getting scan job", slog.String("err", err.Error()))
 		h.WriteJSONError(res, api.Error{
 			HTTPCode: http.StatusInternalServerError,
 			Message:  fmt.Sprintf("getting scan job: %v", err),
@@ -397,8 +399,46 @@ func (h *requestHandler) GetHealthy(res http.ResponseWriter, req *http.Request) 
 	res.WriteHeader(http.StatusOK)
 }
 
+// Readiness covers only what stops this pod from serving: the job backend, the
+// read loop and the Trivy binary. Database presence, disk space and the
+// analysis cache are deliberately left out. Readiness 503 takes the pod out of
+// the Service, Harbor's metadata ping then fails, its Metadata goes nil, and a
+// scan-all in that state finishes as Success having scanned nothing. A stale
+// database still produces reports, so it belongs in an alert, not here.
+//
+// A component this process does not own is not checked: the API can be built
+// without a worker, and then delivery is somebody else's pod to report on.
 func (h *requestHandler) GetReady(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(http.StatusOK)
+	failed := map[string]string{}
+	check := func(name string, err error) {
+		h.metrics.Set("ready", boolValue(err == nil), name)
+		if err != nil {
+			failed[name] = err.Error()
+		}
+	}
+	if h.worker != nil {
+		check("queue", h.worker.Healthy(req.Context()))
+		check("worker", h.worker.Active())
+	}
+	if h.wrapper != nil {
+		check("binary", h.wrapper.Available())
+	}
+	if len(failed) == 0 {
+		res.WriteHeader(http.StatusOK)
+		return
+	}
+	slog.Warn("Readiness check failed", slog.Any("failed", failed))
+	h.WriteJSON(res, struct {
+		Ready  bool              `json:"ready"`
+		Failed map[string]string `json:"failed"`
+	}{Failed: failed}, api.MimeTypeError, http.StatusServiceUnavailable)
+}
+
+func boolValue(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // Preserve response-controller access while recording status, including unmatched

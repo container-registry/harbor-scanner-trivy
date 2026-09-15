@@ -17,7 +17,7 @@ type Ambassador interface {
 	Environ() []string
 	LookPath(string) (string, error)
 	TempFile(string, string) (*os.File, error)
-	RunCmd(cmd *exec.Cmd) ([]byte, error)
+	RunCmd(cmd *exec.Cmd) (stdout, stderr []byte, err error)
 	RemoteImage(name.Reference, ...remote.Option) (v1.Image, error)
 	Referrers(name.Digest, ...remote.Option) (v1.ImageIndex, error)
 }
@@ -28,8 +28,14 @@ func (a *ambassador) Environ() []string {
 	return os.Environ()
 }
 
-func (a *ambassador) RunCmd(cmd *exec.Cmd) ([]byte, error) {
-	return cmd.CombinedOutput()
+// RunCmd keeps the streams apart: Trivy writes its report to the file named by
+// --output, so stdout carries diagnostics and stderr carries the failure.
+func (a *ambassador) RunCmd(cmd *exec.Cmd) ([]byte, []byte, error) {
+	stdout := &LimitedBuffer{Limit: MaxStdout}
+	stderr := &LimitedBuffer{Limit: MaxStderr}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	err := cmd.Run()
+	return stdout.Bytes(), stderr.Bytes(), err
 }
 
 func (a *ambassador) TempFile(dir, pattern string) (*os.File, error) {

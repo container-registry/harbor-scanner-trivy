@@ -60,6 +60,13 @@ type Trivy struct {
 	SkipVEXRepoUpdate bool          `env:"SCANNER_TRIVY_SKIP_VEX_REPO_UPDATE" envDefault:"false"`
 	Timeout           time.Duration `env:"SCANNER_TRIVY_TIMEOUT" envDefault:"5m0s"`
 	UseSBOMAccessory  bool          `env:"SCANNER_TRIVY_USE_SBOM_ACCESSORY" envDefault:"false"`
+	ImageSrc          string        `env:"SCANNER_TRIVY_IMAGE_SRC" envDefault:"remote"`
+	SkipVersionCheck  bool          `env:"SCANNER_TRIVY_SKIP_VERSION_CHECK" envDefault:"true"`
+	DisableTelemetry  bool          `env:"SCANNER_TRIVY_DISABLE_TELEMETRY" envDefault:"true"`
+	MaxImageSize      string        `env:"SCANNER_TRIVY_MAX_IMAGE_SIZE"`
+	// Empty derives a soft limit from the container memory limit, "off" leaves
+	// the child environment untouched; see childGoMemLimit.
+	ChildGoMemLimit string `env:"SCANNER_TRIVY_CHILD_GOMEMLIMIT"`
 }
 
 type API struct {

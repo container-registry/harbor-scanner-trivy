@@ -10,6 +10,20 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// signalExitCode reports the conventional 128+signal status of a child that was
+// killed, which is what a shell and a container runtime report. Go's ExitCode
+// returns -1 for every signal, losing SIGKILL (137) and SIGTERM (143).
+func signalExitCode(state *os.ProcessState) (int, bool) {
+	if state == nil {
+		return 0, false
+	}
+	status, ok := state.Sys().(syscall.WaitStatus)
+	if !ok || !status.Signaled() {
+		return 0, false
+	}
+	return 128 + int(status.Signal()), true
+}
+
 func maxRSS(state *os.ProcessState) (float64, bool) {
 	if state == nil {
 		return 0, false

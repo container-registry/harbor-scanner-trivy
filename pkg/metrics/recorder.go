@@ -26,19 +26,24 @@ var values = map[string][]string{
 	"outcome":    {"success", "failed", "error", "not_found", "not_applied", "other"},
 	"command":    {"image", "sbom", "version", "other"},
 	"stage":      {"status", "target", "auth", "scan", "transform", "report", "internal", "other"},
-	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "internal", "unknown", "other"},
+	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "rate_limit", "db_download", "db_schema", "unsupported_artifact", "internal", "unknown", "other"},
 	"encoding":   {"raw", "compressed", "other"},
 	"record":     {"job", "report", "other"},
 	"operation":  {"enqueue", "status", "read", "report", "acknowledge", "other"},
 	"database":   {"vulnerability", "java", "other"},
-	"kind":       {"analysis", "vulnerability_db", "java_db", "other"},
-	"area":       {"cache", "reports", "other"},
-	"collector":  {"cache_size", "cache_filesystem", "reports_filesystem", "other"},
+	"kind":       {"analysis", "vulnerability_db", "java_db", "tmp_trivy", "other"},
+	"area":       {"cache", "reports", "tmp", "other"},
+	"collector":  {"cache_size", "cache_filesystem", "reports_filesystem", "tmp_filesystem", "other"},
 	"event":      {"lookup_hit", "lookup_miss", "lookup_error", "reuse_success", "fallback", "other"},
-	"reason":     {"success", "nonzero_exit", "signal", "start_error", "other"},
+	"reason":     {"success", "nonzero_exit", "signal", "timeout", "canceled", "start_error", "other"},
 	"result":     {"lock_acquired", "lock_busy", "lock_error", "decode_error", "ok", "pending", "failed", "not_found", "error", "invalid_request", "not_applied", "success", "other"},
 	"method":     {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "other"},
 	"route":      {"/api/v1/scan", "/api/v1/scan/{scan_request_id}/report", "/api/v1/metadata", "unmatched", "other"},
+	"query":      {"quarantine", "length", "oldest", "group", "other"},
+	"check":      {"queue", "worker", "binary", "other"},
+	// Qualified by metric because the HTTP status domain of the shared "code"
+	// label is unrelated to a process exit status.
+	"subprocess_exit_code_total.code": {"0", "1", "2", "137", "143", "other"},
 }
 
 type definition struct {
@@ -59,6 +64,8 @@ var catalog = []definition{
 	{"queue_unacknowledged_jobs", "Shared unacknowledged stream length; use max across pods, not sum.", "gauge", nil, nil},
 	{"queue_quarantined_jobs", "Malformed deliveries retained for operator inspection; use max across pods.", "gauge", nil, nil},
 	{"queue_collection_success", "Whether all queue metrics were collected successfully.", "gauge", nil, nil},
+	{"queue_collection_errors_total", "Failed queue measurements by query; a scan failure is not counted here.", "counter", []string{"query"}, nil},
+	{"queue_group_recreated_total", "Consumer group recreations after the queue backend lost it; until each one, no delivery could be read.", "counter", nil, nil},
 	{"queue_collection_last_success_timestamp_seconds", "Unix timestamp of the last successful queue collection.", "gauge", nil, nil},
 	{"queue_oldest_age_seconds", "Age of oldest unacknowledged delivery; sampled every ten seconds.", "gauge", nil, nil},
 	{"build_info", "Adapter and Trivy binary versions.", "gauge", []string{"adapter_version", "trivy_version"}, nil},
@@ -73,10 +80,12 @@ var catalog = []definition{
 	{"queue_wait_duration_seconds", "Adapter enqueue-to-lock-acquisition duration, excluding Harbor's queue.", "histogram", []string{"capability"}, executionBuckets},
 	{"jobs_in_progress", "Locally executing jobs.", "gauge", nil, nil},
 	{"worker_concurrency", "Configured local worker capacity.", "gauge", nil, nil},
+	{"ready", "Result of each readiness check, recorded when the probe runs; absent for a component this process does not own.", "gauge", []string{"check"}, nil},
 	{"last_scan_success_timestamp_seconds", "Last successfully persisted completion; absent until observed.", "gauge", nil, nil},
 	{"scan_timeout_seconds", "Configured Trivy CLI timeout, not the entire job budget.", "gauge", nil, nil},
 	{"subprocess_duration_seconds", "Trivy child process duration.", "histogram", []string{"command", "outcome"}, executionBuckets},
-	{"subprocess_exits_total", "Trivy child termination reason; signal does not imply OOM.", "counter", []string{"command", "reason"}, nil},
+	{"subprocess_exits_total", "Trivy child termination reason; the adapter's own deadline and cancellation are reported separately, so signal means a kill from outside the adapter.", "counter", []string{"command", "reason"}, nil},
+	{"subprocess_exit_code_total", "Trivy child exit status, 128+signal for a killed child; absent when the child never started.", "counter", []string{"command", "code"}, nil},
 	{"subprocess_max_rss_bytes", "Completed child peak RSS, not container peak or live usage.", "histogram", []string{"command"}, prometheus.ExponentialBuckets(1<<20, 2, 15)},
 	{"sbom_accessory_events_total", "SBOM accessory lookup and fallback events (multiple per job).", "counter", []string{"event"}, nil},
 	{"report_size_bytes", "Matched raw and compressed report sizes on applied writes.", "histogram", []string{"capability", "format", "encoding"}, byteBuckets},
@@ -91,6 +100,7 @@ var catalog = []definition{
 	{"db_next_update_timestamp_seconds", "Advertised database next update timestamp.", "gauge", []string{"database"}, nil},
 	{"db_downloaded_timestamp_seconds", "Recorded local download timestamp, not download attempts.", "gauge", []string{"database"}, nil},
 	{"db_updates_enabled", "Effective automatic database update policy.", "gauge", []string{"database"}, nil},
+	{"db_schema_version", "Database schema version the engine reports; absent until the database has been downloaded.", "gauge", []string{"database"}, nil},
 	{"analysis_cache_backend_info", "Configured Trivy analysis-cache backend; database files remain local.", "gauge", []string{"backend"}, nil},
 	{"metadata_collection_success", "Whether Trivy version and local vulnerability/Java database metadata checks succeeded, including valid absence.", "gauge", nil, nil},
 	{"metadata_last_success_timestamp_seconds", "Last successful metadata refresh.", "gauge", nil, nil},
@@ -101,6 +111,8 @@ var catalog = []definition{
 	{"storage_collection_success", "Whether the latest storage collector run succeeded.", "gauge", []string{"collector"}, nil},
 	{"storage_collection_duration_seconds", "Background storage collection duration.", "histogram", []string{"collector"}, prometheus.DefBuckets},
 	{"storage_last_success_timestamp_seconds", "Last successful storage collection.", "gauge", []string{"collector"}, nil},
+	{"temp_dirs_reaped_total", "Abandoned Trivy temp directories removed; each one is a child that died without cleaning up.", "counter", nil, nil},
+	{"temp_dirs_present", "Trivy temp directories left in place at the last sweep, including those of running scans.", "gauge", nil, nil},
 }
 
 type Recorder struct {
@@ -111,6 +123,52 @@ type Recorder struct {
 	definitions map[string]definition
 	mu          sync.Mutex
 	running     map[*time.Time]struct{}
+	version     versionCache
+}
+
+// versionCache lets the metadata API reuse the background probe. Harbor polls
+// metadata about twice a minute, and each poll would otherwise start a Trivy
+// process whose answer the background loop has already collected.
+type versionCache struct {
+	mu     sync.Mutex
+	output []byte
+	at     time.Time
+	ttl    time.Duration
+}
+
+func (r *Recorder) cacheVersion(output []byte) {
+	r.version.mu.Lock()
+	defer r.version.mu.Unlock()
+	r.version.output, r.version.at = output, time.Now()
+}
+
+// InvalidateVersion drops the cached probe. A failed probe means the cached
+// answer no longer describes the engine, and a reader that cannot decode it
+// proves the same thing from the other side.
+func (r *Recorder) InvalidateVersion() {
+	if r == nil {
+		return
+	}
+	r.version.mu.Lock()
+	defer r.version.mu.Unlock()
+	r.version.output, r.version.at = nil, time.Time{}
+}
+
+// CachedVersion returns the most recent successful engine probe while it is
+// younger than two collection intervals, so callers know it describes the
+// current state without measuring it again. Two, because the collection
+// interval carries jitter: at exactly one interval every probe would leave a
+// gap for Harbor's next poll to fall into.
+func (r *Recorder) CachedVersion() ([]byte, bool) {
+	if r == nil {
+		return nil, false
+	}
+	r.version.mu.Lock()
+	defer r.version.mu.Unlock()
+	if r.version.ttl <= 0 || len(r.version.output) == 0 || time.Since(r.version.at) > r.version.ttl {
+		return nil, false
+	}
+	return r.version.output, true
 }
 
 func New(enabled bool) *Recorder {
@@ -154,6 +212,9 @@ func New(enabled bool) *Recorder {
 	}
 	for _, result := range []string{"lock_acquired", "lock_busy", "lock_error", "decode_error"} {
 		r.Add("job_dispatch_total", 0, result)
+	}
+	for _, query := range []string{"quarantine", "length", "oldest", "group"} {
+		r.Add("queue_collection_errors_total", 0, query)
 	}
 	for _, event := range values["event"] {
 		if event != "other" {
@@ -205,10 +266,14 @@ func (r *Recorder) normalize(name string, labels []string) []string {
 	}
 	out := slices.Clone(labels)
 	for i, label := range d.labels {
-		if allowed, ok := values[label]; ok && !slices.Contains(allowed, out[i]) {
+		allowed, ok := values[name+"."+label]
+		if !ok {
+			allowed, ok = values[label]
+		}
+		if ok && !slices.Contains(allowed, out[i]) {
 			out[i] = "other"
 		}
-		if label == "code" && !validCode(out[i]) {
+		if label == "code" && !ok && !validCode(out[i]) {
 			out[i] = "other"
 		}
 	}

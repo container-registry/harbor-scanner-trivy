@@ -208,7 +208,7 @@ func testAPIWorkers(t *testing.T, rdb *redis.Client, newPod func() trivy.Wrapper
 				worker.Start(ctx)
 				t.Cleanup(worker.Stop)
 			}
-			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, s), s, w))
+			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, s), s, w, nil))
 			t.Cleanup(server.Close)
 			client := server.Client()
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -329,7 +329,7 @@ func testAPICacheRecovery(t *testing.T, cache *redis.Client, newPod func() trivy
 			wrapper := observedWrapper{Wrapper: newPod(), failures: make(chan error, 3)}
 			transformer := scan.NewTransformer(&scan.SystemClock{})
 			worker := queue.NewWorker(cfg, jobs, scan.NewController(store, wrapper, transformer), store)
-			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, store), store, wrapper))
+			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, store), store, wrapper, nil))
 			t.Cleanup(server.Close)
 			client := server.Client()
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
