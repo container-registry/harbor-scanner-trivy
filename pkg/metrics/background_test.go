@@ -154,7 +154,49 @@ func TestTempDirectoriesAreSizedSeparatelyFromTheCache(t *testing.T) {
 	_, err = trivyTempBytes(context.Background(), root, &exhausted)
 	require.ErrorContains(t, err, "budget exceeded")
 
+	// An extracted image layer carries symlinks and other non-regular entries.
+	// They are not bytes the adapter can attribute, but meeting one must not
+	// fail the sample the way it does for the cache layout.
+	require.NoError(t, os.Symlink(filepath.Join(root, "trivy-1", "layer"), filepath.Join(root, "trivy-1", "link")))
+	require.NoError(t, os.Symlink("/nowhere", filepath.Join(root, "trivy-2", "broken")))
+	budget = 100
+	size, err = trivyTempBytes(context.Background(), root, &budget)
+	require.NoError(t, err)
+	require.EqualValues(t, 2048, size)
+
 	missing := 100
 	_, err = trivyTempBytes(context.Background(), filepath.Join(root, "gone"), &missing)
 	require.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+// The other half of the rule, a descendant vanishing mid-walk marking the
+// sample partial, needs a removal between ReadDir and Lstat and has no
+// deterministic test; it is the errors.As branch in trivyTempBytes.
+func TestTempDirectoryThatEndedWithItsScanStillLeavesAUsableTotal(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "trivy-1"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "trivy-1", "layer"), make([]byte, 1024), 0o600))
+
+	// A directory that ends with its scan is how these are supposed to go, and
+	// the remaining total still describes what is on disk.
+	budget := 100
+	size, err := trivyTempBytes(context.Background(), root, &budget)
+	require.NoError(t, err)
+	require.EqualValues(t, 1024, size)
+
+	r := New(true)
+	r.collectCache(context.Background(), t.TempDir(), root, 100, "filesystem")
+	require.Equal(t, float64(1024), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
+
+	// A second scan's directory ending between two samples changes the total,
+	// it does not invalidate it.
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "trivy-2", "layers"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "trivy-2", "layers", "b"), make([]byte, 64), 0o600))
+	r.collectCache(context.Background(), t.TempDir(), root, 100, "filesystem")
+	require.Equal(t, float64(1088), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
+
+	require.NoError(t, os.RemoveAll(filepath.Join(root, "trivy-2")))
+	r.collectCache(context.Background(), t.TempDir(), root, 100, "filesystem")
+	require.Equal(t, float64(1024), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
+	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 }

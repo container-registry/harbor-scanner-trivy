@@ -17,6 +17,10 @@ const (
 	reapInterval   = 10 * time.Minute
 	tempDirPrefix  = "trivy-"
 	reapMaxEntries = 100000
+	// Pids are reused, so a directory younger than this may belong to a new
+	// scan whose pid once belonged to a dead one. Waiting costs disk for one
+	// interval; not waiting deletes a running scan's layers.
+	reapMinAge = 10 * time.Minute
 )
 
 // Reaper removes the per-process temp directories that Trivy leaves behind.
@@ -62,27 +66,39 @@ func (r *Reaper) sweep() {
 	if err != nil {
 		slog.Warn("Listing the temp directory for abandoned Trivy directories failed",
 			slog.String("path", r.root), slog.String("err", err.Error()))
+		// A count from the last sweep would claim to describe this one.
+		r.metrics.Delete("temp_dirs_present")
 		return
 	}
 	present := 0
 	for _, entry := range entries {
 		pid, ok := tempDirPID(entry)
+		if !ok {
+			continue
+		}
+		present++
 		// A live pid is scanning right now, and the adapter never owns one of
 		// these: removing either would break a scan in progress.
-		if !ok || pid == r.self || processAlive(pid) {
-			if ok {
-				present++
-			}
+		if pid == r.self || processAlive(pid) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || time.Since(info.ModTime()) < reapMinAge {
 			continue
 		}
 		path := filepath.Join(r.root, entry.Name())
 		freed := directorySize(path)
+		// Between the check above and here a new scan can have taken the pid
+		// and started writing into this directory, so ask once more.
+		if processAlive(pid) {
+			continue
+		}
 		if err := os.RemoveAll(path); err != nil {
 			slog.Warn("Removing an abandoned Trivy temp directory failed",
 				slog.String("path", path), slog.String("err", err.Error()))
-			present++
 			continue
 		}
+		present--
 		slog.Info("Removed an abandoned Trivy temp directory",
 			slog.String("path", path), slog.Int64("freed_bytes", freed))
 		r.metrics.Inc("temp_dirs_reaped_total")

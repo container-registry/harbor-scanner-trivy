@@ -234,7 +234,7 @@ func (r *Recorder) collectCache(ctx context.Context, root, tempRoot string, maxF
 			continue
 		}
 		path := filepath.Join(root, part.dir)
-		size, err := directoryBytes(ctx, path, &remaining)
+		size, err := directoryBytes(ctx, path, &remaining, failOnUnsupported)
 		var pathErr *fs.PathError
 		// An uninitialized cache part is empty. A vanished descendant or missing
 		// cache root is an incomplete collection, not a zero-byte observation.
@@ -272,32 +272,64 @@ func trivyTempBytes(ctx context.Context, root string, remaining *int) (int64, er
 	if *remaining < 0 {
 		return 0, errors.New("cache entry budget exceeded")
 	}
-	entries, err := os.ReadDir(root)
+	dir, err := os.Open(root)
 	if err != nil {
 		return 0, err
 	}
+	defer dir.Close()
 	var total int64
-	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "trivy-") {
-			continue
+	var partial error
+	for {
+		// The temp root holds every process's scratch directory, not only
+		// Trivy's, so read it in chunks instead of loading the whole listing.
+		entries, readErr := dir.ReadDir(256)
+		for _, entry := range entries {
+			if !entry.IsDir() || !strings.HasPrefix(entry.Name(), tempDirPrefix) {
+				continue
+			}
+			path := filepath.Join(root, entry.Name())
+			size, err := directoryBytes(ctx, path, remaining, skipUnsupported)
+			var pathErr *fs.PathError
+			if errors.As(err, &pathErr) && errors.Is(err, fs.ErrNotExist) {
+				if pathErr.Path == path {
+					// The whole directory went with the scan that owned it,
+					// which is how these are supposed to end.
+					continue
+				}
+				// Something inside it vanished mid-walk, so the total would be
+				// short. Report no total rather than a wrong one.
+				partial = err
+				continue
+			}
+			if err != nil {
+				return 0, err
+			}
+			total += size
 		}
-		size, err := directoryBytes(ctx, filepath.Join(root, entry.Name()), remaining)
-		if errors.Is(err, fs.ErrNotExist) {
-			// These directories are removed as soon as their scan ends, so one
-			// vanishing mid-walk is expected rather than an incomplete sample.
-			continue
+		if errors.Is(readErr, io.EOF) {
+			return total, partial
 		}
-		if err != nil {
-			return 0, err
+		if readErr != nil {
+			return 0, readErr
 		}
-		total += size
 	}
-	return total, nil
 }
+
+// tempDirPrefix is Trivy's per-process scratch directory, $TMPDIR/trivy-<pid>.
+// pkg/trivy owns the reaper for these; pkg/metrics only sizes them, and cannot
+// import it without a cycle.
+const tempDirPrefix = "trivy-"
+
+// An extracted image layer legitimately contains symlinks, devices and sockets,
+// which are not cache entries and must not fail the sample that meets them.
+const (
+	failOnUnsupported = false
+	skipUnsupported   = true
+)
 
 // Walk one directory at a time without following symlinks or sorting/loading
 // entire directories. The shared entry budget bounds memory and work per sample.
-func directoryBytes(ctx context.Context, path string, remaining *int) (int64, error) {
+func directoryBytes(ctx context.Context, path string, remaining *int, skipUnsupportedEntries bool) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -313,6 +345,9 @@ func directoryBytes(ctx context.Context, path string, remaining *int) (int64, er
 		return info.Size(), nil
 	}
 	if !info.IsDir() {
+		if skipUnsupportedEntries {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("unsupported cache entry type: %s", info.Mode().Type())
 	}
 	f, err := os.Open(path)
@@ -324,7 +359,7 @@ func directoryBytes(ctx context.Context, path string, remaining *int) (int64, er
 	for {
 		entries, readErr := f.ReadDir(128)
 		for _, entry := range entries {
-			n, err := directoryBytes(ctx, filepath.Join(path, entry.Name()), remaining)
+			n, err := directoryBytes(ctx, filepath.Join(path, entry.Name()), remaining, skipUnsupportedEntries)
 			if err != nil {
 				return 0, err
 			}

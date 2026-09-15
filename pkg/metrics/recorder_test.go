@@ -82,10 +82,10 @@ func TestBoundedCacheCollection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	n := 100
-	_, err := directoryBytes(ctx, root, &n)
+	_, err := directoryBytes(ctx, root, &n, failOnUnsupported)
 	require.ErrorIs(t, err, context.Canceled)
 	require.NoError(t, os.Symlink(root, filepath.Join(root, "fanal", "loop")))
-	_, err = directoryBytes(context.Background(), root, &n)
+	_, err = directoryBytes(context.Background(), root, &n, failOnUnsupported)
 	require.ErrorContains(t, err, "unsupported cache entry")
 }
 

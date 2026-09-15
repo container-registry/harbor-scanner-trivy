@@ -21,7 +21,16 @@ func tempDir(t *testing.T, root, name string, size int) string {
 	path := filepath.Join(root, name)
 	require.NoError(t, os.MkdirAll(filepath.Join(path, "fanal"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(path, "fanal", "layer"), make([]byte, size), 0o600))
+	// Old enough to be past the age guard, which is what a directory left by a
+	// previous pod looks like.
+	age(t, path, reapMinAge+time.Minute)
 	return path
+}
+
+func age(t *testing.T, path string, age time.Duration) {
+	t.Helper()
+	when := time.Now().Add(-age)
+	require.NoError(t, os.Chtimes(path, when, when))
 }
 
 func metricValue(t *testing.T, r *metrics.Recorder, name string) float64 {
@@ -76,6 +85,45 @@ func TestReaperRunsWithoutMetricsAndStopsCleanly(t *testing.T) {
 		return os.IsNotExist(err)
 	}, 5*time.Second, 10*time.Millisecond)
 	stop()
+}
+
+func TestReaperLeavesRecentDirectoriesToTheirOwners(t *testing.T) {
+	root := t.TempDir()
+	// A pid that is dead now but whose directory was written moments ago: the
+	// pid may already have been reused by a scan that is still starting up.
+	fresh := tempDir(t, root, "trivy-"+strconv.Itoa(deadPID), 16)
+	age(t, fresh, time.Minute)
+
+	recorder := metrics.New(true)
+	r := &Reaper{metrics: recorder, root: root, self: os.Getpid()}
+	r.sweep()
+	require.DirExists(t, fresh)
+	require.Zero(t, metricValue(t, recorder, "temp_dirs_reaped_total"))
+	require.Equal(t, float64(1), metricValue(t, recorder, "temp_dirs_present"))
+
+	age(t, fresh, reapMinAge+time.Minute)
+	r.sweep()
+	require.NoDirExists(t, fresh)
+	require.Equal(t, float64(1), metricValue(t, recorder, "temp_dirs_reaped_total"))
+	require.Zero(t, metricValue(t, recorder, "temp_dirs_present"))
+}
+
+func TestFailedListingDropsTheDirectoryCount(t *testing.T) {
+	root := t.TempDir()
+	tempDir(t, root, "trivy-"+strconv.Itoa(os.Getpid()), 16)
+	recorder := metrics.New(true)
+	r := &Reaper{metrics: recorder, root: root, self: os.Getpid()}
+	r.sweep()
+	require.Equal(t, float64(1), metricValue(t, recorder, "temp_dirs_present"))
+
+	// A count from the last sweep must not be left standing for this one.
+	r.root = filepath.Join(root, "gone")
+	r.sweep()
+	families, err := recorder.Gatherer().Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		require.NotEqual(t, metrics.Prefix+"temp_dirs_present", family.GetName())
+	}
 }
 
 func TestReaperSurvivesAMissingTempRoot(t *testing.T) {
