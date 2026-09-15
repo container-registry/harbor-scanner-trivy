@@ -162,16 +162,18 @@ tests:
 
   - it: omits the optional image size and child memory limits
     asserts:
+      # any: true matches on the name alone, so the assertion fails whatever
+      # value the variable would carry, not only an empty one.
       - notContains:
           path: spec.template.spec.containers[0].env
+          any: true
           content:
             name: SCANNER_TRIVY_MAX_IMAGE_SIZE
-            value: ""
       - notContains:
           path: spec.template.spec.containers[0].env
+          any: true
           content:
             name: SCANNER_TRIVY_CHILD_GOMEMLIMIT
-            value: ""
 
   - it: passes explicit image size and child memory limits through
     set:
