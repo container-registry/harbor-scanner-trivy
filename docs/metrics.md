@@ -22,8 +22,9 @@ policies remain outside this instrumentation.
 A background loop reads cached files and filesystem statistics. Scrapes return
 the collected values without starting filesystem work. The engine is sampled on every
 tick with a bounded `trivy version --format json` command, because an image upgrade
-replaces the binary and both databases change schema under a running pod. A failed
-probe removes `db_schema_version` and sets `metadata_collection_success` to 0, while
+replaces the binary and both databases change schema under a running pod. The engine
+reports only the schema of the database on disk, never the schema its binary was built
+against. A failed probe removes `db_schema_version` and sets `metadata_collection_success` to 0, while
 `build_info` keeps the last known version: the binary has not changed. The adapter
 metadata API reuses that probe while it is younger than the collection interval, so
 Harbor's polling does not start a Trivy process per request. File walks do not
@@ -84,7 +85,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `db_next_update_timestamp_seconds` | gauge | database | Advertised database next update timestamp. |
 | `db_downloaded_timestamp_seconds` | gauge | database | Recorded local download timestamp, not download attempts. |
 | `db_updates_enabled` | gauge | database | Effective automatic database update policy. |
-| `db_schema_version` | gauge | database | Database schema version the engine reports. Zero means the database was never downloaded; the series is absent when the engine could not be probed. A change means the engine and the database have to agree again, which is what a `db_schema` scan failure reports. |
+| `db_schema_version` | gauge | database | Schema version of the local database file, as the engine reports it. Absent until that database has been downloaded, and absent when the engine could not be probed; use `db_present` to tell the two apart. The engine does not report the schema version it supports, so a mismatch shows up as a `db_schema` scan failure, not as a comparison here. |
 | `analysis_cache_backend_info` | gauge | backend | Configured analysis-cache backend: `filesystem`, `redis`, `memory`, or `unknown`. Value is 1; no server URL or credentials are exposed. |
 | `metadata_collection_success` | gauge | — | Whether Trivy version and local vulnerability/Java metadata checks succeeded, including valid database absence. Does not test database integrity. |
 | `metadata_last_success_timestamp_seconds` | gauge | — | Last successful monitoring refresh of vulnerability/Java metadata; not database build or download time. |

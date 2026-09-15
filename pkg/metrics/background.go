@@ -129,11 +129,14 @@ func (r *Recorder) probeEngine(ctx context.Context, cfg etc.Config, ambassador e
 		name string
 		meta *struct{ Version int }
 	}{{"vulnerability", info.VulnerabilityDB}, {"java", info.JavaDB}} {
-		schema := 0
-		if db.meta != nil {
-			schema = db.meta.Version
+		// The engine omits the block until the database has been downloaded.
+		// There is no schema version to report then, and a zero would read as
+		// one; db_present already carries the absence.
+		if db.meta == nil {
+			r.Delete("db_schema_version", db.name)
+			continue
 		}
-		r.Set("db_schema_version", float64(schema), db.name)
+		r.Set("db_schema_version", float64(db.meta.Version), db.name)
 	}
 	r.cacheVersion(output)
 	return info.Version

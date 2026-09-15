@@ -45,14 +45,14 @@ func TestEngineProbeReportsBothSchemaVersions(t *testing.T) {
 	require.JSONEq(t, bothDatabases, string(cached))
 }
 
-func TestNeverDownloadedJavaDatabaseHasSchemaVersionZero(t *testing.T) {
+func TestNeverDownloadedJavaDatabaseHasNoSchemaVersion(t *testing.T) {
 	r := New(true)
 	output := `{"Version":"0.74.0","VulnerabilityDB":{"Version":2,"UpdatedAt":"2026-09-15T10:00:00Z"}}`
 	require.Equal(t, "0.74.0", r.probeEngine(context.Background(), probeConfig(time.Minute), fakeEngine(t, output, nil), "adapter", ""))
-	// Absent is a measured zero, not an unknown: the block is omitted until the
-	// database is first downloaded.
-	require.Equal(t, 2, testutil.CollectAndCount(r.gauges["db_schema_version"]))
-	require.Zero(t, testutil.ToFloat64(r.gauges["db_schema_version"].WithLabelValues("java")))
+	// The engine omits the block until the database exists, and a zero schema
+	// version would read as a real one.
+	require.Equal(t, 1, testutil.CollectAndCount(r.gauges["db_schema_version"]))
+	require.Equal(t, float64(2), testutil.ToFloat64(r.gauges["db_schema_version"].WithLabelValues("vulnerability")))
 }
 
 func TestFailedEngineProbeInvalidatesSchemaVersionsAndSuccess(t *testing.T) {

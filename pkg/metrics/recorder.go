@@ -97,7 +97,7 @@ var catalog = []definition{
 	{"db_next_update_timestamp_seconds", "Advertised database next update timestamp.", "gauge", []string{"database"}, nil},
 	{"db_downloaded_timestamp_seconds", "Recorded local download timestamp, not download attempts.", "gauge", []string{"database"}, nil},
 	{"db_updates_enabled", "Effective automatic database update policy.", "gauge", []string{"database"}, nil},
-	{"db_schema_version", "Database schema version the engine reports; zero when the database was never downloaded.", "gauge", []string{"database"}, nil},
+	{"db_schema_version", "Database schema version the engine reports; absent until the database has been downloaded.", "gauge", []string{"database"}, nil},
 	{"analysis_cache_backend_info", "Configured Trivy analysis-cache backend; database files remain local.", "gauge", []string{"backend"}, nil},
 	{"metadata_collection_success", "Whether Trivy version and local vulnerability/Java database metadata checks succeeded, including valid absence.", "gauge", nil, nil},
 	{"metadata_last_success_timestamp_seconds", "Last successful metadata refresh.", "gauge", nil, nil},
