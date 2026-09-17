@@ -43,3 +43,16 @@ func TestLimitedBufferReportsTruncation(t *testing.T) {
 	require.NoError(t, func() error { _, err := b.Write([]byte("0123456789")); return err }())
 	require.Equal(t, "23456789", b.String())
 }
+
+func TestLimitedBufferKeepsNothingForAnImpossibleLimit(t *testing.T) {
+	// A negative limit is a caller's mistake. Writing must still not fail, and
+	// must not panic slicing past the end of p either.
+	for _, limit := range []int{-1, 0} {
+		b := &LimitedBuffer{Limit: limit}
+		written, err := b.Write([]byte("abcd"))
+		require.NoError(t, err)
+		require.Equal(t, 4, written)
+		require.Empty(t, b.Bytes())
+		require.True(t, b.Truncated())
+	}
+}

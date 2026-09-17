@@ -2,6 +2,7 @@ package etc
 
 import (
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -55,6 +56,10 @@ func TestExplicitlyEmptyValueOverridesTheDefault(t *testing.T) {
 		require.Empty(t, cfg.Trivy.ImageSrc)
 	})
 	t.Run("not set at all", func(t *testing.T) {
+		// t.Setenv above restores whatever the test process inherited, which is
+		// not the same as the variable being absent. Only absence reaches the
+		// envDefault, so this subtest has to make it absent itself.
+		unsetEnv(t, "SCANNER_TRIVY_IMAGE_SRC")
 		cfg, err := GetConfig()
 		require.NoError(t, err)
 		require.Equal(t, "remote", cfg.Trivy.ImageSrc)
@@ -330,6 +335,21 @@ func setEnvs(t *testing.T, envs Envs) {
 	for k, v := range envs {
 		t.Setenv(k, v)
 	}
+}
+
+// unsetEnv removes a variable for the duration of the test and puts back what
+// the process had, which t.Setenv cannot express: it only restores a value.
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	original, had := os.LookupEnv(key)
+	require.NoError(t, os.Unsetenv(key))
+	t.Cleanup(func() {
+		if !had {
+			require.NoError(t, os.Unsetenv(key))
+			return
+		}
+		require.NoError(t, os.Setenv(key, original))
+	})
 }
 
 func parseDuration(t *testing.T, s string) time.Duration {

@@ -19,6 +19,11 @@ type LimitedBuffer struct {
 
 func (b *LimitedBuffer) Write(p []byte) (int, error) {
 	written := len(p)
+	// A negative limit is a caller's mistake, not a reason to panic slicing p
+	// below. Keeping nothing is the closest honest reading of it.
+	if b.Limit < 0 {
+		b.Limit = 0
+	}
 	if len(p) > b.Limit {
 		p = p[len(p)-b.Limit:]
 		b.truncated = true
@@ -35,6 +40,8 @@ func (b *LimitedBuffer) Bytes() []byte { return b.buf }
 
 func (b *LimitedBuffer) String() string { return string(b.buf) }
 
-// Truncated reports whether output was dropped, so callers that parse the
-// bytes can reject them instead of failing on a partial document.
+// Truncated reports whether output was dropped. It is a property of the buffer,
+// available to code holding one directly; RunCmd returns bytes rather than the
+// buffer, so a command's callers do not learn this and must not be written as
+// though they could.
 func (b *LimitedBuffer) Truncated() bool { return b.truncated }
