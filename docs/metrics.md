@@ -64,7 +64,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `queue_collection_success` | gauge | — | Whether the latest queue collection succeeded. Failed measurements are removed. |
 | `queue_collection_last_success_timestamp_seconds` | gauge | — | Last successful queue collection; use `time() - metric` for its age. |
 | `queue_collection_errors_total` | counter | query | Failed queue measurements by query (`quarantine`, `length`, `oldest`, `group`). Counts measurement failures, not scan failures. Each sample can fail every query, so this is roughly four times the number of failed samples during an outage. |
-| `queue_group_recreated_total` | counter | — | Consumer group recreations after the queue backend lost it. Until each one, no delivery could be read at all, so any increase is worth an alert even though the adapter recovers on its own. |
+| `queue_group_recreated_total` | counter | — | Consumer group recreations after its state was lost. Until each one, no delivery could be read at all, so any increase is worth an alert even though the adapter recovers on its own. The stream and its deliveries may survive the loss, so it is lost group state, not proof of lost data: check the job Redis for a restart without persistence or a manual group deletion. |
 | `queue_oldest_age_seconds` | gauge | — | Age of oldest unacknowledged delivery, sampled every ten seconds. |
 | `job_attempts_total` | counter | capability, format, outcome | Observed attempts, including retryable failures; not unique artifacts or terminal jobs. |
 | `job_failures_total` | counter | stage, category | Primary failures of controller executions. |
@@ -103,8 +103,8 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `storage_collection_success` | gauge | collector | Whether the latest storage collector run succeeded. |
 | `storage_collection_duration_seconds` | histogram | collector | Background storage collection duration. |
 | `storage_last_success_timestamp_seconds` | gauge | collector | Last successful storage collection. |
-| `temp_dirs_reaped_total` | counter | — | Temp roots of adapter processes that are gone, removed. Each one is an adapter process that was killed before it could clean up after its children, so a rising rate means adapter processes are being killed, not scans. |
-| `temp_dirs_present` | gauge | — | Child scratch directories under the adapter temp roots left in place at the last sweep, including those of running scans. Sampled every ten minutes, not on scrape. |
+| `temp_dirs_reaped_total` | counter | — | Temp roots of previous adapter processes removed at startup. Each one is an adapter process that was killed before it could clean up after its children, so a rising rate means adapter processes are being killed, not scans. |
+| `temp_dirs_present` | gauge | — | Child scratch directories under this adapter's own temp root at the last sample, which is the scans in flight. Sampled every ten minutes, not on scrape. |
 | `oldest_running_job_age_seconds` | gauge | — | Oldest local execution age; zero while idle. |
 | `redis_pool_connections` | gauge | state (`total`, `idle`) | In-memory client pool statistics; total includes idle. |
 | `redis_pool_size` | gauge | — | Effective base pool size, not the hard limit. |
@@ -141,8 +141,9 @@ measurements cover every workload sharing the instance.
   where possible. Store errors can additionally reflect a failed status write.
   Child stderr classification remains heuristic; exact diagnostic detail stays
   in logs. Error labels never contain raw stderr or image identifiers.
-- Failures are classified from Trivy's fatal report, the last `FATAL` line and
-  what follows it, not from the whole stderr buffer. A run logs a failed
+- A Trivy subprocess failure is classified from Trivy's fatal report, the last
+  `FATAL` line and what follows it, not from the whole stderr buffer; failures
+  the adapter raises around the scan keep their own typed or stage category. A run logs a failed
   database mirror before succeeding from the next one, so the buffer of a scan
   that ended on a registry 401 also contains download errors. Output with no
   fatal line, from a child that was killed, is classified whole.
@@ -185,14 +186,14 @@ measurements cover every workload sharing the instance.
   nothing outside that process can tell a running scan's directory from an
   abandoned one. The adapter therefore gives each child a `TMPDIR` of its own
   under its own root, `$TMPDIR/harbor-scanner-trivy-<random>/`, and removes it
-  once the child is gone, whatever killed it. The root's name is random rather
-  than the pid, because `/tmp` outlives a container restart while the adapter
-  returns as pid 1, and its owner touches the root every two minutes so that its
-  age says something about the process rather than about the running scan. Only
-  an adapter process that is itself killed leaves anything behind, and every ten
-  minutes the sweep removes roots nothing has refreshed, counting them in
-  `temp_dirs_reaped_total`. A clean shutdown removes the root outright. Reaping
-  runs even with metrics disabled; only the counters go away.
+  once the child is gone, whatever killed it. Only an adapter process that is
+  itself killed leaves its root behind, on the pod's `emptyDir`, and the next
+  process removes every sibling root at startup, counting them in
+  `temp_dirs_reaped_total`. That is safe because one adapter runs per temp
+  filesystem, which is the supported topology. The root's name is random rather
+  than the pid so a restarted process cannot inherit the dead one's root. A
+  clean shutdown removes the root outright. Reaping runs even with metrics
+  disabled; only the counters go away.
 - Child peak RSS is available after termination on Linux (converted from KiB)
   and macOS (already bytes). It is not live usage, a sum of concurrent children,
   or total container peak. If the child never starts or the adapter is killed,

@@ -112,8 +112,8 @@ var catalog = []definition{
 	{"storage_collection_success", "Whether the latest storage collector run succeeded.", "gauge", []string{"collector"}, nil},
 	{"storage_collection_duration_seconds", "Background storage collection duration.", "histogram", []string{"collector"}, prometheus.DefBuckets},
 	{"storage_last_success_timestamp_seconds", "Last successful storage collection.", "gauge", []string{"collector"}, nil},
-	{"temp_dirs_reaped_total", "Temp roots of adapter processes that are gone, removed; each one is an adapter that was killed before it could clean up after its children.", "counter", nil, nil},
-	{"temp_dirs_present", "Child scratch directories under the adapter temp roots left in place at the last sweep, including those of running scans.", "gauge", nil, nil},
+	{"temp_dirs_reaped_total", "Temp roots of previous adapter processes removed at startup; each one is an adapter that was killed before it could clean up after its children.", "counter", nil, nil},
+	{"temp_dirs_present", "Child scratch directories under this adapter's own temp root at the last sample, which is the scans in flight.", "gauge", nil, nil},
 }
 
 type Recorder struct {

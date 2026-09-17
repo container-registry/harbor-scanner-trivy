@@ -66,8 +66,8 @@ func TestChildThatReportedItsOwnFailureKeepsThatReason(t *testing.T) {
 		ctx  func() (context.Context, context.CancelFunc)
 	}{
 		{"expired deadline", func() (context.Context, context.CancelFunc) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-			time.Sleep(time.Millisecond)
+			// A zero timeout is expired on creation; no sleep to race.
+			ctx, cancel := context.WithTimeout(context.Background(), 0)
 			return ctx, cancel
 		}},
 		{"canceled context", func() (context.Context, context.CancelFunc) {

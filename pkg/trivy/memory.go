@@ -4,10 +4,10 @@ import (
 	"log/slog"
 	"math"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Go's heap is unlimited by default, so a scan that outgrows the container's
@@ -17,16 +17,13 @@ import (
 const goMemLimitShare = 0.8
 
 // cgroup v2 first: a v1 path can also exist on a v2 host through the hybrid
-// hierarchy, where it does not describe the effective limit.
+// hierarchy, where it does not describe the effective limit. These are this
+// process's own cgroup when the container has a cgroup namespace of its own,
+// which is what the chart's runtime gives it.
 var cgroupMemoryLimitPaths = []string{
 	"/sys/fs/cgroup/memory.max",
 	"/sys/fs/cgroup/memory/memory.limit_in_bytes",
 }
-
-const (
-	cgroupMount    = "/sys/fs/cgroup"
-	procSelfCgroup = "/proc/self/cgroup"
-)
 
 // goMemLimitSyntax is the shape the Go runtime accepts: a decimal integer with
 // an optional exact unit suffix.
@@ -56,6 +53,10 @@ func validGoMemLimit(value string) bool {
 	return digits <= uint64(math.MaxInt64)/uint64(unit)
 }
 
+// The setting is static for the life of the process, so its rejection is one
+// fact worth one line, not one per scan.
+var warnInvalidGoMemLimit sync.Once
+
 // childGoMemLimit resolves the GOMEMLIMIT for the Trivy child. An empty setting
 // derives one from the cgroup, "off" passes the environment through unchanged,
 // and a valid explicit setting is handed to the runtime as given.
@@ -70,9 +71,11 @@ func childGoMemLimit(configured string, paths ...string) string {
 	default:
 		// Falling back to the derived limit keeps the protection a typo would
 		// otherwise remove, and keeps Trivy startable either way.
-		slog.Warn("SCANNER_TRIVY_CHILD_GOMEMLIMIT is not a value the Go runtime accepts, deriving the limit instead",
-			slog.String("configured", configured),
-			slog.String("want", `an integer of at most 2^63-1 bytes, with no suffix or an exact B, KiB, MiB, GiB or TiB suffix, or "off"`))
+		warnInvalidGoMemLimit.Do(func() {
+			slog.Warn("SCANNER_TRIVY_CHILD_GOMEMLIMIT is not a value the Go runtime accepts, deriving the limit instead",
+				slog.String("configured", configured),
+				slog.String("want", `an integer of at most 2^63-1 bytes, with no suffix or an exact B, KiB, MiB, GiB or TiB suffix, or "off"`))
+		})
 		return cgroupGoMemLimit(paths...)
 	}
 }
@@ -86,25 +89,9 @@ func cgroupGoMemLimit(paths ...string) string {
 }
 
 func cgroupMemoryLimit(paths ...string) (int64, bool) {
-	explicit := len(paths) > 0
-	if !explicit {
+	if len(paths) == 0 {
 		paths = cgroupMemoryLimitPaths
 	}
-	if limit, ok := readCgroupMemoryLimit(paths); ok {
-		return limit, true
-	}
-	if explicit {
-		return 0, false
-	}
-	// The fixed paths are this process's cgroup only when it has a cgroup
-	// namespace of its own. Sharing the host's makes them the hierarchy root,
-	// whose memory.max is usually "max", which would read as "no limit" and
-	// silently drop the protection. Ask the kernel where this process actually
-	// sits before concluding that.
-	return readCgroupMemoryLimit(processCgroupMemoryPaths(procSelfCgroup, cgroupMount))
-}
-
-func readCgroupMemoryLimit(paths []string) (int64, bool) {
 	for _, path := range paths {
 		content, err := os.ReadFile(path)
 		if err != nil {
@@ -124,29 +111,4 @@ func readCgroupMemoryLimit(paths []string) (int64, bool) {
 		return limit, true
 	}
 	return 0, false
-}
-
-// processCgroupMemoryPaths turns /proc/self/cgroup into the limit files for this
-// process's own cgroup, v2 line first.
-func processCgroupMemoryPaths(proc, mount string) []string {
-	content, err := os.ReadFile(proc)
-	if err != nil {
-		return nil
-	}
-	var paths []string
-	for _, line := range strings.Split(string(content), "\n") {
-		// hierarchy-ID:controller-list:cgroup-path
-		fields := strings.SplitN(strings.TrimSpace(line), ":", 3)
-		if len(fields) != 3 || fields[2] == "" || fields[2] == "/" {
-			continue
-		}
-		rel := strings.TrimPrefix(fields[2], "/")
-		switch {
-		case fields[0] == "0" && fields[1] == "":
-			paths = append(paths, filepath.Join(mount, rel, "memory.max"))
-		case strings.Contains(fields[1], "memory"):
-			paths = append(paths, filepath.Join(mount, "memory", rel, "memory.limit_in_bytes"))
-		}
-	}
-	return paths
 }

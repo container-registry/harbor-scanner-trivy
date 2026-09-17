@@ -3,7 +3,6 @@ package trivy
 import (
 	"fmt"
 	"os"
-	"time"
 )
 
 // AdapterTempPrefix names the temp roots the adapter creates for its children.
@@ -24,11 +23,10 @@ const AdapterTempPrefix = "harbor-scanner-trivy-"
 // pid 1, so a pid-derived name would hand a new process the dead one's root and
 // its leaked children, which is the leak this exists to prevent.
 //
-// Liveness is published rather than guessed: the owner touches the root on a
-// timer, so its age is evidence about the process and not about how long the
-// current scan has been writing into a subdirectory. A root nothing refreshes
-// belongs to an adapter that is gone, whatever its pid was and whichever pid
-// namespace it was in.
+// One adapter process runs per temp filesystem: the chart gives every pod its
+// own emptyDir. That is what makes a sibling root safe to remove at startup
+// without asking who owns it (see Reaper), and it is the topology the adapter
+// supports. Two adapters sharing one /tmp would remove each other's roots.
 type TempRoot struct {
 	path string
 }
@@ -48,20 +46,8 @@ func (t *TempRoot) Path() string {
 	return t.path
 }
 
-// Heartbeat republishes this process's claim on the root. A failure is not worth
-// reporting on its own: the sweep that reads it only removes a root after
-// reapMinAge, so a missed touch costs nothing and a persistent one shows up as
-// the root being reaped while idle.
-func (t *TempRoot) Heartbeat() {
-	if t == nil {
-		return
-	}
-	now := time.Now()
-	_ = os.Chtimes(t.path, now, now)
-}
-
 // Close removes the root on a clean shutdown, so the usual case leaves nothing
-// for the next process to sweep.
+// for the next process to find.
 func (t *TempRoot) Close() error {
 	if t == nil {
 		return nil
