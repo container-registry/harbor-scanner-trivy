@@ -208,10 +208,10 @@ func TestTempDirectoriesAreSizedSeparatelyFromTheCache(t *testing.T) {
 	require.ErrorContains(t, err, "budget exceeded")
 
 	// The collection deadline has to end the walk too, not only the budget.
-	cancelled, cancel := context.WithCancel(context.Background())
+	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	deadline := 100
-	_, err = trivyTempBytes(cancelled, root, &deadline)
+	_, err = trivyTempBytes(canceled, root, &deadline)
 	require.ErrorIs(t, err, context.Canceled)
 
 	// An extracted image layer carries symlinks and other non-regular entries.
