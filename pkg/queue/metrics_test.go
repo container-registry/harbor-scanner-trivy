@@ -379,8 +379,14 @@ func TestWorkerHealthNeedsTheConsumerGroupNotJustAServer(t *testing.T) {
 	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true)).(*streamWorker)
 	ctx := context.Background()
 
+	// The stream has to exist first: without it XInfoGroups fails on the missing
+	// key, and "reading consumer groups of ..." would satisfy a substring check
+	// for "consumer group" without the missing-group branch ever running.
+	require.NoError(t, rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: w.stream, Values: map[string]any{"fixture": "1"},
+	}).Err())
 	// A stream nothing has subscribed to answers XLEN but delivers nothing.
-	require.ErrorContains(t, w.Healthy(ctx), "consumer group")
+	require.ErrorContains(t, w.Healthy(ctx), `consumer group "scanner" is missing`)
 	requireGroup(t, w)
 	require.NoError(t, w.Healthy(ctx))
 

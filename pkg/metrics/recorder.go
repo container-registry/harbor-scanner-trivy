@@ -2,6 +2,7 @@
 package metrics
 
 import (
+	"bytes"
 	"net/http"
 	"slices"
 	"sync"
@@ -142,7 +143,9 @@ type versionCache struct {
 func (r *Recorder) cacheVersion(output []byte) {
 	r.version.mu.Lock()
 	defer r.version.mu.Unlock()
-	r.version.output, r.version.at = output, time.Now()
+	// Own the bytes: the producer's buffer and every reader's slice would
+	// otherwise share one array, and a cache is the wrong place to find out.
+	r.version.output, r.version.at = bytes.Clone(output), time.Now()
 	r.version.generation++
 }
 
@@ -190,7 +193,7 @@ func (r *Recorder) CachedVersion() ([]byte, uint64, bool) {
 	if r.version.ttl <= 0 || len(r.version.output) == 0 || time.Since(r.version.at) > r.version.ttl {
 		return nil, 0, false
 	}
-	return r.version.output, r.version.generation, true
+	return bytes.Clone(r.version.output), r.version.generation, true
 }
 
 func New(enabled bool) *Recorder {

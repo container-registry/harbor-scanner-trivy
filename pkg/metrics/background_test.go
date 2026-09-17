@@ -144,11 +144,17 @@ func TestCachedVersionOutlivesOneCollectionInterval(t *testing.T) {
 
 func TestCachedVersionExpiresWithTheCollectionInterval(t *testing.T) {
 	r := New(true)
-	r.version.ttl = 20 * time.Millisecond
+	r.version.ttl = time.Minute
 	r.cacheVersion([]byte(bothDatabases))
 	_, _, ok := r.CachedVersion()
 	require.True(t, ok)
-	time.Sleep(30 * time.Millisecond)
+
+	// Age the entry rather than sleeping past a sub-interval TTL: a CI pause
+	// between the store and the first read would otherwise fail the assertion
+	// above for reasons that have nothing to do with expiry.
+	r.version.mu.Lock()
+	r.version.at = time.Now().Add(-2 * time.Minute)
+	r.version.mu.Unlock()
 	_, _, ok = r.CachedVersion()
 	require.False(t, ok)
 

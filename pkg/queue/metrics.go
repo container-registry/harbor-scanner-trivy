@@ -13,17 +13,24 @@ import (
 )
 
 // Collection runs independently of scans using the shared Redis client.
+// Long enough for XGROUP CREATE against a reachable backend, short enough that
+// an unreachable one is reported on the first sample rather than never.
+const groupWaitGrace = 5 * time.Second
+
 func (w *streamWorker) monitorQueue(ctx context.Context) {
 	if w.metrics == nil {
 		return
 	}
-	// Wait for the consumer group the samples are about. Without this the first
-	// sample of a pod booting against a backend that lost the group reports a
-	// missing group that the read loop is already recreating.
+	// Wait for the consumer group the samples are about, so the first sample of
+	// a pod booting against a backend that lost the group does not report a
+	// missing group the read loop is already recreating. Bounded, because the
+	// read loop retries forever: if the backend is simply down, the group never
+	// arrives and reporting that outage is this sampler's whole purpose.
 	select {
 	case <-ctx.Done():
 		return
 	case <-w.grouped:
+	case <-time.After(groupWaitGrace):
 	}
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()

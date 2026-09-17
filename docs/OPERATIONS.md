@@ -67,7 +67,7 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 
 ## Queue recovery
 
-The queue is a Redis Stream with a consumer group (`<namespace>:stream:v1:scan_artifact`, group `scanner`). Deliveries are acknowledged and deleted after the report is stored; unacknowledged ones are reclaimed by any worker after the one minute lease.
+The queue is a Redis Stream with a consumer group (`<namespace>:stream:v1:scan_artifact`, group `scanner`). Deliveries are acknowledged and deleted once the job reaches a terminal status, with a successful scan's report stored first; a terminally failed scan is acknowledged too, with no report. Unacknowledged ones are reclaimed by any worker after the one minute lease.
 
 - `queue_collection_success` = 0 with `queue_collection_errors_total{query="group"}` rising: the consumer group is gone, typically because the job Redis restarted without persistence after the scanner did. The worker recreates it and counts `queue_group_recreated_total`; on older builds restart the StatefulSet.
 - `queue_oldest_age_seconds` climbing while `jobs_in_progress` is 0 on every replica: entries are not being read. Check the group as above, then the worker logs for `Recovering scan delivery`.

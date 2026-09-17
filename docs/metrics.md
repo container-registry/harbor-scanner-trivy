@@ -103,8 +103,8 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `storage_collection_success` | gauge | collector | Whether the latest storage collector run succeeded. |
 | `storage_collection_duration_seconds` | histogram | collector | Background storage collection duration. |
 | `storage_last_success_timestamp_seconds` | gauge | collector | Last successful storage collection. |
-| `temp_dirs_reaped_total` | counter | — | Abandoned Trivy temp directories removed. Each one is a child that died without cleaning up, so a rising rate means scans are being killed. |
-| `temp_dirs_present` | gauge | — | Trivy temp directories left in place at the last sweep, including those of running scans. Sampled every ten minutes, not on scrape. |
+| `temp_dirs_reaped_total` | counter | — | Temp roots of adapter processes that are gone, removed. Each one is an adapter process that was killed before it could clean up after its children, so a rising rate means adapter processes are being killed, not scans. |
+| `temp_dirs_present` | gauge | — | Child scratch directories under the adapter temp roots left in place at the last sweep, including those of running scans. Sampled every ten minutes, not on scrape. |
 | `oldest_running_job_age_seconds` | gauge | — | Oldest local execution age; zero while idle. |
 | `redis_pool_connections` | gauge | state (`total`, `idle`) | In-memory client pool statistics; total includes idle. |
 | `redis_pool_size` | gauge | — | Effective base pool size, not the hard limit. |

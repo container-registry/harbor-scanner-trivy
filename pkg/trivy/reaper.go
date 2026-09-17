@@ -47,16 +47,20 @@ func NewReaper(own *TempRoot, recorders ...*metrics.Recorder) *Reaper {
 
 // Start publishes this process's claim on its own root, sweeps immediately
 // because the roots worth reaping were left by a previous process, and then
-// keeps both going. The returned function waits for an in-flight sweep.
+// keeps both going. The returned function waits for both to stop.
+//
+// The heartbeat runs on its own goroutine deliberately. Sharing one with the
+// sweep would let a slow sweep - os.RemoveAll over an abandoned root holding a
+// materialized image - stop the claim from being republished, and a sibling
+// adapter would then be entitled to delete this process's live scan root. The
+// thing that proves this process alive must not wait on this process's work.
 func (r *Reaper) Start(ctx context.Context) func() {
 	ctx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
+	beating, sweeping := make(chan struct{}), make(chan struct{})
+
 	go func() {
-		defer close(done)
+		defer close(beating)
 		r.own.Heartbeat()
-		r.sweep(ctx)
-		sweeps := time.NewTicker(reapInterval)
-		defer sweeps.Stop()
 		beats := time.NewTicker(heartbeatInterval)
 		defer beats.Stop()
 		for {
@@ -65,13 +69,25 @@ func (r *Reaper) Start(ctx context.Context) func() {
 				return
 			case <-beats.C:
 				r.own.Heartbeat()
-			case <-sweeps.C:
-				r.own.Heartbeat()
-				r.sweep(ctx)
 			}
 		}
 	}()
-	return func() { cancel(); <-done }
+
+	go func() {
+		defer close(sweeping)
+		sweeps := time.NewTicker(reapInterval)
+		defer sweeps.Stop()
+		for {
+			r.sweep(ctx)
+			select {
+			case <-ctx.Done():
+				return
+			case <-sweeps.C:
+			}
+		}
+	}()
+
+	return func() { cancel(); <-beating; <-sweeping }
 }
 
 func (r *Reaper) sweep(ctx context.Context) {
@@ -95,7 +111,7 @@ func (r *Reaper) sweep(ctx context.Context) {
 			if !entry.IsDir() || !strings.HasPrefix(entry.Name(), AdapterTempPrefix) {
 				continue
 			}
-			present += r.consider(filepath.Join(r.root, entry.Name()), entry)
+			present += r.consider(ctx, filepath.Join(r.root, entry.Name()), entry)
 		}
 		if errors.Is(readErr, io.EOF) {
 			break
@@ -112,8 +128,14 @@ func (r *Reaper) sweep(ctx context.Context) {
 
 // consider removes one adapter root if nothing owns it any more, and reports the
 // child scratch directories left standing under it.
-func (r *Reaper) consider(path string, entry fs.DirEntry) int {
+func (r *Reaper) consider(ctx context.Context, path string, entry fs.DirEntry) int {
 	if path == r.own.Path() || !unowned(entry) {
+		return childCount(path)
+	}
+	// os.RemoveAll cannot be interrupted, and Start waits for the sweep, so
+	// check before starting one: shutdown then waits for at most the root
+	// already in progress rather than for every remaining root.
+	if ctx.Err() != nil {
 		return childCount(path)
 	}
 	freed := directorySize(path)
