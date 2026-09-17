@@ -129,7 +129,7 @@ func TestAnalysisCacheBackendInfo(t *testing.T) {
 			r := New(true)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			r.Start(ctx, etc.Config{Trivy: etc.Trivy{CacheBackend: configured}}, "test", ext.DefaultAmbassador)()
+			r.Start(ctx, etc.Config{Trivy: etc.Trivy{CacheBackend: configured}}, "test", t.TempDir(), ext.DefaultAmbassador)()
 			require.Equal(t, 1, testutil.CollectAndCount(r.gauges["analysis_cache_backend_info"]))
 			require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["analysis_cache_backend_info"].WithLabelValues(want)))
 			families, err := r.Gatherer().Gather()
@@ -161,9 +161,9 @@ func TestCollectorShutdownAndOutputLimit(t *testing.T) {
 	cancel()
 	cfg := etc.Config{Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second}}
 	r := New(true)
-	r.Start(ctx, cfg, "test", ext.DefaultAmbassador)()
+	r.Start(ctx, cfg, "test", t.TempDir(), ext.DefaultAmbassador)()
 	require.Zero(t, testutil.CollectAndCount(r.gauges["metadata_last_success_timestamp_seconds"]))
-	New(false).Start(context.Background(), cfg, "test", ext.DefaultAmbassador)()
+	New(false).Start(context.Background(), cfg, "test", t.TempDir(), ext.DefaultAmbassador)()
 }
 
 func TestDisabledGathererIsEmpty(t *testing.T) {
@@ -194,10 +194,14 @@ func TestUninitializedCachePartsAreEmpty(t *testing.T) {
 		require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
 	}
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
-	// Losing the entire mount/path must still invalidate the sample.
+	// Losing the entire cache mount/path must still invalidate those samples.
+	// The adapter's temp root is different: it does not exist until the first
+	// child runs, and no children holding no bytes is an observation, not a
+	// failed measurement.
 	require.NoError(t, os.Remove(root))
 	r.collectCache(context.Background(), root, filepath.Join(root, "gone"), 20, "filesystem")
-	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+	require.Equal(t, 1, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+	require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
 	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 }
 

@@ -179,11 +179,17 @@ measurements cover every workload sharing the instance.
 - `area="tmp"` covers `os.TempDir()`, where Trivy extracts layers. It is often
   a different filesystem from the cache and fills up on its own.
   `SCANNER_TRIVY_MAX_IMAGE_SIZE` adds to it rather than bounding it: reaching
-  the uncompressed size means writing every layer there first. Trivy removes
-  its `$TMPDIR/trivy-<pid>` directory when it exits, but a child that is
-  OOM-killed never does, so the adapter sweeps directories whose pid is no
-  longer alive every ten minutes and counts them in `temp_dirs_reaped_total`.
-  Reaping runs even with metrics disabled; only the counters go away.
+  the uncompressed size means writing every layer there first. Trivy names its
+  own scratch directory `$TMPDIR/trivy-<random>` and removes it on a normal
+  exit, but a child that is OOM-killed never does, and the random suffix means
+  nothing outside that process can tell a running scan's directory from an
+  abandoned one. The adapter therefore gives each child a `TMPDIR` of its own
+  under `$TMPDIR/harbor-scanner-trivy-<pid>/` and removes it once the child is
+  gone, whatever killed it. Only an adapter process that is itself killed leaves
+  anything behind, and every ten minutes the sweep removes the roots of adapter
+  processes that are no longer running, counting them in
+  `temp_dirs_reaped_total`. Reaping runs even with metrics disabled; only the
+  counters go away.
 - Child peak RSS is available after termination on Linux (converted from KiB)
   and macOS (already bytes). It is not live usage, a sum of concurrent children,
   or total container peak. If the child never starts or the adapter is killed,

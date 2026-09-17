@@ -85,7 +85,7 @@ Trivy sets no Go memory limit; files below 100 MiB are read whole into memory an
 
 ## Temp and disk
 
-Trivy writes under `$TMPDIR/trivy-<pid>` (DB downloads, post-analyzer copies, files over 100 MiB, materialised layers with `--max-image-size`). It cleans up on a normal exit or SIGTERM, never after SIGKILL. The adapter removes directories of dead processes at startup and every ten minutes (`temp_dirs_reaped_total`) and reports `storage_available_bytes{area="tmp"}` and `cache_size_bytes{kind="tmp_trivy"}`. Point `TMPDIR` at the cache volume if the container's writable layer is small.
+Trivy writes under its own `$TMPDIR/trivy-<random>` (DB downloads, post-analyzer copies, files over 100 MiB, materialised layers with `--max-image-size`). It cleans up on a normal exit or SIGTERM, never after SIGKILL, and the suffix is random rather than a pid, so nothing else can tell a running scan's directory from an abandoned one. The adapter therefore points each child's `TMPDIR` at a directory it made under `$TMPDIR/harbor-scanner-trivy-<pid>/` and removes it once the child is gone, however it died. Only an adapter process that is itself killed leaves a root behind; those are removed at startup and every ten minutes (`temp_dirs_reaped_total`). `storage_available_bytes{area="tmp"}` reports the temp filesystem and `cache_size_bytes{kind="tmp_trivy"}` what this adapter's children hold. Point `TMPDIR` at the cache volume if the container's writable layer is small.
 
 ## Harbor-side caveats
 

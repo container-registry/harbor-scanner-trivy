@@ -3,7 +3,6 @@ package metrics
 import (
 	"context"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -40,7 +39,7 @@ func TestEngineProbeReportsBothSchemaVersions(t *testing.T) {
 	require.Equal(t, float64(2), testutil.ToFloat64(r.gauges["db_schema_version"].WithLabelValues("vulnerability")))
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["db_schema_version"].WithLabelValues("java")))
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["build_info"].WithLabelValues("adapter", "0.74.0")))
-	cached, ok := r.CachedVersion()
+	cached, _, ok := r.CachedVersion()
 	require.True(t, ok)
 	require.JSONEq(t, bothDatabases, string(cached))
 }
@@ -94,27 +93,52 @@ func TestFailedProbeDropsTheCachedVersion(t *testing.T) {
 	cfg := probeConfig(time.Minute)
 	r.version.ttl = 2 * cfg.Metrics.CollectionInterval
 	require.Equal(t, "0.74.0", r.probeEngine(context.Background(), cfg, fakeEngine(t, bothDatabases, nil), "adapter", ""))
-	_, ok := r.CachedVersion()
+	_, _, ok := r.CachedVersion()
 	require.True(t, ok)
 
 	// The engine stopped answering, so the cached answer no longer describes
 	// it and the metadata API must ask for itself.
 	require.Empty(t, r.probeEngine(context.Background(), cfg, fakeEngine(t, "", errors.New("exit status 1")), "adapter", "0.74.0"))
-	_, ok = r.CachedVersion()
+	_, _, ok = r.CachedVersion()
 	require.False(t, ok)
+}
+
+func TestDiscardVersionOnlyDropsWhatTheReaderRead(t *testing.T) {
+	r := New(true)
+	r.version.ttl = time.Minute
+	r.cacheVersion([]byte(bothDatabases))
+	_, stale, ok := r.CachedVersion()
+	require.True(t, ok)
+
+	// The background probe answers again while a reader is still working on
+	// what it took. That newer answer is not what the reader found fault with.
+	upgraded := `{"Version":"0.75.0","VulnerabilityDB":{"Version":2}}`
+	r.cacheVersion([]byte(upgraded))
+	r.DiscardVersion(stale)
+	cached, current, ok := r.CachedVersion()
+	require.True(t, ok)
+	require.JSONEq(t, upgraded, string(cached))
+
+	// The generation the reader did read goes.
+	r.DiscardVersion(current)
+	_, _, ok = r.CachedVersion()
+	require.False(t, ok)
+
+	var disabled *Recorder
+	require.NotPanics(t, func() { disabled.DiscardVersion(1) })
 }
 
 func TestCachedVersionOutlivesOneCollectionInterval(t *testing.T) {
 	// The interval carries jitter, so a TTL of exactly one interval leaves a
 	// gap between probes for Harbor's next poll to fall into.
 	r := New(true)
-	stop := r.Start(context.Background(), probeConfig(time.Hour), "adapter", fakeEngine(t, bothDatabases, nil))
+	stop := r.Start(context.Background(), probeConfig(time.Hour), "adapter", t.TempDir(), fakeEngine(t, bothDatabases, nil))
 	defer stop()
-	require.Eventually(t, func() bool { _, ok := r.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { _, _, ok := r.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
 	r.version.mu.Lock()
 	r.version.at = time.Now().Add(-90 * time.Minute)
 	r.version.mu.Unlock()
-	_, ok := r.CachedVersion()
+	_, _, ok := r.CachedVersion()
 	require.True(t, ok)
 }
 
@@ -122,19 +146,19 @@ func TestCachedVersionExpiresWithTheCollectionInterval(t *testing.T) {
 	r := New(true)
 	r.version.ttl = 20 * time.Millisecond
 	r.cacheVersion([]byte(bothDatabases))
-	_, ok := r.CachedVersion()
+	_, _, ok := r.CachedVersion()
 	require.True(t, ok)
 	time.Sleep(30 * time.Millisecond)
-	_, ok = r.CachedVersion()
+	_, _, ok = r.CachedVersion()
 	require.False(t, ok)
 
 	// A recorder that was never started has no interval, so nothing is current.
 	fresh := New(true)
 	fresh.cacheVersion([]byte(bothDatabases))
-	_, ok = fresh.CachedVersion()
+	_, _, ok = fresh.CachedVersion()
 	require.False(t, ok)
 	var disabled *Recorder
-	_, ok = disabled.CachedVersion()
+	_, _, ok = disabled.CachedVersion()
 	require.False(t, ok)
 }
 
@@ -152,7 +176,7 @@ func TestEveryTickProbesTheEngine(t *testing.T) {
 	cfg := probeConfig(10 * time.Millisecond)
 	cfg.Trivy.CacheDir = t.TempDir()
 	cfg.Trivy.ReportsDir = t.TempDir()
-	stop := r.Start(context.Background(), cfg, "adapter", ambassador)
+	stop := r.Start(context.Background(), cfg, "adapter", t.TempDir(), ambassador)
 	defer stop()
 	for range 3 {
 		select {
@@ -164,13 +188,13 @@ func TestEveryTickProbesTheEngine(t *testing.T) {
 }
 
 func TestTempDirectoriesAreSizedSeparatelyFromTheCache(t *testing.T) {
+	// The adapter's own root, holding the scratch directory of each child it
+	// started. Nothing else writes here, which is why every entry counts.
 	root := t.TempDir()
-	for _, name := range []string{"trivy-1", "trivy-2"} {
+	for _, name := range []string{"scan-1", "scan-2"} {
 		require.NoError(t, os.MkdirAll(filepath.Join(root, name), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(root, name, "layer"), make([]byte, 1024), 0o600))
 	}
-	// Not Trivy's, and not counted.
-	require.NoError(t, os.WriteFile(filepath.Join(root, "scan_report.json"), make([]byte, 4096), 0o600))
 
 	budget := 100
 	size, err := trivyTempBytes(context.Background(), root, &budget)
@@ -183,19 +207,28 @@ func TestTempDirectoriesAreSizedSeparatelyFromTheCache(t *testing.T) {
 	_, err = trivyTempBytes(context.Background(), root, &exhausted)
 	require.ErrorContains(t, err, "budget exceeded")
 
+	// The collection deadline has to end the walk too, not only the budget.
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	deadline := 100
+	_, err = trivyTempBytes(cancelled, root, &deadline)
+	require.ErrorIs(t, err, context.Canceled)
+
 	// An extracted image layer carries symlinks and other non-regular entries.
 	// They are not bytes the adapter can attribute, but meeting one must not
 	// fail the sample the way it does for the cache layout.
-	require.NoError(t, os.Symlink(filepath.Join(root, "trivy-1", "layer"), filepath.Join(root, "trivy-1", "link")))
-	require.NoError(t, os.Symlink("/nowhere", filepath.Join(root, "trivy-2", "broken")))
+	require.NoError(t, os.Symlink(filepath.Join(root, "scan-1", "layer"), filepath.Join(root, "scan-1", "link")))
+	require.NoError(t, os.Symlink("/nowhere", filepath.Join(root, "scan-2", "broken")))
 	budget = 100
 	size, err = trivyTempBytes(context.Background(), root, &budget)
 	require.NoError(t, err)
 	require.EqualValues(t, 2048, size)
 
+	// No scan has run yet, or the root went with the process that owned it.
 	missing := 100
-	_, err = trivyTempBytes(context.Background(), filepath.Join(root, "gone"), &missing)
-	require.ErrorIs(t, err, fs.ErrNotExist)
+	size, err = trivyTempBytes(context.Background(), filepath.Join(root, "gone"), &missing)
+	require.NoError(t, err)
+	require.Zero(t, size)
 }
 
 // The other half of the rule, a descendant vanishing mid-walk marking the
@@ -203,8 +236,8 @@ func TestTempDirectoriesAreSizedSeparatelyFromTheCache(t *testing.T) {
 // deterministic test; it is the errors.As branch in trivyTempBytes.
 func TestTempDirectoryThatEndedWithItsScanStillLeavesAUsableTotal(t *testing.T) {
 	root := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "trivy-1"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "trivy-1", "layer"), make([]byte, 1024), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "scan-1"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "scan-1", "layer"), make([]byte, 1024), 0o600))
 
 	// A directory that ends with its scan is how these are supposed to go, and
 	// the remaining total still describes what is on disk.
@@ -219,12 +252,12 @@ func TestTempDirectoryThatEndedWithItsScanStillLeavesAUsableTotal(t *testing.T) 
 
 	// A second scan's directory ending between two samples changes the total,
 	// it does not invalidate it.
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "trivy-2", "layers"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "trivy-2", "layers", "b"), make([]byte, 64), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "scan-2", "layers"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "scan-2", "layers", "b"), make([]byte, 64), 0o600))
 	r.collectCache(context.Background(), t.TempDir(), root, 100, "filesystem")
 	require.Equal(t, float64(1088), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
 
-	require.NoError(t, os.RemoveAll(filepath.Join(root, "trivy-2")))
+	require.NoError(t, os.RemoveAll(filepath.Join(root, "scan-2")))
 	r.collectCache(context.Background(), t.TempDir(), root, 100, "filesystem")
 	require.Equal(t, float64(1024), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))

@@ -30,7 +30,7 @@ func TestCacheConfigurationReachesTrivyWithoutCredentialsInArgs(t *testing.T) {
 	ambassador.On("Environ").Return([]string{"TRIVY_CACHE_BACKEND=fs", "TRIVY_CACHE_TTL=0", "KEEP=yes"})
 	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
 	w := &wrapper{config: etc.Trivy{CacheBackend: "rediss://user:private@cache:6379/0", CacheTTL: 48 * time.Hour}, ambassador: ambassador}
-	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
 	require.NoError(t, err)
 	require.Contains(t, cmd.Env, "TRIVY_CACHE_BACKEND=redis://user:private@cache:6379/0")
 	require.Contains(t, cmd.Env, "TRIVY_REDIS_TLS=true")
@@ -80,7 +80,7 @@ func TestScanCommandStopsWhenWorkerContextIsCancelled(t *testing.T) {
 	w := &wrapper{ambassador: ambassador}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	cmd, err := w.prepareScanCmd(ctx, ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{})
+	cmd, err := w.prepareScanCmd(ctx, ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{}, t.TempDir())
 	require.NoError(t, err)
 	require.NoError(t, cmd.Start())
 	done := make(chan error, 1)
@@ -415,11 +415,27 @@ func TestMalformedReportHasReportParseCategory(t *testing.T) {
 }
 
 // Only compare the subprocess contract, not exec.Cmd's private context fields.
+// TMPDIR names a directory made for this one child, so it is checked for shape
+// rather than compared; TestChildGetsItsOwnTempDirectory covers the rest.
 func matchScanCommand(want *exec.Cmd) interface{} {
 	return mock.MatchedBy(func(got *exec.Cmd) bool {
+		env, tempDir := splitChildTempDir(got.Env)
 		return got.Path == want.Path && reflect.DeepEqual(got.Args, want.Args) &&
-			reflect.DeepEqual(got.Env, want.Env) && got.Cancel != nil && got.WaitDelay == time.Second
+			reflect.DeepEqual(env, want.Env) && got.Cancel != nil && got.WaitDelay == time.Second &&
+			strings.Contains(tempDir, AdapterTempPrefix)
 	})
+}
+
+func splitChildTempDir(environ []string) ([]string, string) {
+	rest, tempDir := make([]string, 0, len(environ)), ""
+	for _, entry := range environ {
+		if value, ok := strings.CutPrefix(entry, "TMPDIR="); ok {
+			tempDir = value
+			continue
+		}
+		rest = append(rest, entry)
+	}
+	return rest, tempDir
 }
 
 func TestExecutionRetryPolicy(t *testing.T) {
@@ -615,6 +631,19 @@ func TestClassifierNeedsMoreThanAMatchingSubstring(t *testing.T) {
 			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: unable to open cache DB: /home/scanner/.cache/trivy/fanal/fanal.db: permission denied",
 			expected: ErrCategoryCache,
 		},
+		{
+			// A repository whose name ends in the bolt file's, matched by the
+			// cache rule before auth classification can see the 401.
+			name:     "a repository named after the bolt file",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry.example/v2/team/fanal.db/manifests/latest: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			// Trivy formats some of its own fetches as "status code: %d".
+			name:     "a colon between the status word and the number",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: unexpected status code: 429",
+			expected: ErrCategoryRateLimit,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expected, classifyTrivyError(tc.output))
@@ -681,8 +710,8 @@ func TestGetVersionReusesTheBackgroundProbe(t *testing.T) {
 		Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
 		Trivy:   etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()},
 	}
-	stop := recorder.Start(context.Background(), cfg, "adapter", engine)
-	require.Eventually(t, func() bool { _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	stop := recorder.Start(context.Background(), cfg, "adapter", t.TempDir(), engine)
+	require.Eventually(t, func() bool { _, _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
 	stop()
 
 	// No RunCmd expectation: reaching the CLI would fail the test.
@@ -707,8 +736,8 @@ func TestUnreadableCachedVersionFailsInsteadOfSpawningPerPoll(t *testing.T) {
 		Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
 		Trivy:   etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()},
 	}
-	stop := recorder.Start(context.Background(), cfg, "adapter", engine)
-	require.Eventually(t, func() bool { _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	stop := recorder.Start(context.Background(), cfg, "adapter", t.TempDir(), engine)
+	require.Eventually(t, func() bool { _, _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
 	stop()
 
 	// No RunCmd expectation: falling through to the CLI would fail the test,
@@ -720,7 +749,7 @@ func TestUnreadableCachedVersionFailsInsteadOfSpawningPerPoll(t *testing.T) {
 	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
 
 	// The unusable answer is dropped, so the next probe can replace it.
-	_, ok := recorder.CachedVersion()
+	_, _, ok := recorder.CachedVersion()
 	require.False(t, ok)
 }
 
@@ -731,7 +760,7 @@ func TestScanCommandCarriesTheDefaultEngineFlags(t *testing.T) {
 	config := etc.Trivy{ImageSrc: "remote", SkipVersionCheck: true, DisableTelemetry: true, ChildGoMemLimit: "1GiB"}
 	w := &wrapper{config: config, ambassador: ambassador}
 
-	image, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	image, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
 	require.NoError(t, err)
 	require.Contains(t, strings.Join(image.Args, " "), "--image-src remote")
 	require.Subset(t, image.Args, []string{"--skip-version-check", "--disable-telemetry"})
@@ -741,10 +770,49 @@ func TestScanCommandCarriesTheDefaultEngineFlags(t *testing.T) {
 	require.Contains(t, image.Env, "KEEP=yes")
 
 	// --image-src and --max-image-size belong to the image subcommand only.
-	sbom, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetSBOM, filePath: "sbom.json"}, "report.json", ScanOption{Format: FormatJSON})
+	sbom, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetSBOM, filePath: "sbom.json"}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
 	require.NoError(t, err)
 	require.NotContains(t, sbom.Args, "--image-src")
 	require.Subset(t, sbom.Args, []string{"--skip-version-check", "--disable-telemetry"})
+}
+
+// Trivy's own scratch directory is named at random, so the only way to tell a
+// running scan's layers from an abandoned child's is to hand the child a
+// directory the adapter made. See tempdir.go.
+func TestChildGetsItsOwnTempDirectoryAndLosesItAfterwards(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"TMPDIR=/inherited"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	img := &fake.FakeImage{}
+	img.ManifestReturns(&v1.Manifest{}, nil)
+	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+
+	reportsDir := t.TempDir()
+	reportPath := filepath.Join(reportsDir, "report.json")
+	require.NoError(t, os.WriteFile(reportPath, []byte(`{"SchemaVersion":2,"ArtifactName":"alpine"}`), 0o600))
+	ambassador.On("TempFile", reportsDir, mock.Anything).Return(os.Open(reportPath))
+
+	var childTemp string
+	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte{}, nil).
+		Run(func(args mock.Arguments) {
+			_, childTemp = splitChildTempDir(args.Get(0).(*exec.Cmd).Env)
+			require.DirExists(t, childTemp, "the directory must exist while the child runs")
+		})
+
+	w := &wrapper{
+		config:     etc.Trivy{ReportsDir: reportsDir},
+		ambassador: ambassador,
+		tempRoot:   filepath.Join(t.TempDir(), AdapterTempPrefix+"1"),
+	}
+	_, err := w.Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	require.NoError(t, err)
+
+	// The adapter's own directory, not whatever the pod set, and gone with the
+	// child that used it.
+	require.Equal(t, w.tempRoot, filepath.Dir(childTemp))
+	require.NoDirExists(t, childTemp)
+	require.DirExists(t, w.tempRoot)
+	ambassador.AssertExpectations(t)
 }
 
 func TestScanCommandOmitsUnsetEngineFlags(t *testing.T) {
@@ -752,7 +820,7 @@ func TestScanCommandOmitsUnsetEngineFlags(t *testing.T) {
 	ambassador.On("Environ").Return([]string{"GOMEMLIMIT=inherited"})
 	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
 	w := &wrapper{config: etc.Trivy{ChildGoMemLimit: "off"}, ambassador: ambassador}
-	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
 	require.NoError(t, err)
 	for _, flag := range []string{"--image-src", "--max-image-size", "--skip-version-check", "--disable-telemetry"} {
 		require.NotContains(t, cmd.Args, flag)
@@ -766,7 +834,7 @@ func TestScanCommandPassesTheImageSizeLimit(t *testing.T) {
 	ambassador.On("Environ").Return([]string{})
 	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
 	w := &wrapper{config: etc.Trivy{MaxImageSize: "10GB"}, ambassador: ambassador}
-	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON})
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
 	require.NoError(t, err)
 	require.Contains(t, strings.Join(cmd.Args, " "), "--max-image-size 10GB")
 }

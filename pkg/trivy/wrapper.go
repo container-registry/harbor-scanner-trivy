@@ -70,6 +70,8 @@ type wrapper struct {
 	config     etc.Trivy
 	ambassador ext.Ambassador
 	binary     binaryCheck
+	// Root for the private TMPDIR each child gets; see tempdir.go.
+	tempRoot string
 	// One line per process: a cache the adapter cannot read is one fault, not
 	// one per metadata poll.
 	versionDecode sync.Once
@@ -106,6 +108,7 @@ func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metri
 		metrics:    metrics.Optional(recorders),
 		config:     config,
 		ambassador: ambassador,
+		tempRoot:   TempRoot(),
 	}
 }
 
@@ -173,7 +176,21 @@ func (w *wrapper) scan(ctx context.Context, imageRef ImageRef, opt ScanOption, u
 		}
 	}()
 
-	cmd, err := w.prepareScanCmd(ctx, target, reportFile.Name(), opt)
+	// The child gets a TMPDIR of the adapter's making, so the layers it extracts
+	// go somewhere the adapter can identify and remove. Nothing else can: Trivy
+	// names its own scratch directory randomly. See tempdir.go.
+	childTemp, err := w.childTempDir()
+	if err != nil {
+		return Report{}, target.fromAccessory, xerrors.Errorf("creating the child temp directory: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(childTemp); err != nil {
+			logger.Warn("Error while removing the child temp directory",
+				slog.String("path", childTemp), slog.String("err", err.Error()))
+		}
+	}()
+
+	cmd, err := w.prepareScanCmd(ctx, target, reportFile.Name(), opt, childTemp)
 	if err != nil {
 		return Report{}, target.fromAccessory, xerrors.Errorf("preparing scan command: %w", err)
 	}
@@ -264,7 +281,17 @@ func (w *wrapper) parseSBOM(reportFile io.Reader) (Report, error) {
 	return Report{SBOM: doc}, nil
 }
 
-func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputFile string, opt ScanOption) (*exec.Cmd, error) {
+// childTempDir creates a scratch directory for one child under this process's
+// root. The root is created on demand rather than at construction, so a sweep
+// of the temp filesystem between scans cannot leave the adapter without one.
+func (w *wrapper) childTempDir() (string, error) {
+	if err := os.MkdirAll(w.tempRoot, 0o700); err != nil {
+		return "", err
+	}
+	return os.MkdirTemp(w.tempRoot, "scan-")
+}
+
+func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputFile string, opt ScanOption, childTemp string) (*exec.Cmd, error) {
 	args := []string{
 		string(target.kind), // subcommand
 		"--no-progress",
@@ -360,6 +387,7 @@ func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputF
 	cmd.WaitDelay = time.Second
 
 	cmd.Env = w.cacheEnv(w.ambassador.Environ())
+	cmd.Env = setEnv(cmd.Env, "TMPDIR="+childTemp)
 	if limit := childGoMemLimit(w.config.ChildGoMemLimit); limit != "" {
 		cmd.Env = setEnv(cmd.Env, "GOMEMLIMIT="+limit)
 	}
@@ -481,7 +509,10 @@ func classifyTrivyError(output string) ScanErrorCategory {
 	case strings.Contains(lower, "toomanyrequests") ||
 		strings.Contains(lower, "429 too many requests") ||
 		strings.Contains(lower, "status 429") ||
-		strings.Contains(lower, "status code 429"):
+		strings.Contains(lower, "status: 429") ||
+		strings.Contains(lower, "status code 429") ||
+		// Trivy formats some of its own fetches as "unexpected status code: %d".
+		strings.Contains(lower, "status code: 429"):
 		return ErrCategoryRateLimit
 	// Terminal schema and flag complaints precede the download rules: Trivy
 	// wraps them in "DB error:" and "Java DB error:", which the retryable
@@ -501,9 +532,11 @@ func classifyTrivyError(output string) ScanErrorCategory {
 		strings.Contains(lower, "unable to initialize fs cache") ||
 		strings.Contains(lower, "unable to open cache db") ||
 		strings.Contains(lower, "failed to create cache dir") ||
-		// The bbolt file, not a repository whose path happens to contain
-		// "fanal". A cache directory failure carries one of the messages above.
-		strings.Contains(lower, "fanal.db"):
+		// The bbolt file at <cache-dir>/fanal/fanal.db, not a repository whose
+		// name happens to end in "fanal.db": this rule runs before the auth
+		// rules, so a loose match would report a 401 on such a repository as a
+		// retryable cache fault.
+		strings.Contains(lower, "fanal/fanal.db"):
 		return ErrCategoryCache
 	case strings.Contains(lower, "failed to download artifact") ||
 		strings.Contains(lower, "db error:") ||
@@ -529,14 +562,15 @@ func classifyTrivyError(output string) ScanErrorCategory {
 func (w *wrapper) GetVersion() (VersionInfo, error) {
 	// Harbor polls metadata about twice a minute. Reuse the background probe
 	// while it is current instead of starting a Trivy process per poll.
-	if cached, ok := w.metrics.CachedVersion(); ok {
+	if cached, generation, ok := w.metrics.CachedVersion(); ok {
 		var vi VersionInfo
 		if err := json.Unmarshal(cached, &vi); err != nil {
 			// The probe accepted output this cannot read, so the two disagree
 			// about what the engine says. Running the command per poll instead
 			// is the cost the cache exists to avoid, and it would hide the
-			// disagreement, so report it once and fail the call.
-			w.metrics.InvalidateVersion()
+			// disagreement, so report it once and fail the call. Only these
+			// bytes go: a probe may have replaced them while this decoded.
+			w.metrics.DiscardVersion(generation)
 			w.versionDecode.Do(func() {
 				slog.Error("Cached Trivy version output cannot be decoded",
 					slog.String("err", err.Error()))

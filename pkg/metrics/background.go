@@ -26,7 +26,12 @@ type databaseMetadata struct {
 
 // Start samples metadata and filesystems in one bounded background loop. The
 // returned function waits for cancellation/collection completion before shutdown.
-func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion string, ambassador ext.Ambassador) func() {
+//
+// tempRoot is the directory the adapter gives its Trivy children as TMPDIR.
+// It is passed in rather than derived here: pkg/trivy owns that contract and
+// imports this package, so the naming cannot be duplicated on this side without
+// the two drifting apart.
+func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion, tempRoot string, ambassador ext.Ambassador) func() {
 	if r == nil {
 		return func() {}
 	}
@@ -64,7 +69,7 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 			r.collectFilesystem(os.TempDir(), "tmp")
 			if cfg.Metrics.CacheSizeEnabled {
 				walkCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
-				r.collectCache(walkCtx, cfg.Trivy.CacheDir, os.TempDir(), cfg.Metrics.CacheMaxFiles, backend)
+				r.collectCache(walkCtx, cfg.Trivy.CacheDir, tempRoot, cfg.Metrics.CacheMaxFiles, backend)
 				stop()
 			}
 			// Jitter avoids synchronized directory walks across scanner replicas.
@@ -263,9 +268,14 @@ func (r *Recorder) collectCache(ctx context.Context, root, tempRoot string, maxF
 	r.collectionResult("cache_size", started, firstErr)
 }
 
-// trivyTempBytes sizes what the running and the abandoned children hold under
-// the temp directory. It is not cache: nothing reuses it, and it is the disk a
+// trivyTempBytes sizes what the running children hold under the temp root the
+// adapter gave them. It is not cache: nothing reuses it, and it is the disk a
 // scan actually fails on.
+//
+// Only the adapter's own root is read, never the shared temp directory, so
+// every entry here is a scratch directory this process created: foreign
+// directories can neither enter the total nor spend the budget, and the budget
+// and deadline bound the walk whatever else shares the filesystem.
 func trivyTempBytes(ctx context.Context, root string, remaining *int) (int64, error) {
 	// Listing the root costs an entry, like every other step of the walk, so an
 	// exhausted budget fails this sample too instead of reporting a partial one.
@@ -275,19 +285,22 @@ func trivyTempBytes(ctx context.Context, root string, remaining *int) (int64, er
 	}
 	dir, err := os.Open(root)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// No scan has run yet, or the root went with the process that owned
+			// it. Either way the children hold nothing.
+			return 0, nil
+		}
 		return 0, err
 	}
 	defer dir.Close()
 	var total int64
 	var partial error
 	for {
-		// The temp root holds every process's scratch directory, not only
-		// Trivy's, so read it in chunks instead of loading the whole listing.
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
 		entries, readErr := dir.ReadDir(256)
 		for _, entry := range entries {
-			if !entry.IsDir() || !strings.HasPrefix(entry.Name(), tempDirPrefix) {
-				continue
-			}
 			path := filepath.Join(root, entry.Name())
 			size, err := directoryBytes(ctx, path, remaining, skipUnsupported)
 			var pathErr *fs.PathError
@@ -315,11 +328,6 @@ func trivyTempBytes(ctx context.Context, root string, remaining *int) (int64, er
 		}
 	}
 }
-
-// tempDirPrefix is Trivy's per-process scratch directory, $TMPDIR/trivy-<pid>.
-// pkg/trivy owns the reaper for these; pkg/metrics only sizes them, and cannot
-// import it without a cycle.
-const tempDirPrefix = "trivy-"
 
 // An extracted image layer legitimately contains symlinks, devices and sockets,
 // which are not cache entries and must not fail the sample that meets them.

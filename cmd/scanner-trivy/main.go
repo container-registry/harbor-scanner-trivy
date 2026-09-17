@@ -74,7 +74,7 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 
 	recorder := metrics.New(config.API.MetricsEnabled)
 	recorder.RegisterRedis(rdb)
-	stopMetrics := recorder.Start(ctx, config, info.Version, ext.DefaultAmbassador)
+	stopMetrics := recorder.Start(ctx, config, info.Version, trivy.TempRoot(), ext.DefaultAmbassador)
 	defer stopMetrics()
 	// Reaping is not a metrics concern: a disabled recorder only silences its
 	// counters, the abandoned directories still have to go.

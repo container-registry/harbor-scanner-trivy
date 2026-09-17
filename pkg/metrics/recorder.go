@@ -111,8 +111,8 @@ var catalog = []definition{
 	{"storage_collection_success", "Whether the latest storage collector run succeeded.", "gauge", []string{"collector"}, nil},
 	{"storage_collection_duration_seconds", "Background storage collection duration.", "histogram", []string{"collector"}, prometheus.DefBuckets},
 	{"storage_last_success_timestamp_seconds", "Last successful storage collection.", "gauge", []string{"collector"}, nil},
-	{"temp_dirs_reaped_total", "Abandoned Trivy temp directories removed; each one is a child that died without cleaning up.", "counter", nil, nil},
-	{"temp_dirs_present", "Trivy temp directories left in place at the last sweep, including those of running scans.", "gauge", nil, nil},
+	{"temp_dirs_reaped_total", "Temp roots of adapter processes that are gone, removed; each one is an adapter that was killed before it could clean up after its children.", "counter", nil, nil},
+	{"temp_dirs_present", "Child scratch directories under the adapter temp roots left in place at the last sweep, including those of running scans.", "gauge", nil, nil},
 }
 
 type Recorder struct {
@@ -134,17 +134,20 @@ type versionCache struct {
 	output []byte
 	at     time.Time
 	ttl    time.Duration
+	// Bumped on every store and every drop, so a reader can name the answer it
+	// read rather than "whatever is in there now".
+	generation uint64
 }
 
 func (r *Recorder) cacheVersion(output []byte) {
 	r.version.mu.Lock()
 	defer r.version.mu.Unlock()
 	r.version.output, r.version.at = output, time.Now()
+	r.version.generation++
 }
 
-// InvalidateVersion drops the cached probe. A failed probe means the cached
-// answer no longer describes the engine, and a reader that cannot decode it
-// proves the same thing from the other side.
+// InvalidateVersion drops the cached probe. The probe failed, so the cached
+// answer no longer describes the engine whatever it says.
 func (r *Recorder) InvalidateVersion() {
 	if r == nil {
 		return
@@ -152,23 +155,42 @@ func (r *Recorder) InvalidateVersion() {
 	r.version.mu.Lock()
 	defer r.version.mu.Unlock()
 	r.version.output, r.version.at = nil, time.Time{}
+	r.version.generation++
+}
+
+// DiscardVersion drops the cached probe only while it is still the one the
+// caller read. A reader that cannot decode those bytes proves they are
+// unusable, but the background probe may have replaced them meanwhile, and a
+// newer answer is not what that reader found fault with.
+func (r *Recorder) DiscardVersion(generation uint64) {
+	if r == nil {
+		return
+	}
+	r.version.mu.Lock()
+	defer r.version.mu.Unlock()
+	if r.version.generation != generation {
+		return
+	}
+	r.version.output, r.version.at = nil, time.Time{}
+	r.version.generation++
 }
 
 // CachedVersion returns the most recent successful engine probe while it is
 // younger than two collection intervals, so callers know it describes the
 // current state without measuring it again. Two, because the collection
 // interval carries jitter: at exactly one interval every probe would leave a
-// gap for Harbor's next poll to fall into.
-func (r *Recorder) CachedVersion() ([]byte, bool) {
+// gap for Harbor's next poll to fall into. The generation names the answer
+// returned, for DiscardVersion.
+func (r *Recorder) CachedVersion() ([]byte, uint64, bool) {
 	if r == nil {
-		return nil, false
+		return nil, 0, false
 	}
 	r.version.mu.Lock()
 	defer r.version.mu.Unlock()
 	if r.version.ttl <= 0 || len(r.version.output) == 0 || time.Since(r.version.at) > r.version.ttl {
-		return nil, false
+		return nil, 0, false
 	}
-	return r.version.output, true
+	return r.version.output, r.version.generation, true
 }
 
 func New(enabled bool) *Recorder {
