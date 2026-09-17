@@ -65,13 +65,11 @@ func (e *ScanError) Unwrap() error {
 // status or a keyword.
 const tokenPunctuation = "\"':;,()[]"
 
-func trimToken(word string) string { return strings.Trim(word, tokenPunctuation) }
-
 // Recognize HTTP statuses and registry error prefixes, not arbitrary counts or
 // descriptive words in CLI stderr. Typed registry errors use their HTTP status.
 func isAuthenticationErrorMessage(message string) bool {
 	words := strings.Fields(strings.ToLower(message))
-	token := func(i int) string { return trimToken(words[i]) }
+	token := func(i int) string { return strings.Trim(words[i], tokenPunctuation) }
 	for i := range words {
 		word := token(i)
 		if word == "401" || word == "403" {
