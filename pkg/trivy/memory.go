@@ -1,7 +1,9 @@
 package trivy
 
 import (
+	"log/slog"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -19,23 +21,39 @@ var cgroupMemoryLimitPaths = []string{
 	"/sys/fs/cgroup/memory/memory.limit_in_bytes",
 }
 
+// goMemLimit is what the Go runtime accepts: a decimal integer with an optional
+// exact unit suffix. The runtime is strict about it - "10GB", "1.5GiB" and a
+// leading space each make the child exit 2 before running, which would fail
+// every scan - so a configured value is checked rather than passed on trust.
+var goMemLimit = regexp.MustCompile(`^[0-9]+(B|KiB|MiB|GiB|TiB)?$`)
+
 // childGoMemLimit resolves the GOMEMLIMIT for the Trivy child. An empty setting
 // derives one from the cgroup, "off" passes the environment through unchanged,
-// and anything else is handed to the runtime verbatim so operators can use the
-// suffixed forms ("2GiB") the adapter does not need to understand.
+// and a valid explicit setting is handed to the runtime as given.
 func childGoMemLimit(configured string, paths ...string) string {
-	switch configured {
-	case "off":
+	switch {
+	case configured == "off":
 		return ""
-	case "":
-		limit, ok := cgroupMemoryLimit(paths...)
-		if !ok {
-			return ""
-		}
-		return strconv.FormatInt(int64(float64(limit)*goMemLimitShare), 10)
-	default:
+	case configured == "":
+		return cgroupGoMemLimit(paths...)
+	case goMemLimit.MatchString(configured):
 		return configured
+	default:
+		// Falling back to the derived limit keeps the protection a typo would
+		// otherwise remove, and keeps Trivy startable either way.
+		slog.Warn("SCANNER_TRIVY_CHILD_GOMEMLIMIT is not a value the Go runtime accepts, deriving the limit instead",
+			slog.String("configured", configured),
+			slog.String("want", "an integer with no suffix or an exact B, KiB, MiB, GiB or TiB suffix, or \"off\""))
+		return cgroupGoMemLimit(paths...)
 	}
+}
+
+func cgroupGoMemLimit(paths ...string) string {
+	limit, ok := cgroupMemoryLimit(paths...)
+	if !ok {
+		return ""
+	}
+	return strconv.FormatInt(int64(float64(limit)*goMemLimitShare), 10)
 }
 
 func cgroupMemoryLimit(paths ...string) (int64, bool) {

@@ -45,3 +45,31 @@ func TestChildGoMemLimitHonoursExplicitSettings(t *testing.T) {
 	require.Empty(t, childGoMemLimit("off", cgroupFile(t, "2147483648")))
 	require.Equal(t, "2GiB", childGoMemLimit("2GiB", cgroupFile(t, "2147483648")))
 }
+
+// Verified against the runtime: GOMEMLIMIT=10GB, 1.5GiB or " 2GiB" makes a Go
+// child print the value and exit 2 before main runs, so passing a configured
+// value through unchecked would fail every scan.
+func TestInvalidChildGoMemLimitFallsBackToTheCgroup(t *testing.T) {
+	limit := filepath.Join(t.TempDir(), "memory.max")
+	require.NoError(t, os.WriteFile(limit, []byte("1000000000\n"), 0o600))
+
+	for _, configured := range []string{"10GB", "1.5GiB", " 2GiB", "2 GiB", "2gib", "abc"} {
+		t.Run(configured, func(t *testing.T) {
+			require.Equal(t, "800000000", childGoMemLimit(configured, limit))
+		})
+	}
+
+	// With no cgroup to fall back to, the child keeps the runtime default
+	// rather than being handed something that stops it starting.
+	for _, configured := range []string{"10GB", "1.5GiB"} {
+		require.Empty(t, childGoMemLimit(configured, filepath.Join(t.TempDir(), "absent")))
+	}
+}
+
+func TestValidChildGoMemLimitIsPassedThrough(t *testing.T) {
+	for _, configured := range []string{"2GiB", "800000000", "512MiB", "1TiB", "1024B", "16KiB"} {
+		t.Run(configured, func(t *testing.T) {
+			require.Equal(t, configured, childGoMemLimit(configured, filepath.Join(t.TempDir(), "absent")))
+		})
+	}
+}
