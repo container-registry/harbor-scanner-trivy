@@ -31,7 +31,7 @@ against. A failed probe removes `db_schema_version` and sets `metadata_collectio
 answer, not a guarantee that the binary is unchanged: pair it with
 `metadata_collection_success` before trusting it, and with
 `metadata_last_success_timestamp_seconds` to see how old it is. The adapter
-metadata API reuses that probe while it is younger than the collection interval, so
+metadata API reuses that probe while it is younger than two collection intervals, so
 Harbor's polling does not start a Trivy process per request. File walks do not
 follow symlinks. Missing or unsupported cache layouts produce collection failures and omit
 the affected size series. They do not report a zero size. Capacity areas and replicas may

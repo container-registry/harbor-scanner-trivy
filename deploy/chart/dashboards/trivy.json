@@ -3132,7 +3132,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (code) (rate(harbor_scanner_trivy_subprocess_exit_code_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\"}[$__rate_interval])) * 60",
+          "expr": "sum by (code) (rate(harbor_scanner_trivy_subprocess_exit_code_total{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",scanner=~\"${scanner:regex}\",command=~\"image|sbom\"}[$__rate_interval])) * 60",
           "legendFormat": "exit {{code}}",
           "refId": "A",
           "interval": "1m"
@@ -5036,7 +5036,7 @@
       "type": "state-timeline",
       "id": 1101,
       "title": "Queue sampler status",
-      "description": "harbor_scanner_trivy_queue_collection_success per replica. The sampler runs HLEN/XLEN/XRANGE against the job Redis every 10 s; 0 means the job/report Redis is unreachable from that replica. On failure the queue gauges are deleted rather than zeroed, so this is the metric that moves during a Redis outage. Alert: [Trivy] Queue collection failing.",
+      "description": "harbor_scanner_trivy_queue_collection_success per replica. The sampler runs HLEN/XLEN/XRANGE against the job Redis every 10 s; 0 means the job/report Redis is unreachable or the consumer group is missing from that replica. On failure the queue gauges are deleted rather than zeroed, so this is the metric that moves during a Redis outage. Alert: [Trivy] Queue collection failing.",
       "targets": [
         {
           "datasource": {
@@ -5306,7 +5306,7 @@
       "type": "timeseries",
       "id": 1104,
       "title": "Retries and lease losses",
-      "description": "scan_retries_total: a delivery was re-claimed after an interrupted execution (worker restart, lease expiry). lease_losses_total: a worker lost ownership while running. Both are recovery events; a steady rate points at workers being killed mid-scan (OOM, timeout) or Redis latency. queue_group_recreated_total: the worker recreated the consumer group after the job Redis lost it (ops-visibility build); any value means the Redis data was lost.",
+      "description": "scan_retries_total: a delivery was re-claimed after an interrupted execution (worker restart, lease expiry). lease_losses_total: a worker lost ownership while running. Both are recovery events; a steady rate points at workers being killed mid-scan (OOM, timeout) or Redis latency. queue_group_recreated_total: the worker recreated the consumer group after its state was lost (ops-visibility build). The stream and its deliveries can survive this, so it does not by itself mean the job Redis lost data; check persistence, restarts and manual group deletion.",
       "targets": [
         {
           "datasource": {

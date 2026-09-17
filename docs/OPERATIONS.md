@@ -29,7 +29,7 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 
 ## Failure categories and what to do
 
-`job_failures_total{category}` is derived from the FATAL line of Trivy's stderr (`pkg/trivy/wrapper.go`, `classifyTrivyError`). Retryable categories are retried within the worker's attempt limit; terminal ones fail the scan immediately.
+`job_failures_total{category}` for a Trivy subprocess failure is derived from the FATAL line of its stderr (`pkg/trivy/wrapper.go`, `classifyTrivyError`); failures the adapter raises itself around the scan - registry access, report parsing, storage and persistence - carry their own category instead. Retryable categories are retried within the worker's attempt limit; terminal ones fail the scan immediately.
 
 | Category | Meaning | Retried | Action |
 |---|---|---|---|
@@ -54,7 +54,7 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 - Trivy refreshes the vulnerability DB at scan start once `NextUpdate` has passed, with a one hour re-download damper (`pkg/db/db.go`, `isNewDB`). `NextUpdate` comes from the published `metadata.json`; measured cadence is 24 h. Nothing refreshes it between scans: an idle scanner sits past `NextUpdate` legitimately.
 - The Java DB is refreshed only while scanning an image that contains JAR files, once per process, inside the scan's timeout budget (`pkg/fanal/analyzer/language/java/jar/jar.go`). Its `NextUpdate` is three days out. A registry with few Java images shows an old Java index for weeks; that is not a fault.
 - Standalone Trivy has no stale-DB fallback: a failed refresh is exit 1 for that scan. Server mode does fall back; the adapter runs standalone.
-- `--skip-db-update` (`SCANNER_TRIVY_SKIP_DB_UPDATE`) with a valid DB of any age is silent at INFO level. Side-loaded DBs need `DownloadedAt` set in `metadata.json` (use `trivy --download-db-only` or `oras` per Trivy's air-gap docs), otherwise Trivy re-downloads them with a warning.
+- `--skip-db-update` (`SCANNER_TRIVY_SKIP_UPDATE`) with a valid DB of any age is silent at INFO level. Side-loaded DBs need `DownloadedAt` set in `metadata.json` (use `trivy --download-db-only` or `oras` per Trivy's air-gap docs), otherwise Trivy re-downloads them with a warning.
 - `db_schema_version{database}` is the schema of the file on disk as reported by `trivy version --format json`. The engine does not report the schema it supports; a mismatch surfaces as the `db_schema` failure category.
 - Warm-up for a fresh volume: run `trivy image --download-db-only` and `--download-java-db-only` in an init step, or accept that the first scan (and the first Java scan) pays the download inside its timeout.
 
@@ -71,7 +71,7 @@ The queue is a Redis Stream with a consumer group (`<namespace>:stream:v1:scan_a
 
 - `queue_collection_success` = 0 with `queue_collection_errors_total{query="group"}` rising: the consumer group is gone, typically because the job Redis restarted without persistence after the scanner did. The worker recreates it and counts `queue_group_recreated_total`; on older builds restart the StatefulSet.
 - `queue_oldest_age_seconds` climbing while `jobs_in_progress` is 0 on every replica: entries are not being read. Check the group as above, then the worker logs for `Recovering scan delivery`.
-- `queue_quarantined_jobs` > 0: a delivery could not be decoded. Inspect `<namespace>:quarantine` with `redis-cli` (payloads contain registry credentials, treat as secrets), fix the producer, delete the entry.
+- `queue_quarantined_jobs` > 0: a delivery could not be decoded. Inspect `<namespace>:stream:v1:scan_artifact:quarantine` with `redis-cli` (payloads contain registry credentials, treat as secrets), fix the producer, delete the entry.
 - `scan_retries_total` and `lease_losses_total` rising: workers are being interrupted mid-scan (OOMKill, timeout, restart) or the lease renewal is failing. Correlate with `subprocess_exits_total{reason="signal"}` and container restarts.
 - Reports live in the same Redis with a TTL (`SCANNER_STORE_REDIS_SCAN_JOB_TTL`); losing the Redis data loses queued work and unread reports, Harbor marks those scans as errors after its poll times out.
 
