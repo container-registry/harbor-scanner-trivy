@@ -28,17 +28,35 @@ func (b *LimitedBuffer) Write(p []byte) (int, error) {
 		p = p[len(p)-b.Limit:]
 		b.truncated = true
 	}
-	if drop := len(b.buf) + len(p) - b.Limit; drop > 0 {
-		b.buf = append(b.buf[:0], b.buf[drop:]...)
-		b.truncated = true
-	}
 	b.buf = append(b.buf, p...)
+	if len(b.buf) > b.Limit {
+		b.truncated = true
+		// Trimming on every write would copy the whole retained tail each
+		// time, so a child emitting a megabyte in small writes would cost the
+		// adapter O(limit) per write. Let the buffer reach twice the limit and
+		// trim then: amortized O(1) for at most twice the memory.
+		if len(b.buf) > 2*b.Limit {
+			b.trim()
+		}
+	}
 	return written, nil
 }
 
-func (b *LimitedBuffer) Bytes() []byte { return b.buf }
+func (b *LimitedBuffer) trim() {
+	if len(b.buf) > b.Limit {
+		b.buf = append(b.buf[:0], b.buf[len(b.buf)-b.Limit:]...)
+	}
+}
 
-func (b *LimitedBuffer) String() string { return string(b.buf) }
+// Bytes returns the retained tail. It trims first, because Write leaves room to
+// spare rather than paying for it on every write; readers come after the child
+// has exited, so this is not concurrent with writing.
+func (b *LimitedBuffer) Bytes() []byte {
+	b.trim()
+	return b.buf
+}
+
+func (b *LimitedBuffer) String() string { return string(b.Bytes()) }
 
 // Truncated reports whether output was dropped. It is a property of the buffer,
 // available to code holding one directly; RunCmd returns bytes rather than the
