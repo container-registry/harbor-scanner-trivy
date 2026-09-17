@@ -435,12 +435,19 @@ func TestRestAPI(t *testing.T) {
 	t.Run("GET /probe/ready", func(t *testing.T) {
 		// The real worker, queue and binary answer here, which is the only
 		// place the readiness checks run against something other than a fake.
+		// The condition runs on its own goroutine, so a fatal assertion here
+		// would Goexit without a verdict and the real error would be reported
+		// as a timeout. Keep the last error and report it after the wait.
+		var lastErr error
 		require.Eventually(t, func() bool {
 			rs, err := ts.Client().Get(ts.URL + "/probe/ready")
-			require.NoError(t, err)
+			if err != nil {
+				lastErr = err
+				return false
+			}
 			defer rs.Body.Close()
 			return rs.StatusCode == http.StatusOK
-		}, 10*time.Second, 50*time.Millisecond)
+		}, 10*time.Second, 50*time.Millisecond, "last error from /probe/ready: %v", &lastErr)
 	})
 }
 
@@ -476,7 +483,10 @@ func initTrivy(t *testing.T, now time.Time) (trivy.Wrapper, etc.Trivy) {
 		IgnoreUnfixed:    true,
 		DebugMode:        true,
 	}
-	wrapper := trivy.NewWrapper(trivyConf, ext.DefaultAmbassador)
+	tempRoot, err := trivy.NewTempRoot()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tempRoot.Close()) })
+	wrapper := trivy.NewWrapper(trivyConf, ext.DefaultAmbassador, tempRoot)
 
 	return wrapper, trivyConf
 }

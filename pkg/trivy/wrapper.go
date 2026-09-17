@@ -71,7 +71,7 @@ type wrapper struct {
 	ambassador ext.Ambassador
 	binary     binaryCheck
 	// Root for the private TMPDIR each child gets; see tempdir.go.
-	tempRoot string
+	tempRoot *TempRoot
 	// One line per process: a cache the adapter cannot read is one fault, not
 	// one per metadata poll.
 	versionDecode sync.Once
@@ -98,7 +98,7 @@ func (w *wrapper) Available() error {
 	return err
 }
 
-func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metrics.Recorder) Wrapper {
+func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, tempRoot *TempRoot, recorders ...*metrics.Recorder) Wrapper {
 	backend := config.CacheBackend
 	if strings.HasPrefix(backend, "redis") {
 		backend = "redis"
@@ -108,7 +108,7 @@ func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, recorders ...*metri
 		metrics:    metrics.Optional(recorders),
 		config:     config,
 		ambassador: ambassador,
-		tempRoot:   TempRoot(),
+		tempRoot:   tempRoot,
 	}
 }
 
@@ -285,10 +285,10 @@ func (w *wrapper) parseSBOM(reportFile io.Reader) (Report, error) {
 // root. The root is created on demand rather than at construction, so a sweep
 // of the temp filesystem between scans cannot leave the adapter without one.
 func (w *wrapper) childTempDir() (string, error) {
-	if err := os.MkdirAll(w.tempRoot, 0o700); err != nil {
+	if err := os.MkdirAll(w.tempRoot.Path(), 0o700); err != nil {
 		return "", err
 	}
-	return os.MkdirTemp(w.tempRoot, "scan-")
+	return os.MkdirTemp(w.tempRoot.Path(), "scan-")
 }
 
 func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputFile string, opt ScanOption, childTemp string) (*exec.Cmd, error) {
@@ -517,8 +517,10 @@ func classifyTrivyError(output string) ScanErrorCategory {
 	// Terminal schema and flag complaints precede the download rules: Trivy
 	// wraps them in "DB error:" and "Java DB error:", which the retryable
 	// download rules below would otherwise swallow.
-	case strings.Contains(lower, "trivy version is old") ||
-		strings.Contains(lower, "--skip-db-update cannot be specified") ||
+	// Not "trivy version is old": trivy logs that on its own ERROR line
+	// (v0.74.0 pkg/db/db.go:140) and returns the schema text below as the
+	// fatal, so fatalDiagnostics has already dropped it by here.
+	case strings.Contains(lower, "--skip-db-update cannot be specified") ||
 		(strings.Contains(lower, "--skip-java-db-update") && strings.Contains(lower, "cannot be specified")) ||
 		(strings.Contains(lower, "doesn't match") && strings.Contains(lower, "schema")):
 		return ErrCategoryDBSchema
@@ -538,9 +540,13 @@ func classifyTrivyError(output string) ScanErrorCategory {
 		// retryable cache fault.
 		strings.Contains(lower, "fanal/fanal.db"):
 		return ErrCategoryCache
-	case strings.Contains(lower, "failed to download artifact") ||
-		strings.Contains(lower, "db error:") ||
-		(strings.Contains(lower, "java db") && strings.Contains(lower, "error")):
+	// A 401/403 on the database artifact is the registry refusing the adapter,
+	// which no retry fixes, so authentication is settled before the retryable
+	// download rules claim the message.
+	case !isAuthenticationErrorMessage(lower) &&
+		(strings.Contains(lower, "failed to download artifact") ||
+			strings.Contains(lower, "db error:") ||
+			(strings.Contains(lower, "java db") && strings.Contains(lower, "error"))):
 		return ErrCategoryDBDownload
 	case strings.Contains(lower, "unsupported artifact type"):
 		return ErrCategoryUnsupportedArtifact

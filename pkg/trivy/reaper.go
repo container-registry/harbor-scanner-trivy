@@ -20,10 +20,13 @@ const (
 	// The shared temp root holds every process's scratch space, so it is read in
 	// chunks rather than loaded whole.
 	reapBatch = 256
-	// A sibling root belongs to an adapter that is gone, because one adapter
-	// runs per container. The age guard only covers a second adapter that
-	// started moments ago in a development environment sharing one /tmp.
+	// A root whose owner has not touched it for this long has no owner left. It
+	// is several heartbeats, so a descheduled or briefly stalled adapter does
+	// not lose the scan it is running.
 	reapMinAge = 10 * time.Minute
+	// Comfortably inside reapMinAge, and unrelated to the sweep interval: the
+	// claim has to stay fresh whether or not this pod is sweeping.
+	heartbeatInterval = 2 * time.Minute
 )
 
 // Reaper removes the child scratch directories left by adapter processes that
@@ -35,29 +38,36 @@ const (
 type Reaper struct {
 	metrics *metrics.Recorder
 	root    string
-	own     string
+	own     *TempRoot
 }
 
-func NewReaper(recorders ...*metrics.Recorder) *Reaper {
-	return &Reaper{metrics: metrics.Optional(recorders), root: os.TempDir(), own: TempRoot()}
+func NewReaper(own *TempRoot, recorders ...*metrics.Recorder) *Reaper {
+	return &Reaper{metrics: metrics.Optional(recorders), root: os.TempDir(), own: own}
 }
 
-// Start sweeps immediately, because the roots worth reaping were left by a
-// previous pod, and then on a fixed interval. The returned function waits for
-// an in-flight sweep.
+// Start publishes this process's claim on its own root, sweeps immediately
+// because the roots worth reaping were left by a previous process, and then
+// keeps both going. The returned function waits for an in-flight sweep.
 func (r *Reaper) Start(ctx context.Context) func() {
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(reapInterval)
-		defer ticker.Stop()
+		r.own.Heartbeat()
+		r.sweep(ctx)
+		sweeps := time.NewTicker(reapInterval)
+		defer sweeps.Stop()
+		beats := time.NewTicker(heartbeatInterval)
+		defer beats.Stop()
 		for {
-			r.sweep(ctx)
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-beats.C:
+				r.own.Heartbeat()
+			case <-sweeps.C:
+				r.own.Heartbeat()
+				r.sweep(ctx)
 			}
 		}
 	}()
@@ -85,26 +95,7 @@ func (r *Reaper) sweep(ctx context.Context) {
 			if !entry.IsDir() || !strings.HasPrefix(entry.Name(), AdapterTempPrefix) {
 				continue
 			}
-			path := filepath.Join(r.root, entry.Name())
-			if path == r.own {
-				present += childCount(path)
-				continue
-			}
-			info, err := entry.Info()
-			if err != nil || time.Since(info.ModTime()) < reapMinAge {
-				present += childCount(path)
-				continue
-			}
-			freed := directorySize(path)
-			if err := os.RemoveAll(path); err != nil {
-				slog.Warn("Removing an abandoned adapter temp directory failed",
-					slog.String("path", path), slog.String("err", err.Error()))
-				present += childCount(path)
-				continue
-			}
-			slog.Info("Removed the temp directory of an adapter process that is gone",
-				slog.String("path", path), slog.Int64("freed_bytes", freed))
-			r.metrics.Inc("temp_dirs_reaped_total")
+			present += r.consider(filepath.Join(r.root, entry.Name()), entry)
 		}
 		if errors.Is(readErr, io.EOF) {
 			break
@@ -117,6 +108,34 @@ func (r *Reaper) sweep(ctx context.Context) {
 		}
 	}
 	r.metrics.Set("temp_dirs_present", float64(present))
+}
+
+// consider removes one adapter root if nothing owns it any more, and reports the
+// child scratch directories left standing under it.
+func (r *Reaper) consider(path string, entry fs.DirEntry) int {
+	if path == r.own.Path() || !unowned(entry) {
+		return childCount(path)
+	}
+	freed := directorySize(path)
+	if err := os.RemoveAll(path); err != nil {
+		slog.Warn("Removing an abandoned adapter temp directory failed",
+			slog.String("path", path), slog.String("err", err.Error()))
+		return childCount(path)
+	}
+	slog.Info("Removed the temp directory of an adapter process that is gone",
+		slog.String("path", path), slog.Int64("freed_bytes", freed))
+	r.metrics.Inc("temp_dirs_reaped_total")
+	return 0
+}
+
+// unowned reports whether the root's owner has stopped refreshing it. The owner
+// touches its own root every heartbeatInterval, so this measures the process
+// rather than what the current scan happens to be writing. An unreadable entry
+// is treated as owned: the cost of waiting one interval is disk, the cost of
+// being wrong is a running scan.
+func unowned(entry fs.DirEntry) bool {
+	info, err := entry.Info()
+	return err == nil && time.Since(info.ModTime()) >= reapMinAge
 }
 
 // childCount reports the scratch directories under an adapter root. Under this

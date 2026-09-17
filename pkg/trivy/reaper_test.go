@@ -35,13 +35,18 @@ func age(t *testing.T, path string, age time.Duration) {
 	require.NoError(t, os.Chtimes(path, when, when))
 }
 
+// testRoot is an adapter temp root the test owns, standing in for the one
+// NewTempRoot creates under os.TempDir().
+func testRoot(t *testing.T) *TempRoot {
+	t.Helper()
+	return &TempRoot{path: filepath.Join(t.TempDir(), AdapterTempPrefix+"test")}
+}
+
 func newReaper(t *testing.T, recorder *metrics.Recorder, temp string) *Reaper {
 	t.Helper()
-	return &Reaper{
-		metrics: recorder,
-		root:    temp,
-		own:     filepath.Join(temp, AdapterTempPrefix+strconv.Itoa(os.Getpid())),
-	}
+	own := filepath.Join(temp, AdapterTempPrefix+"own")
+	require.NoError(t, os.MkdirAll(own, 0o755))
+	return &Reaper{metrics: recorder, root: temp, own: &TempRoot{path: own}}
 }
 
 func metricValue(t *testing.T, r *metrics.Recorder, name string) float64 {
@@ -83,8 +88,8 @@ func TestReaperNeverTouchesTrivyScratchDirectories(t *testing.T) {
 
 func TestReaperRemovesRootsOfAdapterProcessesThatAreGone(t *testing.T) {
 	temp := t.TempDir()
-	own := adapterRoot(t, temp, AdapterTempPrefix+strconv.Itoa(os.Getpid()), 16)
-	gone := adapterRoot(t, temp, AdapterTempPrefix+"999999", 4096, 4096)
+	own := adapterRoot(t, temp, AdapterTempPrefix+"own", 16)
+	gone := adapterRoot(t, temp, AdapterTempPrefix+"gone", 4096, 4096)
 	report := adapterRoot(t, temp, "scan_report_123", 16)
 
 	recorder := metrics.New(true)
@@ -105,7 +110,7 @@ func TestReaperRemovesRootsOfAdapterProcessesThatAreGone(t *testing.T) {
 
 func TestReaperRunsWithoutMetricsAndStopsCleanly(t *testing.T) {
 	temp := t.TempDir()
-	gone := adapterRoot(t, temp, AdapterTempPrefix+"999999", 16)
+	gone := adapterRoot(t, temp, AdapterTempPrefix+"gone", 16)
 	r := newReaper(t, metrics.New(false), temp)
 	stop := r.Start(context.Background())
 	require.Eventually(t, func() bool {
@@ -119,7 +124,7 @@ func TestReaperLeavesRecentRootsAlone(t *testing.T) {
 	temp := t.TempDir()
 	// An adapter that started moments ago, which happens only where a second
 	// adapter shares this temp filesystem.
-	fresh := adapterRoot(t, temp, AdapterTempPrefix+"999999", 16)
+	fresh := adapterRoot(t, temp, AdapterTempPrefix+"gone", 16)
 	age(t, fresh, time.Minute)
 
 	recorder := metrics.New(true)
@@ -138,7 +143,7 @@ func TestReaperLeavesRecentRootsAlone(t *testing.T) {
 
 func TestFailedListingDropsTheDirectoryCount(t *testing.T) {
 	temp := t.TempDir()
-	adapterRoot(t, temp, AdapterTempPrefix+strconv.Itoa(os.Getpid()), 16)
+	adapterRoot(t, temp, AdapterTempPrefix+"own", 16)
 	recorder := metrics.New(true)
 	r := newReaper(t, recorder, temp)
 	r.sweep(context.Background())
@@ -152,7 +157,7 @@ func TestFailedListingDropsTheDirectoryCount(t *testing.T) {
 
 func TestReaperStopsOnACancelledContext(t *testing.T) {
 	temp := t.TempDir()
-	gone := adapterRoot(t, temp, AdapterTempPrefix+"999999", 16)
+	gone := adapterRoot(t, temp, AdapterTempPrefix+"gone", 16)
 	recorder := metrics.New(true)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

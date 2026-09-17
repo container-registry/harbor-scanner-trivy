@@ -107,7 +107,10 @@ func TestDedicatedCacheBackends(t *testing.T) {
 				_, cfg := initTrivy(t, time.Now())
 				cfg.CacheBackend, cfg.CacheTTL = backendURL, time.Hour
 				cfg.CacheRedisCA, cfg.CacheRedisCert, cfg.CacheRedisKey = cert, cert, key
-				return trivy.NewWrapper(cfg, ext.DefaultAmbassador)
+				tempRoot, err := trivy.NewTempRoot()
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, tempRoot.Close()) })
+				return trivy.NewWrapper(cfg, ext.DefaultAmbassador, tempRoot)
 			}
 			ref := trivy.ImageRef{Name: image.String(), Auth: trivy.NoAuth{}, NonSSL: true}
 			coldStart := time.Now()

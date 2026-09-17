@@ -72,16 +72,29 @@ func run(ctx context.Context, info etc.BuildInfo) error {
 		return err
 	}
 
+	// One root per adapter process, created before anything can write a child
+	// into it and removed on a clean exit; see pkg/trivy/tempdir.go.
+	tempRoot, err := trivy.NewTempRoot()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := tempRoot.Close(); err != nil {
+			slog.Warn("Removing the adapter temp root failed",
+				slog.String("path", tempRoot.Path()), slog.String("err", err.Error()))
+		}
+	}()
+
 	recorder := metrics.New(config.API.MetricsEnabled)
 	recorder.RegisterRedis(rdb)
-	stopMetrics := recorder.Start(ctx, config, info.Version, trivy.TempRoot(), ext.DefaultAmbassador)
+	stopMetrics := recorder.Start(ctx, config, info.Version, tempRoot.Path(), ext.DefaultAmbassador)
 	defer stopMetrics()
 	// Reaping is not a metrics concern: a disabled recorder only silences its
 	// counters, the abandoned directories still have to go.
-	stopReaper := trivy.NewReaper(recorder).Start(ctx)
+	stopReaper := trivy.NewReaper(tempRoot, recorder).Start(ctx)
 	defer stopReaper()
 
-	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, recorder)
+	wrapper := trivy.NewWrapper(config.Trivy, ext.DefaultAmbassador, tempRoot, recorder)
 	store := redis.NewStore(config.RedisStore, rdb, recorder)
 	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}), recorder)
 	enqueuer := queue.NewEnqueuer(config.JobQueue, store, recorder)

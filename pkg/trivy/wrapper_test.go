@@ -54,7 +54,7 @@ func TestScanErrorPreservesCauseAndClassificationAfterRedaction(t *testing.T) {
 			require.NoError(t, err)
 			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 			ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte("redis cache unavailable"), fmt.Errorf("cache: %w", cause))
-			w := NewWrapper(etc.Trivy{CacheBackend: "redis://:cache@redis:6379/0", CacheTTL: time.Hour}, ambassador)
+			w := NewWrapper(etc.Trivy{CacheBackend: "redis://:cache@redis:6379/0", CacheTTL: time.Hour}, ambassador, testRoot(t))
 			_, err = w.Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 			var scanErr *ScanError
 			require.ErrorAs(t, err, &scanErr)
@@ -266,7 +266,7 @@ func TestWrapper_Scan(t *testing.T) {
 			NonSSL: true,
 		}
 
-		got, err := NewWrapper(config, ambassador).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
+		got, err := NewWrapper(config, ambassador, testRoot(t)).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
 		require.NoError(t, err)
 		require.Equal(t, expectedReport, got)
 
@@ -339,7 +339,7 @@ func TestWrapper_Scan(t *testing.T) {
 			Auth: NoAuth{},
 		}
 
-		got, err := NewWrapper(config, ambassador).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
+		got, err := NewWrapper(config, ambassador, testRoot(t)).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
 		require.NoError(t, err)
 		require.Equal(t, expectedReport, got)
 
@@ -372,7 +372,7 @@ func TestWrapper_GetVersion(t *testing.T) {
 	},
 	).Return(b, []byte{}, nil)
 
-	vi, err := NewWrapper(config, ambassador).GetVersion()
+	vi, err := NewWrapper(config, ambassador, testRoot(t)).GetVersion()
 	require.NoError(t, err)
 	require.Equal(t, expectedVersion, vi)
 
@@ -402,7 +402,7 @@ func TestMalformedReportHasReportParseCategory(t *testing.T) {
 	require.NoError(t, err)
 	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte{}, nil)
-	wrapper := NewWrapper(etc.Trivy{}, ambassador)
+	wrapper := NewWrapper(etc.Trivy{}, ambassador, testRoot(t))
 	_, err = wrapper.Scan(context.Background(), ImageRef{Name: "alpine:latest", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 	var scanErr *ScanError
 	require.ErrorAs(t, err, &scanErr)
@@ -433,6 +433,12 @@ func splitChildTempDir(environ []string) ([]string, string) {
 			tempDir = value
 			continue
 		}
+		// GOMEMLIMIT is derived from the container's cgroup when the adapter
+		// sets no limit of its own, so it is present or absent depending on the
+		// host the tests run on.
+		if strings.HasPrefix(entry, "GOMEMLIMIT=") {
+			continue
+		}
 		rest = append(rest, entry)
 	}
 	return rest, tempDir
@@ -461,7 +467,7 @@ func TestExecutionRetryPolicy(t *testing.T) {
 			require.NoError(t, err)
 			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 			ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte(tc.output), &exec.ExitError{})
-			_, err = NewWrapper(etc.Trivy{}, ambassador).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+			_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 			var failure *ScanError
 			require.ErrorAs(t, err, &failure)
 			require.Equal(t, tc.category, failure.Category)
@@ -644,6 +650,25 @@ func TestClassifierNeedsMoreThanAMatchingSubstring(t *testing.T) {
 			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: unexpected status code: 429",
 			expected: ErrCategoryRateLimit,
 		},
+		{
+			// The registry refusing the adapter the database artifact is
+			// terminal; retrying a 401 only spends the attempt limit.
+			name:     "a database artifact the registry refuses",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact: GET https://ghcr.io/v2/aquasecurity/trivy-db/manifests/2: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "a database artifact that simply could not be fetched",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact: connection reset by peer",
+			expected: ErrCategoryDBDownload,
+		},
+		{
+			// trivy logs "Trivy version is old" on its own ERROR line and
+			// returns this as the fatal, so the schema rule has to match this.
+			name:     "the schema mismatch trivy actually reports as fatal",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: the version of DB schema doesn't match. Local DB: 3, Expected: 2",
+			expected: ErrCategoryDBSchema,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expected, classifyTrivyError(tc.output))
@@ -671,7 +696,7 @@ func TestFailureIsDiagnosedFromStderrAndTrimmedToItsTail(t *testing.T) {
 			require.NoError(t, err)
 			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 			ambassador.On("RunCmd", mock.Anything).Return([]byte(tc.stdout), []byte(tc.stderr), &exec.ExitError{})
-			_, err = NewWrapper(etc.Trivy{}, ambassador).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+			_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 			var failure *ScanError
 			require.ErrorAs(t, err, &failure)
 			require.Equal(t, tc.expected, failure.Category)
@@ -692,7 +717,7 @@ func TestScanDetailCarriesTheTailOfTheDiagnostics(t *testing.T) {
 	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 	stderr := strings.Repeat("noisy debug line\n", 1000) + "FATAL\tFatal error\tunsupported artifact type \"application/vnd.cncf.helm.config.v1+json\""
 	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte(stderr), &exec.ExitError{})
-	_, err = NewWrapper(etc.Trivy{}, ambassador).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 	var failure *ScanError
 	require.ErrorAs(t, err, &failure)
 	require.Equal(t, ErrCategoryUnsupportedArtifact, failure.Category)
@@ -717,7 +742,7 @@ func TestGetVersionReusesTheBackgroundProbe(t *testing.T) {
 	// No RunCmd expectation: reaching the CLI would fail the test.
 	ambassador := ext.NewMockAmbassador()
 	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
-	vi, err := NewWrapper(cfg.Trivy, ambassador, recorder).GetVersion()
+	vi, err := NewWrapper(cfg.Trivy, ambassador, testRoot(t), recorder).GetVersion()
 	require.NoError(t, err)
 	require.Equal(t, "0.74.0", vi.Version)
 	require.NotNil(t, vi.VulnerabilityDB)
@@ -744,7 +769,7 @@ func TestUnreadableCachedVersionFailsInsteadOfSpawningPerPoll(t *testing.T) {
 	// which is the point. Harbor polls this twice a minute.
 	ambassador := ext.NewMockAmbassador()
 	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
-	_, err := NewWrapper(cfg.Trivy, ambassador, recorder).GetVersion()
+	_, err := NewWrapper(cfg.Trivy, ambassador, testRoot(t), recorder).GetVersion()
 	require.ErrorContains(t, err, "decoding the cached trivy version")
 	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
 
@@ -802,16 +827,16 @@ func TestChildGetsItsOwnTempDirectoryAndLosesItAfterwards(t *testing.T) {
 	w := &wrapper{
 		config:     etc.Trivy{ReportsDir: reportsDir},
 		ambassador: ambassador,
-		tempRoot:   filepath.Join(t.TempDir(), AdapterTempPrefix+"1"),
+		tempRoot:   &TempRoot{path: filepath.Join(t.TempDir(), AdapterTempPrefix+"1")},
 	}
 	_, err := w.Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
 	require.NoError(t, err)
 
 	// The adapter's own directory, not whatever the pod set, and gone with the
 	// child that used it.
-	require.Equal(t, w.tempRoot, filepath.Dir(childTemp))
+	require.Equal(t, w.tempRoot.Path(), filepath.Dir(childTemp))
 	require.NoDirExists(t, childTemp)
-	require.DirExists(t, w.tempRoot)
+	require.DirExists(t, w.tempRoot.Path())
 	ambassador.AssertExpectations(t)
 }
 

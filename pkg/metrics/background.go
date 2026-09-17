@@ -108,6 +108,10 @@ type engineProbe struct {
 func (r *Recorder) probeEngine(ctx context.Context, cfg etc.Config, ambassador ext.Ambassador, adapterVersion, previous string) string {
 	probeCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
 	defer stop()
+	// No TMPDIR and no --skip-version-check/--disable-telemetry here: measured
+	// against v0.74.0, `trivy version --format json` creates nothing under
+	// TMPDIR and contacts nothing, and those two are ScanFlagGroup flags that
+	// the version subcommand rejects outright.
 	cmd := exec.CommandContext(probeCtx, "trivy", "--cache-dir", cfg.Trivy.CacheDir, "version", "--format", "json")
 	output, stderr, err := r.Run(probeCtx, "version", cmd, ambassador.RunCmd)
 	var info engineProbe
@@ -277,20 +281,22 @@ func (r *Recorder) collectCache(ctx context.Context, root, tempRoot string, maxF
 // directories can neither enter the total nor spend the budget, and the budget
 // and deadline bound the walk whatever else shares the filesystem.
 func trivyTempBytes(ctx context.Context, root string, remaining *int) (int64, error) {
+	dir, err := os.Open(root)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// No scan has run yet, or the root went with the process that owned
+			// it. Either way the children hold nothing, and answering that
+			// needs no budget: an exhausted one must not turn "no children"
+			// into a failed sample.
+			return 0, nil
+		}
+		return 0, err
+	}
 	// Listing the root costs an entry, like every other step of the walk, so an
 	// exhausted budget fails this sample too instead of reporting a partial one.
 	*remaining--
 	if *remaining < 0 {
 		return 0, errors.New("cache entry budget exceeded")
-	}
-	dir, err := os.Open(root)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			// No scan has run yet, or the root went with the process that owned
-			// it. Either way the children hold nothing.
-			return 0, nil
-		}
-		return 0, err
 	}
 	defer dir.Close()
 	var total int64
