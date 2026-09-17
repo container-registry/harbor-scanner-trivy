@@ -6292,7 +6292,7 @@
       "type": "timeseries",
       "id": 1113,
       "title": "Trivy temp directories",
-      "description": "temp_dirs_present: child scratch directories under $TMPDIR/harbor-scanner-trivy-<pid>/ on the pod, including those of running scans. The adapter removes a child's directory whatever killed the child, so a rising count means scans are starting faster than they finish, not a leak. temp_dirs_reaped_total: temp roots left by adapter processes that were themselves killed, removed at startup and every ten minutes. Sizes are in cache_size_bytes{kind=\"tmp_trivy\"} when size collection is enabled; free space in storage_available_bytes{area=\"tmp\"} on the disk panels above.",
+      "description": "temp_dirs_present: child scratch directories under the adapter's own $TMPDIR/harbor-scanner-trivy-<random>/ root on the pod, including those of running scans. The adapter removes a child's directory whatever killed the child, so a rising count means scans are starting faster than they finish, not a leak. temp_dirs_reaped_total: temp roots left by adapter processes that were themselves killed, recognised by their owner having stopped refreshing them, removed at startup and every ten minutes. Sizes are in cache_size_bytes{kind=\"tmp_trivy\"} when size collection is enabled; free space in storage_available_bytes{area=\"tmp\"} on the disk panels above.",
       "targets": [
         {
           "datasource": {

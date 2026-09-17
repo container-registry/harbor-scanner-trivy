@@ -184,12 +184,15 @@ measurements cover every workload sharing the instance.
   exit, but a child that is OOM-killed never does, and the random suffix means
   nothing outside that process can tell a running scan's directory from an
   abandoned one. The adapter therefore gives each child a `TMPDIR` of its own
-  under `$TMPDIR/harbor-scanner-trivy-<pid>/` and removes it once the child is
-  gone, whatever killed it. Only an adapter process that is itself killed leaves
-  anything behind, and every ten minutes the sweep removes the roots of adapter
-  processes that are no longer running, counting them in
-  `temp_dirs_reaped_total`. Reaping runs even with metrics disabled; only the
-  counters go away.
+  under its own root, `$TMPDIR/harbor-scanner-trivy-<random>/`, and removes it
+  once the child is gone, whatever killed it. The root's name is random rather
+  than the pid, because `/tmp` outlives a container restart while the adapter
+  returns as pid 1, and its owner touches the root every two minutes so that its
+  age says something about the process rather than about the running scan. Only
+  an adapter process that is itself killed leaves anything behind, and every ten
+  minutes the sweep removes roots nothing has refreshed, counting them in
+  `temp_dirs_reaped_total`. A clean shutdown removes the root outright. Reaping
+  runs even with metrics disabled; only the counters go away.
 - Child peak RSS is available after termination on Linux (converted from KiB)
   and macOS (already bytes). It is not live usage, a sum of concurrent children,
   or total container peak. If the child never starts or the adapter is killed,
