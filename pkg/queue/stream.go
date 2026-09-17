@@ -71,6 +71,9 @@ type streamWorker struct {
 	collectionFailing bool
 	// Owned by the run goroutine; see recoverMissingGroup.
 	groupRecreations int
+	// Closed by the run goroutine once the consumer group exists, so the
+	// sampler does not report a missing group that startup is still creating.
+	grouped chan struct{}
 	// Unix seconds of the last read-loop iteration or lease renewal; read by
 	// the readiness probe from another goroutine.
 	heartbeat atomic.Int64
@@ -86,6 +89,7 @@ func NewWorker(config etc.JobQueue, rdb *redis.Client, controller scan.Controlle
 
 func (w *streamWorker) Start(ctx context.Context) {
 	ctx, w.cancel = context.WithCancel(ctx)
+	w.grouped = make(chan struct{})
 	w.wg.Add(2)
 	go func() { defer w.wg.Done(); w.run(ctx) }()
 	go func() { defer w.wg.Done(); w.monitorQueue(ctx) }()
@@ -109,6 +113,11 @@ func (w *streamWorker) run(ctx context.Context) {
 	for ctx.Err() == nil {
 		_, err := w.ensureGroup(ctx)
 		if err == nil {
+			// The sampler checks for this group, so let it start only once the
+			// group exists: on a boot into a lost-group backend the two would
+			// otherwise race, and the sampler would report the state this
+			// loop is in the middle of repairing.
+			close(w.grouped)
 			break
 		}
 		slog.Error("Initializing scan stream", "error", err)

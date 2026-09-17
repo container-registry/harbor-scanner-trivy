@@ -343,9 +343,15 @@ func TestConcurrentReplicasCountOneRecreation(t *testing.T) {
 	requireGroup(t, workers[0])
 	require.NoError(t, rdb.XGroupDestroy(ctx, workers[0].stream, workerGroup).Err())
 
+	// Run them at once: sequential calls would pass even if BUSYGROUP counted
+	// as a recreation, because only the first call would create anything.
 	cause := errors.New("NOGROUP No such key or consumer group")
+	recovered := make(chan bool, len(workers))
 	for _, w := range workers {
-		require.True(t, w.recoverMissingGroup(ctx, cause))
+		go func(w *streamWorker) { recovered <- w.recoverMissingGroup(ctx, cause) }(w)
+	}
+	for range workers {
+		require.True(t, <-recovered)
 	}
 	require.Equal(t, float64(1), metricCount(t, r, "queue_group_recreated_total", "", ""))
 }

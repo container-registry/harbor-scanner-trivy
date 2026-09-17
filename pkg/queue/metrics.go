@@ -17,6 +17,14 @@ func (w *streamWorker) monitorQueue(ctx context.Context) {
 	if w.metrics == nil {
 		return
 	}
+	// Wait for the consumer group the samples are about. Without this the first
+	// sample of a pod booting against a backend that lost the group reports a
+	// missing group that the read loop is already recreating.
+	select {
+	case <-ctx.Done():
+		return
+	case <-w.grouped:
+	}
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
