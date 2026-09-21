@@ -208,10 +208,10 @@ func (w *streamWorker) Healthy(ctx context.Context) error {
 func (w *streamWorker) Active() error {
 	last := w.heartbeat.Load()
 	if last == 0 {
-		return errors.New("worker has not started reading deliveries")
+		return errors.New("worker has not reached the queue yet")
 	}
 	if age := time.Since(time.Unix(last, 0)); age > 3*w.leaseDuration {
-		return fmt.Errorf("worker last read a delivery %s ago", age.Round(time.Second))
+		return fmt.Errorf("worker last reached the queue %s ago", age.Round(time.Second))
 	}
 	return nil
 }

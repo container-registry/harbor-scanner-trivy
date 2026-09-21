@@ -9,7 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Preserve malformed deliveries outside the active stream for operator inspection.
+// Preserve deliveries the worker cannot execute, an undecodable payload or a
+// job key the store no longer has, outside the active stream for operator inspection.
 // The hash is keyed by delivery ID so retries do not create duplicate copies.
 // If preserving the payload fails, leave the original delivery recoverable.
 var quarantineDelivery = redis.NewScript(`

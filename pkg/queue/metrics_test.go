@@ -403,7 +403,7 @@ func TestWorkerHealthNeedsTheConsumerGroupNotJustAServer(t *testing.T) {
 func TestWorkerIsActiveWhileItReadsOrRenewsALease(t *testing.T) {
 	_, rdb, store, cfg := setupQueue(t)
 	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true)).(*streamWorker)
-	require.ErrorContains(t, w.Active(), "has not started")
+	require.ErrorContains(t, w.Active(), "has not reached the queue")
 
 	w.beat()
 	require.NoError(t, w.Active())
@@ -413,7 +413,7 @@ func TestWorkerIsActiveWhileItReadsOrRenewsALease(t *testing.T) {
 	w.heartbeat.Store(time.Now().Add(-2 * w.leaseDuration).Unix())
 	require.NoError(t, w.Active())
 	w.heartbeat.Store(time.Now().Add(-4 * w.leaseDuration).Unix())
-	require.ErrorContains(t, w.Active(), "last read a delivery")
+	require.ErrorContains(t, w.Active(), "last reached the queue")
 }
 
 func TestStartedWorkerBeatsAndReportsHealthy(t *testing.T) {

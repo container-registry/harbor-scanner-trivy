@@ -702,7 +702,7 @@ func TestRequestHandler_GetReady(t *testing.T) {
 		},
 		{
 			name:     "the read loop stopped",
-			worker:   fakeWorker{active: errors.New("worker last read a delivery 5m0s ago")},
+			worker:   fakeWorker{active: errors.New("worker last reached the queue 5m0s ago")},
 			code:     http.StatusServiceUnavailable,
 			failed:   []string{"worker"},
 			measured: map[string]float64{"queue": 1, "worker": 0, "binary": 1},
@@ -716,7 +716,7 @@ func TestRequestHandler_GetReady(t *testing.T) {
 		},
 		{
 			name:     "nothing works",
-			worker:   fakeWorker{healthy: errors.New("dial tcp: connection refused"), active: errors.New("worker has not started reading deliveries")},
+			worker:   fakeWorker{healthy: errors.New("dial tcp: connection refused"), active: errors.New("worker has not reached the queue yet")},
 			binary:   errors.New("not found"),
 			code:     http.StatusServiceUnavailable,
 			failed:   []string{"queue", "worker", "binary"},
