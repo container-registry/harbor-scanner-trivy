@@ -56,7 +56,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Install Task
-        uses: ./.github/actions/setup
+        uses: $/.github/actions/setup
         with:
           go: "false"
 
