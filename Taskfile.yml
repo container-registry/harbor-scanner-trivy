@@ -600,6 +600,5 @@ tasks:
         echo "  golangci-lint:  {{.GOLANGCILINT_VERSION}}"
         echo "  govulncheck:    {{.GOVULNCHECK_VERSION}}"
         echo "  Task (CI):      {{.TASK_VERSION}}"
-        echo "  typos:          {{.TYPOS_VERSION}}"
         echo "  yamllint:       {{.YAMLLINT_VERSION}}"
         echo ""
