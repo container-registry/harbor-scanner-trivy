@@ -1,10 +1,14 @@
 package trivy
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,8 +21,92 @@ import (
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCacheConfigurationReachesTrivyWithoutCredentialsInArgs(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"TRIVY_CACHE_BACKEND=fs", "TRIVY_CACHE_TTL=0", "KEEP=yes"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	w := &wrapper{config: etc.Trivy{CacheBackend: "rediss://user:private@cache:6379/0", CacheTTL: 48 * time.Hour}, ambassador: ambassador}
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
+	require.NoError(t, err)
+	require.Contains(t, cmd.Env, "TRIVY_CACHE_BACKEND=redis://user:private@cache:6379/0")
+	require.Contains(t, cmd.Env, "TRIVY_REDIS_TLS=true")
+	require.Contains(t, cmd.Env, "TRIVY_CACHE_TTL=48h0m0s")
+	require.NotContains(t, cmd.Env, "TRIVY_CACHE_BACKEND=fs")
+	require.Contains(t, cmd.Env, "KEEP=yes")
+	require.NotContains(t, strings.Join(cmd.Args, " "), "private")
+	require.NotContains(t, w.redactCacheCredentials("dial rediss://user:private@cache:6379/0 failed: private"), "private")
+}
+
+func TestScanErrorPreservesCauseAndClassificationAfterRedaction(t *testing.T) {
+	for _, cause := range []error{context.Canceled, &exec.ExitError{}} {
+		t.Run(fmt.Sprintf("%T", cause), func(t *testing.T) {
+			ambassador := ext.NewMockAmbassador()
+			ambassador.On("Environ").Return([]string{})
+			ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+			fakeImage := &fake.FakeImage{}
+			fakeImage.ManifestReturns(&v1.Manifest{}, nil)
+			ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(fakeImage, nil)
+			report, err := os.CreateTemp(t.TempDir(), "report")
+			require.NoError(t, err)
+			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+			ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte("redis cache unavailable"), fmt.Errorf("cache: %w", cause))
+			w := NewWrapper(etc.Trivy{CacheBackend: "redis://:cache@redis:6379/0", CacheTTL: time.Hour}, ambassador, testRoot(t))
+			_, err = w.Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+			var scanErr *ScanError
+			require.ErrorAs(t, err, &scanErr)
+			require.ErrorIs(t, err, cause)
+			if _, ok := cause.(*exec.ExitError); ok {
+				var exitErr *exec.ExitError
+				require.ErrorAs(t, err, &exitErr)
+			}
+			require.Equal(t, ErrCategoryCache, scanErr.Category)
+			require.NotContains(t, scanErr.Detail, "cache")
+			require.NotContains(t, scanErr.Cause.Error(), "cache")
+		})
+	}
+}
+
+func TestScanCommandStopsWhenWorkerContextIsCancelled(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "trivy")
+	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\nexec sleep 30\n"), 0o700))
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return(os.Environ())
+	ambassador.On("LookPath", "trivy").Return(binary, nil)
+	w := &wrapper{ambassador: ambassador}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cmd, err := w.prepareScanCmd(ctx, ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{}, t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	cancel()
+	select {
+	case err := <-done:
+		require.Error(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Trivy did not stop on cancellation")
+	}
+}
+
+func TestNormalizedTLSCacheURLDoesNotLeakEncodedPassword(t *testing.T) {
+	w := &wrapper{config: etc.Trivy{CacheBackend: "rediss://user:a%20b@cache:6379/0"}}
+	for _, diagnostic := range []string{
+		"dial redis://user:a%20b@cache:6379/0 failed",
+		"authentication failed for user:a%20b",
+		"password a%20b failed", "password a+b failed", "password a b failed",
+	} {
+		redacted := w.redactCacheCredentials(diagnostic)
+		for _, secret := range []string{"a%20b", "a+b", "a b"} {
+			require.NotContains(t, redacted, secret)
+		}
+	}
+}
 
 var (
 	expectedReportJSON = `{
@@ -127,7 +215,7 @@ func TestWrapper_Scan(t *testing.T) {
 		require.NoError(t, os.WriteFile(reportPath, []byte(expectedReportJSON), 0o644))
 		ambassador.On("TempFile", reportsDir, mock.Anything).Return(os.Open(reportPath))
 
-		ambassador.On("RunCmd", &exec.Cmd{
+		ambassador.On("RunCmd", matchScanCommand(&exec.Cmd{
 			Path: "/usr/local/bin/trivy",
 			Env: []string{
 				"HTTP_PROXY=http://someproxy:7777",
@@ -166,8 +254,8 @@ func TestWrapper_Scan(t *testing.T) {
 				"--insecure",
 				"alpine:3.10.2",
 			},
-		},
-		).Return([]byte{}, nil)
+		}),
+		).Return([]byte{}, []byte{}, nil)
 
 		imageRef := ImageRef{
 			Name: "alpine:3.10.2",
@@ -178,7 +266,7 @@ func TestWrapper_Scan(t *testing.T) {
 			NonSSL: true,
 		}
 
-		got, err := NewWrapper(config, ambassador).Scan(imageRef, ScanOption{Format: FormatJSON})
+		got, err := NewWrapper(config, ambassador, testRoot(t)).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
 		require.NoError(t, err)
 		require.Equal(t, expectedReport, got)
 
@@ -218,7 +306,7 @@ func TestWrapper_Scan(t *testing.T) {
 		sbomPath := filepath.Join(cacheDir, "sbom.json")
 		ambassador.On("TempFile", cacheDir, mock.Anything).Return(os.Create(sbomPath))
 
-		ambassador.On("RunCmd", &exec.Cmd{
+		ambassador.On("RunCmd", matchScanCommand(&exec.Cmd{
 			Path: "/usr/local/bin/trivy",
 			Env: []string{
 				"HTTP_PROXY=http://someproxy:7777",
@@ -243,15 +331,15 @@ func TestWrapper_Scan(t *testing.T) {
 				"--skip-java-db-update",
 				sbomPath,
 			},
-		},
-		).Return([]byte{}, nil)
+		}),
+		).Return([]byte{}, []byte{}, nil)
 
 		imageRef := ImageRef{
 			Name: "alpine@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
 			Auth: NoAuth{},
 		}
 
-		got, err := NewWrapper(config, ambassador).Scan(imageRef, ScanOption{Format: FormatJSON})
+		got, err := NewWrapper(config, ambassador, testRoot(t)).Scan(context.Background(), imageRef, ScanOption{Format: FormatJSON})
 		require.NoError(t, err)
 		require.Equal(t, expectedReport, got)
 
@@ -282,9 +370,9 @@ func TestWrapper_GetVersion(t *testing.T) {
 		Path: "/usr/local/bin/trivy",
 		Args: expectedCmdArgs,
 	},
-	).Return(b, nil)
+	).Return(b, []byte{}, nil)
 
-	vi, err := NewWrapper(config, ambassador).GetVersion()
+	vi, err := NewWrapper(config, ambassador, testRoot(t)).GetVersion()
 	require.NoError(t, err)
 	require.Equal(t, expectedVersion, vi)
 
@@ -299,4 +387,515 @@ func tmpDirs(t *testing.T) (string, string) {
 	require.NoError(t, os.MkdirAll(reportsDir, 0o700))
 
 	return cacheDir, reportsDir
+}
+
+func TestMalformedReportHasReportParseCategory(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	img := &fake.FakeImage{}
+	img.ManifestReturns(&v1.Manifest{}, nil)
+	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+	path := filepath.Join(t.TempDir(), "report.json")
+	require.NoError(t, os.WriteFile(path, []byte("{malformed"), 0o600))
+	report, err := os.Open(path)
+	require.NoError(t, err)
+	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte{}, nil)
+	wrapper := NewWrapper(etc.Trivy{}, ambassador, testRoot(t))
+	_, err = wrapper.Scan(context.Background(), ImageRef{Name: "alpine:latest", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	var scanErr *ScanError
+	require.ErrorAs(t, err, &scanErr)
+	require.Equal(t, ErrCategoryReportParse, scanErr.Category)
+	var syntaxErr *json.SyntaxError
+	require.ErrorAs(t, err, &syntaxErr)
+	require.Contains(t, scanErr.Detail, "report json decode error")
+	require.Contains(t, scanErr.Detail, syntaxErr.Error())
+	ambassador.AssertExpectations(t)
+}
+
+// Only compare the subprocess contract, not exec.Cmd's private context fields.
+// TMPDIR names a directory made for this one child, so it is checked for shape
+// rather than compared; TestChildGetsItsOwnTempDirectory covers the rest.
+func matchScanCommand(want *exec.Cmd) interface{} {
+	return mock.MatchedBy(func(got *exec.Cmd) bool {
+		env, tempDir := splitChildTempDir(got.Env)
+		return got.Path == want.Path && reflect.DeepEqual(got.Args, want.Args) &&
+			reflect.DeepEqual(env, want.Env) && got.Cancel != nil && got.WaitDelay == time.Second &&
+			strings.Contains(tempDir, AdapterTempPrefix)
+	})
+}
+
+func splitChildTempDir(environ []string) ([]string, string) {
+	rest, tempDir := make([]string, 0, len(environ)), ""
+	for _, entry := range environ {
+		if value, ok := strings.CutPrefix(entry, "TMPDIR="); ok {
+			tempDir = value
+			continue
+		}
+		// GOMEMLIMIT is derived from the container's cgroup when the adapter
+		// sets no limit of its own, so it is present or absent depending on the
+		// host the tests run on.
+		if strings.HasPrefix(entry, "GOMEMLIMIT=") {
+			continue
+		}
+		rest = append(rest, entry)
+	}
+	return rest, tempDir
+}
+
+// scanFailingWith runs one scan whose child exited non-zero with this output
+// and returns what the classifier made of it.
+func scanFailingWith(t *testing.T, stdout, stderr string) *ScanError {
+	t.Helper()
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	img := &fake.FakeImage{}
+	img.ManifestReturns(&v1.Manifest{}, nil)
+	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+	report, err := os.CreateTemp(t.TempDir(), "report")
+	require.NoError(t, err)
+	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+	ambassador.On("RunCmd", mock.Anything).Return([]byte(stdout), []byte(stderr), &exec.ExitError{})
+	_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	var failure *ScanError
+	require.ErrorAs(t, err, &failure)
+	ambassador.AssertExpectations(t)
+	return failure
+}
+
+func TestExecutionRetryPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		output    string
+		category  ScanErrorCategory
+		retryable bool
+	}{
+		{"failed to write to cache: OOM command not allowed when used memory > 'maxmemory'", ErrCategoryTrivyExec, true},
+		{"dial tcp: connection refused", ErrCategoryNetwork, true},
+		{"new diagnostic from a future Trivy release", ErrCategoryTrivyExec, true},
+		{"unauthorized: authentication required", ErrCategoryAuth, false},
+		{"failed to extract the archive", ErrCategoryUnscannable, false},
+	} {
+		t.Run(tc.output, func(t *testing.T) {
+			failure := scanFailingWith(t, "", tc.output)
+			require.Equal(t, tc.category, failure.Category)
+			require.Equal(t, tc.retryable, failure.Retryable)
+		})
+	}
+}
+
+func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
+	tests := []struct {
+		name      string
+		output    string
+		expected  ScanErrorCategory
+		retryable bool
+	}{
+		{
+			name:      "registry rate limit",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: TOOMANYREQUESTS: retry-after: 60, allowed: 100/minute",
+			expected:  ErrCategoryRateLimit,
+			retryable: true,
+		},
+		{
+			name:      "numeric rate limit status",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tGET https://registry/v2/token: status code 429",
+			expected:  ErrCategoryRateLimit,
+			retryable: true,
+		},
+		{
+			name:      "database download failure",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact from any source: 3 errors occurred",
+			expected:  ErrCategoryDBDownload,
+			retryable: true,
+		},
+		{
+			name:      "java database failure",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tjava DB error: failed to initialize the Java DB",
+			expected:  ErrCategoryDBDownload,
+			retryable: true,
+		},
+		{
+			// Trivy logs the advice and returns the schema mismatch wrapped in
+			// "DB error:", so both keywords reach the classifier together.
+			name:      "outdated binary",
+			output:    "2026-09-15T10:00:00Z\tERROR\tTrivy version is old. Update to the latest version.\n2026-09-15T10:00:00Z\tFATAL\tFatal error\tDB error: the version of DB schema doesn't match. Local DB: 3, Expected: 2",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "schema mismatch with updates disabled",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tDB error: validate error: --skip-db-update cannot be specified with the old DB schema. Local DB: 2, Expected: 3",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "java schema mismatch with updates disabled",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tJava DB error: '--skip-java-db-update' cannot be specified on the first run",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "schema version mismatch",
+			output:    "FATAL\tFatal error\tthe local DB doesn't match the schema version required by this binary",
+			expected:  ErrCategoryDBSchema,
+			retryable: false,
+		},
+		{
+			name:      "artifact that is not an image",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tunsupported artifact type \"application/vnd.cncf.helm.config.v1+json\" for image \"registry/chart:1.0\"",
+			expected:  ErrCategoryUnsupportedArtifact,
+			retryable: false,
+		},
+		{
+			// A bolt cache fault reaches the classifier wrapped in "DB error:",
+			// which the download rules would otherwise claim.
+			name:      "analysis cache cannot be opened",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: unable to initialize cache: unable to initialize fs cache: unable to open cache DB: timeout: /home/scanner/.cache/trivy/fanal/fanal.db: resource temporarily unavailable",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
+			name:      "another process holds the cache",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: cache may be in use by another process: timeout",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
+			name:      "cache directory cannot be created",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: unable to initialize cache: failed to create cache dir: mkdir /home/scanner/.cache/trivy: read-only file system",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
+			name:      "cache miss",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\tlayer cache missing: sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10",
+			expected:  ErrCategoryCache,
+			retryable: true,
+		},
+		{
+			name:      "expired deadline",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: context deadline exceeded",
+			expected:  ErrCategoryTimeout,
+			retryable: true,
+		},
+		{
+			name:      "broken layer archive",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\trun error: walk error: failed to extract the archive: unexpected EOF",
+			expected:  ErrCategoryUnscannable,
+			retryable: false,
+		},
+		{
+			// Known ordering hazard: a timed-out extraction is reported as a
+			// timeout, because "timeout" is matched before the archive keywords.
+			name:      "broken layer archive reported after a timeout",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\trun error: timeout: failed to extract the archive",
+			expected:  ErrCategoryTimeout,
+			retryable: true,
+		},
+		{
+			name:      "registry rejects the credentials",
+			output:    "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/library/alpine/manifests/latest: UNAUTHORIZED: authentication required",
+			expected:  ErrCategoryAuth,
+			retryable: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyTrivyError(tt.output)
+			require.Equal(t, tt.expected, got)
+			require.Equal(t, tt.retryable, retryable(got))
+		})
+	}
+}
+
+func TestClassifierNeedsMoreThanAMatchingSubstring(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		output   string
+		expected ScanErrorCategory
+	}{
+		{
+			// 429 turns up in digests, byte counts and CVE identifiers.
+			name:     "digits that are not a status",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\trun error: layer sha256:429aa1b0 of 429000 bytes, CVE-2021-42900",
+			expected: ErrCategoryTrivyExec,
+		},
+		{
+			name:     "status words around the number",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tGET https://registry/v2/token: unexpected status code 429",
+			expected: ErrCategoryRateLimit,
+		},
+		{
+			name:     "the status phrase itself",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tGET https://registry/v2/: 429 Too Many Requests",
+			expected: ErrCategoryRateLimit,
+		},
+		{
+			// The analysis cache is a bolt file; an image may simply be named
+			// after it.
+			name:     "an image named after the cache",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry.example/v2/fanal/manifests/latest: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "the bolt file itself",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: unable to open cache DB: /home/scanner/.cache/trivy/fanal/fanal.db: permission denied",
+			expected: ErrCategoryCache,
+		},
+		{
+			// A repository whose name ends in the bolt file's, matched by the
+			// cache rule before auth classification can see the 401.
+			name:     "a repository named after the bolt file",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry.example/v2/team/fanal.db/manifests/latest: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			// Trivy formats some of its own fetches as "status code: %d".
+			name:     "a colon between the status word and the number",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: unexpected status code: 429",
+			expected: ErrCategoryRateLimit,
+		},
+		{
+			// The registry refusing the adapter the database artifact is
+			// terminal; retrying a 401 only spends the attempt limit.
+			name:     "a database artifact the registry refuses",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact: GET https://ghcr.io/v2/aquasecurity/trivy-db/manifests/2: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "a database artifact that simply could not be fetched",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact: connection reset by peer",
+			expected: ErrCategoryDBDownload,
+		},
+		{
+			// trivy logs "Trivy version is old" on its own ERROR line and
+			// returns this as the fatal, so the schema rule has to match this.
+			name:     "the schema mismatch trivy actually reports as fatal",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: the version of DB schema doesn't match. Local DB: 3, Expected: 2",
+			expected: ErrCategoryDBSchema,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, classifyTrivyError(tc.output))
+		})
+	}
+}
+
+func TestFailureIsDiagnosedFromStderrAndTrimmedToItsTail(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		stdout, stderr string
+		expected       ScanErrorCategory
+	}{
+		{"stderr wins", "downloading db\n", "FATAL\tFatal error\tTOOMANYREQUESTS: retry-after: 60", ErrCategoryRateLimit},
+		{"stdout is the fallback", "FATAL\tFatal error\tTOOMANYREQUESTS: retry-after: 60", "   \n", ErrCategoryRateLimit},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			failure := scanFailingWith(t, tc.stdout, tc.stderr)
+			require.Equal(t, tc.expected, failure.Category)
+		})
+	}
+}
+
+func TestScanDetailCarriesTheTailOfTheDiagnostics(t *testing.T) {
+	stderr := strings.Repeat("noisy debug line\n", 1000) + "FATAL\tFatal error\tunsupported artifact type \"application/vnd.cncf.helm.config.v1+json\""
+	failure := scanFailingWith(t, "", stderr)
+	require.Equal(t, ErrCategoryUnsupportedArtifact, failure.Category)
+	require.False(t, failure.Retryable)
+	require.Len(t, failure.Detail, detailLimit)
+	require.True(t, strings.HasSuffix(failure.Detail, `unsupported artifact type "application/vnd.cncf.helm.config.v1+json"`))
+}
+
+func TestGetVersionReusesTheBackgroundProbe(t *testing.T) {
+	engine := ext.NewMockAmbassador()
+	engine.On("RunCmd", mock.Anything).Return([]byte(`{"Version":"0.74.0",
+		"VulnerabilityDB":{"Version":2,"NextUpdate":"2026-09-16T10:00:00Z","UpdatedAt":"2026-09-15T10:00:00Z"}}`), []byte{}, nil)
+	recorder := metrics.New(true)
+	cfg := etc.Config{
+		Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
+		Trivy:   etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()},
+	}
+	stop := recorder.Start(context.Background(), cfg, "adapter", t.TempDir(), engine)
+	require.Eventually(t, func() bool { _, _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	stop()
+
+	// No RunCmd expectation: reaching the CLI would fail the test.
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	vi, err := NewWrapper(cfg.Trivy, ambassador, testRoot(t), recorder).GetVersion()
+	require.NoError(t, err)
+	require.Equal(t, "0.74.0", vi.Version)
+	require.NotNil(t, vi.VulnerabilityDB)
+	require.Equal(t, time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC), vi.VulnerabilityDB.UpdatedAt)
+	require.Nil(t, vi.JavaDB)
+	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
+}
+
+func TestUnreadableCachedVersionFailsInsteadOfSpawningPerPoll(t *testing.T) {
+	engine := ext.NewMockAmbassador()
+	// The probe reads only the versions, so it accepts this; the metadata API
+	// needs the timestamps and cannot.
+	engine.On("RunCmd", mock.Anything).Return([]byte(`{"Version":"0.74.0","VulnerabilityDB":{"Version":2,"UpdatedAt":"yesterday"}}`), []byte{}, nil)
+	recorder := metrics.New(true)
+	cfg := etc.Config{
+		Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second},
+		Trivy:   etc.Trivy{CacheDir: t.TempDir(), ReportsDir: t.TempDir()},
+	}
+	stop := recorder.Start(context.Background(), cfg, "adapter", t.TempDir(), engine)
+	require.Eventually(t, func() bool { _, _, ok := recorder.CachedVersion(); return ok }, 5*time.Second, 10*time.Millisecond)
+	stop()
+
+	// No RunCmd expectation: falling through to the CLI would fail the test,
+	// which is the point. Harbor polls this twice a minute.
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	_, err := NewWrapper(cfg.Trivy, ambassador, testRoot(t), recorder).GetVersion()
+	require.ErrorContains(t, err, "decoding the cached trivy version")
+	ambassador.AssertNotCalled(t, "RunCmd", mock.Anything)
+
+	// The unusable answer is dropped, so the next probe can replace it.
+	_, _, ok := recorder.CachedVersion()
+	require.False(t, ok)
+}
+
+func TestScanCommandCarriesTheDefaultEngineFlags(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"GOMEMLIMIT=inherited", "KEEP=yes"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	config := etc.Trivy{ImageSrc: "remote", SkipVersionCheck: true, DisableTelemetry: true, ChildGoMemLimit: "1GiB"}
+	w := &wrapper{config: config, ambassador: ambassador}
+
+	image, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
+	require.NoError(t, err)
+	require.Contains(t, strings.Join(image.Args, " "), "--image-src remote")
+	require.Subset(t, image.Args, []string{"--skip-version-check", "--disable-telemetry"})
+	require.NotContains(t, image.Args, "--max-image-size")
+	require.Contains(t, image.Env, "GOMEMLIMIT=1GiB")
+	require.NotContains(t, image.Env, "GOMEMLIMIT=inherited")
+	require.Contains(t, image.Env, "KEEP=yes")
+
+	// --image-src and --max-image-size belong to the image subcommand only.
+	sbom, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetSBOM, filePath: "sbom.json"}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
+	require.NoError(t, err)
+	require.NotContains(t, sbom.Args, "--image-src")
+	require.Subset(t, sbom.Args, []string{"--skip-version-check", "--disable-telemetry"})
+}
+
+// Trivy's own scratch directory is named at random, so the only way to tell a
+// running scan's layers from an abandoned child's is to hand the child a
+// directory the adapter made. See tempdir.go.
+func TestChildGetsItsOwnTempDirectoryAndLosesItAfterwards(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"TMPDIR=/inherited"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	img := &fake.FakeImage{}
+	img.ManifestReturns(&v1.Manifest{}, nil)
+	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+
+	reportsDir := t.TempDir()
+	reportPath := filepath.Join(reportsDir, "report.json")
+	require.NoError(t, os.WriteFile(reportPath, []byte(`{"SchemaVersion":2,"ArtifactName":"alpine"}`), 0o600))
+	ambassador.On("TempFile", reportsDir, mock.Anything).Return(os.Open(reportPath))
+
+	var childTemp string
+	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte{}, nil).
+		Run(func(args mock.Arguments) {
+			_, childTemp = splitChildTempDir(args.Get(0).(*exec.Cmd).Env)
+			require.DirExists(t, childTemp, "the directory must exist while the child runs")
+		})
+
+	w := &wrapper{
+		config:     etc.Trivy{ReportsDir: reportsDir},
+		ambassador: ambassador,
+		tempRoot:   &TempRoot{path: filepath.Join(t.TempDir(), AdapterTempPrefix+"1")},
+	}
+	_, err := w.Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	require.NoError(t, err)
+
+	// The adapter's own directory, not whatever the pod set, and gone with the
+	// child that used it.
+	require.Equal(t, w.tempRoot.Path(), filepath.Dir(childTemp))
+	require.NoDirExists(t, childTemp)
+	require.DirExists(t, w.tempRoot.Path())
+	ambassador.AssertExpectations(t)
+}
+
+func TestScanCommandOmitsUnsetEngineFlags(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{"GOMEMLIMIT=inherited"})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	w := &wrapper{config: etc.Trivy{ChildGoMemLimit: "off"}, ambassador: ambassador}
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
+	require.NoError(t, err)
+	for _, flag := range []string{"--image-src", "--max-image-size", "--skip-version-check", "--disable-telemetry"} {
+		require.NotContains(t, cmd.Args, flag)
+	}
+	// "off" is the escape hatch: whatever the pod sets is passed through.
+	require.Contains(t, cmd.Env, "GOMEMLIMIT=inherited")
+}
+
+func TestScanCommandPassesTheImageSizeLimit(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	w := &wrapper{config: etc.Trivy{MaxImageSize: "10GB"}, ambassador: ambassador}
+	cmd, err := w.prepareScanCmd(context.Background(), ScanTarget{kind: TargetImage, ref: ImageRef{Name: "alpine", Auth: NoAuth{}}}, "report.json", ScanOption{Format: FormatJSON}, t.TempDir())
+	require.NoError(t, err)
+	require.Contains(t, strings.Join(cmd.Args, " "), "--max-image-size 10GB")
+}
+
+func TestClassificationReadsTheFatalLineNotTheWholeLog(t *testing.T) {
+	// A database mirror that is unreachable logs a failure and then succeeds
+	// from the next repository, so the buffer of a successful run carries
+	// download errors that have nothing to do with why the scan ended.
+	mirrorFallback := "2026-09-15T09:59:58Z\tERROR\t[oci] Failed to download artifact\trepo=\"mirror.gcr.io/aquasec/trivy-db\" err=\"oci download error\"\n" +
+		"2026-09-15T09:59:58Z\tINFO\t[oci] Trying to download artifact from other repository...\n" +
+		"2026-09-15T09:59:59Z\tINFO\t[vulndb] Vulnerability DB successfully downloaded\n"
+
+	for _, tc := range []struct {
+		name     string
+		output   string
+		expected ScanErrorCategory
+	}{
+		{
+			name:     "fatal auth after a mirror fallback",
+			output:   mirrorFallback + "2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "fatal database download",
+			output:   mirrorFallback + "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact from any source",
+			expected: ErrCategoryDBDownload,
+		},
+		{
+			name: "debug mode puts the error chain under the fatal line",
+			output: mirrorFallback + "2026-09-15T10:00:00Z\tFATAL\tFatal error\n" +
+				"  - image scan error\n  - GET https://registry/v2/: UNAUTHORIZED: authentication required\n",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "only the last fatal line counts",
+			output:   "2026-09-15T09:00:00Z\tFATAL\tFatal error\timage scan error: TOOMANYREQUESTS\n2026-09-15T10:00:00Z\tFATAL\tFatal error\timage scan error: context deadline exceeded",
+			expected: ErrCategoryTimeout,
+		},
+		{
+			// A child killed before it could report leaves no fatal line, so
+			// the whole buffer is classified as it always was.
+			name:     "no fatal line at all",
+			output:   mirrorFallback,
+			expected: ErrCategoryDBDownload,
+		},
+		{
+			name:     "empty output",
+			output:   "",
+			expected: ErrCategoryTrivyExec,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, classifyTrivyError(tc.output))
+		})
+	}
 }

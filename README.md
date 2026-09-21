@@ -18,6 +18,7 @@ Maintained by [container-registry.com], forked from [goharbor/harbor-scanner-tri
 - [What it offers](#what-it-offers)
 - [Install](#install)
 - [Releases](#releases)
+- [Operational metrics](#operational-metrics)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
@@ -81,19 +82,19 @@ Compared with the adapter bundled in Harbor:
 
 What that means in operation:
 
-- **"Scan All" that stays within memory.** Upstream, a bulk scan over a few thousand artifacts filled the Redis
+- With the upstream adapter, a bulk scan over a few thousand artifacts filled the Redis
   instance the adapter shares with Harbor: 4.83 GiB peak, OOM-killed, Harbor down with it ([#28]). With reports
   compressed ([#31]) and stored in their own key ([#43]), a 3,119-artifact "Scan All" peaks at 274 MB and finishes
   30% faster.
-- **Reports 7x smaller in Redis** (5.3x to 17.2x depending on the report), which also lets you keep them longer.
-- **Vulnerability scans served from an existing SBOM** ([#38], opt-in). When Harbor already generated an SBOM for
+- Compressed reports are 7x smaller in Redis (5.3x to 17.2x depending on the report), allowing longer retention.
+- Vulnerability scans can use an existing SBOM ([#38], opt-in). When Harbor already generated an SBOM for
   the image with this adapter, the scan reads it instead of pulling layers: 6x to 35x faster per scan, identical
   findings, automatic fallback to a full image scan. In production, a 4,221-artifact "Scan All" went from 3h 24m to
   1h 30m with zero fallbacks ([measurements](https://github.com/container-registry/harbor-scanner-trivy/pull/38#issuecomment-5506161158)).
-- **A Trivy you can patch.** Trivy is compiled from source at the pinned version, so a vulnerable dependency can be
+- Trivy is compiled from source at the pinned version, so a vulnerable dependency can be
   overridden via `go mod` before Aqua cuts a release. The Trivy version and commit the binary was built from show
   up as the scanner version in Harbor's UI.
-- **Releases you can verify.** Every image is cosign-signed keyless and carries an SPDX SBOM attestation; see
+- Every image is cosign-signed keyless and carries an SPDX SBOM attestation; see
   [Install](#install) for the verify command.
 
 This fork has its own version line and is not tied to any Harbor release. Which upstream adapter and Trivy version
@@ -151,9 +152,16 @@ A new Trivy release is picked up by Renovate and, once merged, cuts a matching a
 respective inputs, linked from a comment on the PR. How releases are cut, and what maintainers do, is in
 [docs/RELEASES.md](docs/RELEASES.md).
 
+## Operational metrics
+
+The [operational metrics guide](docs/metrics.md) explains collection settings and how to read the scanner,
+worker, database, storage, report and Redis pool measurements. The
+[operations runbook](docs/OPERATIONS.md) maps each signal to what it means
+and what to do when it moves, including the Harbor-side caveats.
+
 ## Configuration
 
-Everything is configured through environment variables at startup. No config files.
+The adapter reads all configuration from environment variables at startup; it has no configuration files.
 
 ### General
 
@@ -179,6 +187,12 @@ Everything is configured through environment variables at startup. No config fil
 | Name | Default | Description |
 |------|---------|-------------|
 | `SCANNER_TRIVY_CACHE_DIR` | `/home/scanner/.cache/trivy` | Trivy cache directory |
+| `SCANNER_TRIVY_CACHE_BACKEND` | `fs` | Analysis cache: `fs`, `memory`, `redis://` or `rediss://` URL. For multiple pods, use a dedicated Redis/Valkey instance; supply credentials through a Secret |
+| `SCANNER_TRIVY_CACHE_TTL` | `168h` | Positive Redis/Valkey cache retention, set on writes; reads do not renew it |
+| `SCANNER_TRIVY_CACHE_REDIS_TLS` | `false` | Enable Redis TLS with system trust roots; `rediss://` also enables TLS |
+| `SCANNER_TRIVY_CACHE_REDIS_CA` | N/A | Mounted cache CA certificate; CA, client certificate and key must be supplied together |
+| `SCANNER_TRIVY_CACHE_REDIS_CERT` | N/A | Mounted cache client certificate |
+| `SCANNER_TRIVY_CACHE_REDIS_KEY` | N/A | Mounted cache client private key |
 | `SCANNER_TRIVY_REPORTS_DIR` | `/home/scanner/.cache/reports` | Trivy reports directory |
 | `SCANNER_TRIVY_DEBUG_MODE` | `false` | Enable Trivy debug mode |
 | `SCANNER_TRIVY_VULN_TYPE` | `os,library` | Comma-separated vulnerability types: `os`, `library` |
@@ -197,15 +211,69 @@ Everything is configured through environment variables at startup. No config fil
 | `SCANNER_TRIVY_VEX_SOURCE` | N/A | Enable VEX: `oci` or `repo` [EXPERIMENTAL] |
 | `SCANNER_TRIVY_SKIP_VEX_REPO_UPDATE` | `false` | Skip updating the VEX repository [EXPERIMENTAL] |
 | `SCANNER_TRIVY_USE_SBOM_ACCESSORY` | `false` | Serve vulnerability scans from an existing SBOM accessory found via the OCI referrers API instead of pulling image layers. Vulnerability scans only; requires SBOMs generated by Harbor with this adapter. Falls back to a full image scan when absent or on failure. See [Performance](#performance). |
+| `SCANNER_TRIVY_IMAGE_SRC` | `remote` | Where Trivy looks for the image, passed as `--image-src`. The adapter always scans a registry, so the default skips Trivy's probes for local Docker, containerd and Podman sockets. Empty restores Trivy's own default |
+| `SCANNER_TRIVY_SKIP_VERSION_CHECK` | `true` | Suppress Trivy's update notice and announcements, which it fetches over the network on every scan |
+| `SCANNER_TRIVY_DISABLE_TELEMETRY` | `true` | Stop Trivy sending anonymous usage data to `check.trivy.dev` on every scan |
+| `SCANNER_TRIVY_MAX_IMAGE_SIZE` | N/A | Refuse images larger than this, e.g. `10GB`. Unset means no limit. The compressed size is checked from the manifest before anything is pulled. The uncompressed size is accumulated as layers are downloaded into Trivy's temp directory and fails the scan as soon as the running total exceeds the limit, so it stops partway through rather than after the whole image, with up to `--parallel` layers in flight. It raises temp disk use for the scans it allows |
+| `SCANNER_TRIVY_CHILD_GOMEMLIMIT` | N/A | Soft heap limit (`GOMEMLIMIT`) for the Trivy child. Unset derives 80% of the cgroup memory limit, so a heavy scan is slowed by garbage collection rather than OOM-killed; `off` passes the inherited environment through unchanged; any other value is used verbatim |
 
 ### Store and job queue
 
 | Name | Default | Description |
 |------|---------|-------------|
 | `SCANNER_STORE_REDIS_NAMESPACE` | `harbor.scanner.trivy:data-store` | Key namespace for the Redis store |
-| `SCANNER_STORE_REDIS_SCAN_JOB_TTL` | 2x `SCANNER_TRIVY_TIMEOUT` + 3s | TTL for scan jobs and their reports. Derived from the Trivy timeout when unset; must outlive the longest scan or the report expires before Harbor fetches it |
+| `SCANNER_STORE_REDIS_SCAN_JOB_TTL` | 2x `SCANNER_TRIVY_TIMEOUT` + 3s | Retention of completed jobs and reports after acknowledgement. Queued and unacknowledged work does not expire. Allow enough time for Harbor to fetch reports |
 | `SCANNER_JOB_QUEUE_REDIS_NAMESPACE` | `harbor.scanner.trivy:job-queue` | Key namespace for the Redis-backed job queue |
-| `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY` | `1` | Number of workers processing the scan job queue |
+| `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY` | `1` | Workers per adapter pod. Keep this at `1`; do not increase it to scale throughput. See [Scaling scan throughput](#scaling-scan-throughput) |
+
+### Scaling scan throughput
+
+Keep `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY=1`; the adapter rejects values above `1`. Each worker starts a
+Trivy process, and processes in the same pod share a cache directory. Concurrent scans can fail on the BoltDB
+file lock in `fanal.db`. Redis removes that analysis-cache lock, but vulnerability databases and their updates
+remain local. See [Trivy's database and cache lock guidance].
+
+Add adapter pods to increase throughput, with one worker and a separate local database volume per pod. A
+dedicated Redis/Valkey instance lets them share Trivy's image/layer analysis. Keep job state, locks and reports
+on the existing adapter connection (`SCANNER_REDIS_URL`).
+
+Use a separate cache instance because `maxmemory` and eviction policies apply to the whole Redis/Valkey
+instance. Another logical database number in Harbor's instance would still expose operational data to cache
+eviction and share its memory budget. Configure the dedicated instance's memory budget and eviction
+policy, and set a positive Trivy cache TTL based on the rescan interval. See [Valkey key eviction].
+
+The adapter validates these settings and forwards them to Trivy. Unsupported worker counts fail at startup
+and during Helm rendering. Use the `SCANNER_TRIVY_CACHE_*` settings; they take precedence over inherited native
+`TRIVY_*` cache settings. Startup logs show the effective backend type and TTL without the cache URL.
+
+```yaml
+replicaCount: 2
+jobQueue:
+  workerConcurrency: 1
+valkey:
+  enabled: true
+trivy:
+  cacheTTL: 168h
+```
+
+This enables the same official Valkey chart as Harbor-next (`0.9.3`) as a separate analysis-cache instance.
+Defaults are `maxmemory 512mb`, `allkeys-lru`, and a 1 GiB container limit; tune them for your workload.
+For an external cache, leave `valkey.enabled: false` and set `trivy.cacheBackend` to its URL.
+See the [dedicated cache example](deploy/chart/example/dedicated-cache/) for Secret and TLS configuration.
+All scanner pods share two separate stores: Harbor's existing Redis/Valkey holds adapter jobs, leases,
+job state and reports, while the dedicated cache holds reusable image/layer analysis instead of `fanal.db`.
+Evicted analysis can be recomputed without evicting pending jobs or reports. Vulnerability and Java
+index databases remain on each pod's own volume. See the [dashboard storage layout](deploy/chart/dashboards/README.md#what-lives-in-each-instance)
+for the three-pod deployment example and how the two instances map to panels.
+
+The job backend uses Redis Streams with acknowledgement and recovery and requires Redis 6.2+ or compatible
+Valkey. When upgrading from Pub/Sub releases, drain scans before replacing all adapter pods. Read the
+[scaling deployment and migration guide](docs/SCALING.md) for Secret/TLS configuration, memory sizing, recovery,
+metrics, test results, and rollback steps. The chart's deprecated `trivy.cacheMaxSize` is ignored; it never
+enforced a filesystem size limit.
+
+[Trivy's database and cache lock guidance]: https://trivy.dev/docs/latest/references/troubleshooting/#database-and-cache-lock-errors
+[Valkey key eviction]: https://valkey.io/topics/lru-cache/
 
 ### Redis connection
 

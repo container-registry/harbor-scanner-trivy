@@ -1,24 +1,33 @@
 package trivy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
+	"time"
 
 	"golang.org/x/xerrors"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 )
 
 type Format string
 
 const (
 	trivyCmd = "trivy"
+
+	// Harbor shows the detail in its scan status, so it carries the tail of the
+	// diagnostics, where the failure is reported, not the whole output.
+	detailLimit = 4 << 10
 
 	FormatJSON      Format = "json"
 	FormatSPDX      Format = "spdx-json"
@@ -50,29 +59,75 @@ type BearerAuth struct {
 }
 
 type Wrapper interface {
-	Scan(imageRef ImageRef, opt ScanOption) (Report, error)
+	Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error)
 	GetVersion() (VersionInfo, error)
+	// Available reports whether the Trivy binary can be executed at all.
+	Available() error
 }
 
 type wrapper struct {
+	metrics    *metrics.Recorder
 	config     etc.Trivy
 	ambassador ext.Ambassador
+	binary     binaryCheck
+	// Root for the private TMPDIR each child gets; see tempdir.go.
+	tempRoot *TempRoot
+	// One line per process: a cache the adapter cannot read is one fault, not
+	// one per metadata poll.
+	versionDecode sync.Once
 }
 
-func NewWrapper(config etc.Trivy, ambassador ext.Ambassador) Wrapper {
+// binaryCheck caches the PATH lookup. Readiness is polled every few seconds and
+// the answer changes only when the image or a mount does.
+type binaryCheck struct {
+	mu      sync.Mutex
+	checked time.Time
+	err     error
+}
+
+const binaryCheckTTL = time.Minute
+
+func (w *wrapper) Available() error {
+	w.binary.mu.Lock()
+	defer w.binary.mu.Unlock()
+	if !w.binary.checked.IsZero() && time.Since(w.binary.checked) < binaryCheckTTL {
+		return w.binary.err
+	}
+	_, err := w.ambassador.LookPath(trivyCmd)
+	w.binary.checked, w.binary.err = time.Now(), err
+	return err
+}
+
+func NewWrapper(config etc.Trivy, ambassador ext.Ambassador, tempRoot *TempRoot, recorders ...*metrics.Recorder) Wrapper {
+	backend := config.CacheBackend
+	if strings.HasPrefix(backend, "redis") {
+		backend = "redis"
+	}
+	slog.Info("Trivy scan cache configured", "backend", backend, "ttl", config.CacheTTL)
 	return &wrapper{
+		metrics:    metrics.Optional(recorders),
 		config:     config,
 		ambassador: ambassador,
+		tempRoot:   tempRoot,
 	}
 }
 
-func (w *wrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
-	report, usedAccessory, err := w.scan(imageRef, opt, w.useSBOMAccessory(opt))
-	if err != nil && usedAccessory {
+func (w *wrapper) Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error) {
+	if w.config.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, w.config.Timeout)
+		defer cancel()
+	}
+	report, usedAccessory, err := w.scan(ctx, imageRef, opt, w.useSBOMAccessory(opt))
+	if err == nil && usedAccessory {
+		w.metrics.Inc("sbom_accessory_events_total", "reuse_success")
+	}
+	if err != nil && usedAccessory && ctx.Err() == nil {
+		w.metrics.Inc("sbom_accessory_events_total", "fallback")
 		slog.Warn("SBOM accessory scan failed, retrying as image scan",
 			slog.String("image_ref", imageRef.Name),
 			slog.String("err", err.Error()))
-		report, _, err = w.scan(imageRef, opt, false)
+		report, _, err = w.scan(ctx, imageRef, opt, false)
 	}
 	return report, err
 }
@@ -92,11 +147,11 @@ func (w *wrapper) useSBOMAccessory(opt ScanOption) bool {
 	return true
 }
 
-func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool) (Report, bool, error) {
+func (w *wrapper) scan(ctx context.Context, imageRef ImageRef, opt ScanOption, useSBOMAccessory bool) (Report, bool, error) {
 	logger := slog.With(slog.String("image_ref", imageRef.Name))
 	logger.Debug("Started scanning")
 
-	target, err := newTarget(imageRef, w.config, w.ambassador, useSBOMAccessory)
+	target, err := newTarget(ctx, imageRef, w.config, w.ambassador, useSBOMAccessory, w.metrics)
 	if err != nil {
 		return Report{}, false, xerrors.Errorf("creating scan target: %w", err)
 	}
@@ -121,7 +176,21 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 		}
 	}()
 
-	cmd, err := w.prepareScanCmd(target, reportFile.Name(), opt)
+	// The child gets a TMPDIR of the adapter's making, so the layers it extracts
+	// go somewhere the adapter can identify and remove. Nothing else can: Trivy
+	// names its own scratch directory randomly. See tempdir.go.
+	childTemp, err := w.childTempDir()
+	if err != nil {
+		return Report{}, target.fromAccessory, xerrors.Errorf("creating the child temp directory: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(childTemp); err != nil {
+			logger.Warn("Error while removing the child temp directory",
+				slog.String("path", childTemp), slog.String("err", err.Error()))
+		}
+	}()
+
+	cmd, err := w.prepareScanCmd(ctx, target, reportFile.Name(), opt, childTemp)
 	if err != nil {
 		return Report{}, target.fromAccessory, xerrors.Errorf("preparing scan command: %w", err)
 	}
@@ -129,31 +198,48 @@ func (w *wrapper) scan(imageRef ImageRef, opt ScanOption, useSBOMAccessory bool)
 	logger.Debug("Exec command with args", slog.String("path", cmd.Path),
 		slog.String("args", strings.Join(cmd.Args, " ")))
 
-	stdout, err := w.ambassador.RunCmd(cmd)
+	stdout, stderr, err := w.metrics.Run(ctx, string(target.kind), cmd, w.ambassador.RunCmd)
+	// The report goes to --output, so stdout holds diagnostics at most. Fall
+	// back to it for binaries and wrappers that do not log to stderr.
+	diagnostics := string(stderr)
+	if strings.TrimSpace(diagnostics) == "" {
+		diagnostics = string(stdout)
+	}
 	if err != nil {
-		output := string(stdout)
-		category := classifyTrivyError(output)
+		// Classify before redaction: a short password may also occur in an error keyword.
+		category := classifyTrivyError(diagnostics)
+		output := w.redactCacheCredentials(diagnostics)
 		targetName, _ := target.Name()
 		logger.Error("Running trivy failed",
-			slog.String("exit_code", fmt.Sprintf("%d", cmd.ProcessState.ExitCode())),
-			slog.String("std_out", output),
+			slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
+			slog.String("std_err", output),
+			slog.String("std_out", w.redactCacheCredentials(string(stdout))),
 			slog.String("category", string(category)),
 		)
 		return Report{}, target.fromAccessory, &ScanError{
-			Category: category,
-			ImageRef: targetName,
-			Detail:   output,
-			Cause:    err,
+			Category:  category,
+			Retryable: retryable(category),
+			ImageRef:  targetName,
+			Detail:    tail(output, detailLimit),
+			Cause:     &redactedError{cause: err, message: w.redactCacheCredentials(err.Error())},
 		}
 	}
 
 	logger.Debug("Running trivy finished",
-		slog.String("exit_code", fmt.Sprintf("%d", cmd.ProcessState.ExitCode())),
-		slog.String("std_out", string(stdout)),
+		slog.String("exit_code", fmt.Sprintf("%d", exitCode(cmd))),
+		slog.String("std_err", w.redactCacheCredentials(diagnostics)),
 	)
 
 	report, err := w.parseReport(opt.Format, reportFile)
-	return report, target.fromAccessory, err
+	if err != nil {
+		return Report{}, target.fromAccessory, &ScanError{
+			Category: ErrCategoryReportParse,
+			ImageRef: imageRef.Name,
+			Detail:   err.Error(),
+			Cause:    err,
+		}
+	}
+	return report, target.fromAccessory, nil
 }
 
 func (w *wrapper) parseReport(format Format, reportFile io.Reader) (Report, error) {
@@ -195,7 +281,17 @@ func (w *wrapper) parseSBOM(reportFile io.Reader) (Report, error) {
 	return Report{SBOM: doc}, nil
 }
 
-func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanOption) (*exec.Cmd, error) {
+// childTempDir creates a scratch directory for one child under this process's
+// root. The root is created on demand rather than at construction, so a sweep
+// of the temp filesystem between scans cannot leave the adapter without one.
+func (w *wrapper) childTempDir() (string, error) {
+	if err := os.MkdirAll(w.tempRoot.Path(), 0o700); err != nil {
+		return "", err
+	}
+	return os.MkdirTemp(w.tempRoot.Path(), "scan-")
+}
+
+func (w *wrapper) prepareScanCmd(ctx context.Context, target ScanTarget, outputFile string, opt ScanOption, childTemp string) (*exec.Cmd, error) {
 	args := []string{
 		string(target.kind), // subcommand
 		"--no-progress",
@@ -215,6 +311,21 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 
 	if target.kind == TargetImage {
 		args = append(args, "--scanners", w.config.Scanners)
+		// Image flags are rejected by the sbom subcommand.
+		if w.config.ImageSrc != "" {
+			args = append(args, "--image-src", w.config.ImageSrc)
+		}
+		if w.config.MaxImageSize != "" {
+			args = append(args, "--max-image-size", w.config.MaxImageSize)
+		}
+	}
+
+	if w.config.SkipVersionCheck {
+		args = append(args, "--skip-version-check")
+	}
+
+	if w.config.DisableTelemetry {
+		args = append(args, "--disable-telemetry")
 	}
 
 	if w.config.IgnoreUnfixed {
@@ -272,9 +383,14 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 		return nil, err
 	}
 
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = time.Second
 
-	cmd.Env = w.ambassador.Environ()
+	cmd.Env = w.cacheEnv(w.ambassador.Environ())
+	cmd.Env = setEnv(cmd.Env, "TMPDIR="+childTemp)
+	if limit := childGoMemLimit(w.config.ChildGoMemLimit); limit != "" {
+		cmd.Env = setEnv(cmd.Env, "GOMEMLIMIT="+limit)
+	}
 
 	switch a := target.Auth().(type) {
 	case NoAuth:
@@ -296,11 +412,147 @@ func (w *wrapper) prepareScanCmd(target ScanTarget, outputFile string, opt ScanO
 	return cmd, nil
 }
 
+// Keep errors.Is/As useful without exposing credentials in formatted errors.
+type redactedError struct {
+	cause   error
+	message string
+}
+
+func (e *redactedError) Error() string { return e.message }
+func (e *redactedError) Unwrap() error { return e.cause }
+
+func (w *wrapper) redactCacheCredentials(text string) string {
+	u, err := url.Parse(w.config.CacheBackend)
+	if err != nil || u.User == nil {
+		return text
+	}
+	text = strings.ReplaceAll(text, w.config.CacheBackend, "redis://[redacted]")
+	if u.Scheme == "rediss" {
+		text = strings.ReplaceAll(text, "redis://"+strings.TrimPrefix(w.config.CacheBackend, "rediss://"), "redis://[redacted]")
+	}
+	text = strings.ReplaceAll(text, u.User.String(), "[redacted]")
+	if password, ok := u.User.Password(); ok && password != "" {
+		// URL userinfo encoding differs from QueryEscape (notably spaces).
+		encoded := strings.TrimPrefix(url.UserPassword("", password).String(), ":")
+		text = strings.ReplaceAll(text, encoded, "[redacted]")
+		text = strings.ReplaceAll(text, url.QueryEscape(password), "[redacted]")
+		text = strings.ReplaceAll(text, password, "[redacted]")
+	}
+	return text
+}
+
+// Pass cache credentials through the child environment, never command arguments.
+// Explicit adapter settings take precedence over inherited native Trivy settings.
+func (w *wrapper) cacheEnv(env []string) []string {
+	if w.config.CacheBackend == "" {
+		return env
+	}
+	backend, enableTLS := w.config.CacheBackend, w.config.CacheRedisTLS
+	// Trivy selects the Redis backend only for redis://; preserve rediss://
+	// semantics by enabling its separate TLS option before normalizing the URL.
+	if strings.HasPrefix(backend, "rediss://") {
+		backend = "redis://" + strings.TrimPrefix(backend, "rediss://")
+		enableTLS = true
+	}
+	return setEnv(env,
+		"TRIVY_CACHE_BACKEND="+backend,
+		"TRIVY_CACHE_TTL="+w.config.CacheTTL.String(),
+		fmt.Sprintf("TRIVY_REDIS_TLS=%t", enableTLS),
+		"TRIVY_REDIS_CA="+w.config.CacheRedisCA,
+		"TRIVY_REDIS_CERT="+w.config.CacheRedisCert,
+		"TRIVY_REDIS_KEY="+w.config.CacheRedisKey,
+	)
+}
+
+// setEnv replaces any inherited entry for the same key, so an adapter setting
+// always wins over what the pod environment happens to carry.
+func setEnv(env []string, values ...string) []string {
+	for _, value := range values {
+		key, _, _ := strings.Cut(value, "=")
+		filtered := make([]string, 0, len(env)+1)
+		for _, entry := range env {
+			if !strings.HasPrefix(entry, key+"=") {
+				filtered = append(filtered, entry)
+			}
+		}
+		env = append(filtered, value)
+	}
+	return env
+}
+
+// fatalMarker delimits Trivy's fatal report, "<RFC3339>\tFATAL\t<message>".
+const fatalMarker = "\tFATAL\t"
+
+// fatalDiagnostics narrows the output to Trivy's fatal report, which carries
+// the whole wrapped error chain and continues on the following lines under
+// --debug. Everything above it is routine logging, and some of it reads like a
+// failure: a database mirror that is unreachable logs "Failed to download
+// artifact" and then succeeds from the next repository. Classifying the full
+// buffer turned such a scan, fatal on a registry 401, into a retryable
+// db_download. Output without a fatal report, from a child that was killed,
+// is classified whole as before.
+func fatalDiagnostics(output string) string {
+	if i := strings.LastIndex(output, fatalMarker); i >= 0 {
+		return output[i:]
+	}
+	return output
+}
+
 // classifyTrivyError categorizes Trivy CLI errors by pattern-matching the output.
 func classifyTrivyError(output string) ScanErrorCategory {
-	lower := strings.ToLower(output)
+	lower := strings.ToLower(fatalDiagnostics(output))
+	// Infrastructure failures are matched first: their messages routinely also
+	// carry the generic keywords ("error", "timeout") matched further down.
 	switch {
-	case strings.Contains(lower, "unauthorized") || strings.Contains(lower, "401") || strings.Contains(lower, "403 forbidden"):
+	// A bare 429 also appears in digests, byte counts and CVE identifiers, so
+	// the status needs the words around it.
+	case strings.Contains(lower, "toomanyrequests") ||
+		strings.Contains(lower, "429 too many requests") ||
+		strings.Contains(lower, "status 429") ||
+		strings.Contains(lower, "status: 429") ||
+		strings.Contains(lower, "status code 429") ||
+		// Trivy formats some of its own fetches as "unexpected status code: %d".
+		strings.Contains(lower, "status code: 429"):
+		return ErrCategoryRateLimit
+	// Terminal schema and flag complaints precede the download rules: Trivy
+	// wraps them in "DB error:" and "Java DB error:", which the retryable
+	// download rules below would otherwise swallow.
+	// Not "trivy version is old": trivy logs that on its own ERROR line
+	// (v0.74.0 pkg/db/db.go:140) and returns the schema text below as the
+	// fatal, so fatalDiagnostics has already dropped it by here.
+	case strings.Contains(lower, "--skip-db-update cannot be specified") ||
+		(strings.Contains(lower, "--skip-java-db-update") && strings.Contains(lower, "cannot be specified")) ||
+		(strings.Contains(lower, "doesn't match") && strings.Contains(lower, "schema")):
+		return ErrCategoryDBSchema
+	// Trivy's analysis cache is a bolt file it opens through the same wrappers
+	// as a database download, so a cache fault reports "DB error:" too. It is a
+	// local storage problem, not a mirror problem, and recognizing it first is
+	// what keeps the two apart.
+	case strings.Contains(lower, "redis cache") ||
+		strings.Contains(lower, "layer cache missing") ||
+		strings.Contains(lower, "cache may be in use") ||
+		strings.Contains(lower, "unable to initialize fs cache") ||
+		strings.Contains(lower, "unable to open cache db") ||
+		strings.Contains(lower, "failed to create cache dir") ||
+		// The bbolt file at <cache-dir>/fanal/fanal.db, not a repository whose
+		// name happens to end in "fanal.db": this rule runs before the auth
+		// rules, so a loose match would report a 401 on such a repository as a
+		// retryable cache fault.
+		strings.Contains(lower, "fanal/fanal.db"):
+		return ErrCategoryCache
+	// A 401/403 on the database artifact is the registry refusing the adapter,
+	// which no retry fixes, so authentication is settled before the retryable
+	// download rules claim the message.
+	case !isAuthenticationErrorMessage(lower) &&
+		(strings.Contains(lower, "failed to download artifact") ||
+			strings.Contains(lower, "db error:") ||
+			(strings.Contains(lower, "java db") && strings.Contains(lower, "error"))):
+		return ErrCategoryDBDownload
+	case strings.Contains(lower, "unsupported artifact type"):
+		return ErrCategoryUnsupportedArtifact
+	}
+	switch {
+	case isAuthenticationErrorMessage(lower):
 		return ErrCategoryAuth
 	case strings.Contains(lower, "connection refused") || strings.Contains(lower, "no such host") || strings.Contains(lower, "dial tcp"):
 		return ErrCategoryNetwork
@@ -314,14 +566,34 @@ func classifyTrivyError(output string) ScanErrorCategory {
 }
 
 func (w *wrapper) GetVersion() (VersionInfo, error) {
+	// Harbor polls metadata about twice a minute. Reuse the background probe
+	// while it is current instead of starting a Trivy process per poll.
+	if cached, generation, ok := w.metrics.CachedVersion(); ok {
+		var vi VersionInfo
+		if err := json.Unmarshal(cached, &vi); err != nil {
+			// The probe accepted output this cannot read, so the two disagree
+			// about what the engine says. Running the command per poll instead
+			// is the cost the cache exists to avoid, and it would hide the
+			// disagreement, so report it once and fail the call. Only these
+			// bytes go: a probe may have replaced them while this decoded.
+			w.metrics.DiscardVersion(generation)
+			w.versionDecode.Do(func() {
+				slog.Error("Cached Trivy version output cannot be decoded",
+					slog.String("err", err.Error()))
+			})
+			return VersionInfo{}, fmt.Errorf("decoding the cached trivy version: %w", err)
+		}
+		return vi, nil
+	}
+
 	cmd, err := w.prepareVersionCmd()
 	if err != nil {
 		return VersionInfo{}, fmt.Errorf("failed preparing trivy version command: %w", err)
 	}
 
-	versionOutput, err := w.ambassador.RunCmd(cmd)
+	versionOutput, versionErrors, err := w.metrics.Run(context.Background(), "version", cmd, w.ambassador.RunCmd)
 	if err != nil {
-		return VersionInfo{}, fmt.Errorf("failed running trivy version command: %w: %v", err, string(versionOutput))
+		return VersionInfo{}, fmt.Errorf("failed running trivy version command: %w: %v", err, string(versionErrors))
 	}
 
 	var vi VersionInfo
@@ -349,4 +621,18 @@ func (w *wrapper) prepareVersionCmd() (*exec.Cmd, error) {
 
 	cmd := exec.Command(name, args...)
 	return cmd, nil
+}
+
+func tail(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	return strings.ToValidUTF8(text[len(text)-limit:], "")
+}
+
+func exitCode(cmd *exec.Cmd) int {
+	if cmd.ProcessState == nil {
+		return -1
+	}
+	return cmd.ProcessState.ExitCode()
 }

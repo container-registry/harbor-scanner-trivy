@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
@@ -14,6 +16,44 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/mock"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 )
+
+func TestStorageInterruptionLeavesScanRecoverable(t *testing.T) {
+	for _, stage := range []string{"pending", "report", "finished"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx := context.Background()
+			key := job.ScanJobKey{ID: "retry", MIMEType: api.MimeTypeSecurityVulnerabilityReport}
+			s := mock.NewStore()
+			w := trivy.NewMockWrapper()
+			transformer := mock.NewTransformer()
+			outage := fmt.Errorf("temporary store outage")
+			var pendingErr, reportErr, finishedErr error
+			switch stage {
+			case "pending":
+				pendingErr = outage
+			case "report":
+				reportErr = outage
+			case "finished":
+				finishedErr = outage
+			}
+			s.On("UpdateStatus", ctx, key, job.Pending, []string(nil)).Return(pendingErr).Once()
+			if stage != "pending" {
+				w.On("Scan", testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(trivy.Report{}, nil).Once()
+				transformer.On("Transform", testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(harbor.ScanReport{}).Once()
+				s.On("UpdateReport", ctx, key, harbor.ScanReport{}).Return(reportErr).Once()
+				if stage == "finished" {
+					s.On("UpdateStatus", ctx, key, job.Finished, []string(nil)).Return(finishedErr).Once()
+				}
+			}
+			req := &harbor.ScanRequest{Registry: harbor.Registry{URL: "https://registry.example.com"}, Artifact: harbor.Artifact{Repository: "alpine", Digest: "sha256:123"}}
+			err := NewController(s, w, transformer).Scan(ctx, key, req)
+			require.ErrorContains(t, err, outage.Error())
+			require.ErrorIs(t, err, outage)
+			s.AssertExpectations(t)
+			w.AssertExpectations(t)
+			transformer.AssertExpectations(t)
+		})
+	}
+}
 
 var capabilities = []harbor.Capability{
 	{
@@ -93,6 +133,7 @@ func TestController_Scan(t *testing.T) {
 			wrapperExpectation: &mock.Expectation{
 				Method: "Scan",
 				Args: []interface{}{
+					ctx,
 					trivy.ImageRef{
 						Name: "core.harbor.domain:443/library/mongo@sha256:917f5b7f4bef1b35ee90f03033f33a81002511c1e0767fd44276d4bd9cd2fa8e",
 						Auth: trivy.BasicAuth{
@@ -167,6 +208,7 @@ func TestController_Scan(t *testing.T) {
 			wrapperExpectation: &mock.Expectation{
 				Method: "Scan",
 				Args: []interface{}{
+					ctx,
 					trivy.ImageRef{
 						Name: "core.harbor.domain:443/library/mongo@sha256:917f5b7f4bef1b35ee90f03033f33a81002511c1e0767fd44276d4bd9cd2fa8e",
 						Auth: trivy.BasicAuth{
@@ -252,6 +294,25 @@ func TestController_ToRegistryAuth(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.ExpectedAuth, auth)
+		})
+	}
+}
+
+func TestRetryableRegistryFailureLeavesScanRecoverable(t *testing.T) {
+	for _, category := range []trivy.ScanErrorCategory{trivy.ErrCategoryImageFetch, trivy.ErrCategoryManifest} {
+		t.Run(string(category), func(t *testing.T) {
+			ctx := context.Background()
+			key := job.ScanJobKey{ID: "retry-registry", MIMEType: api.MimeTypeSecurityVulnerabilityReport}
+			store := mock.NewStore()
+			wrapper := trivy.NewMockWrapper()
+			transformer := mock.NewTransformer()
+			failure := &trivy.ScanError{Category: category, Retryable: true, Detail: "temporary registry failure"}
+			store.On("UpdateStatus", ctx, key, job.Pending, []string(nil)).Return(nil).Once()
+			wrapper.On("Scan", testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(trivy.Report{}, failure).Once()
+			req := &harbor.ScanRequest{Registry: harbor.Registry{URL: "https://registry.example.com"}, Artifact: harbor.Artifact{Repository: "alpine", Digest: "sha256:123"}}
+			require.ErrorIs(t, NewController(store, wrapper, transformer).Scan(ctx, key, req), failure)
+			store.AssertExpectations(t)
+			wrapper.AssertExpectations(t)
 		})
 	}
 }

@@ -1,0 +1,85 @@
+---
+suite: dedicated Valkey cache
+release:
+  name: scanner
+templates:
+  - statefulset.yaml
+tests:
+  - it: selects the dedicated service while preserving the job connection
+    set:
+      valkey.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: redis://scanner-valkey:6379/0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_REDIS_URL
+            value: redis://harbor-harbor-redis:6379
+  - it: follows upstream service name and port overrides
+    set:
+      valkey.enabled: true
+      valkey.fullnameOverride: dedicated-analysis
+      valkey.service.port: 6380
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: redis://dedicated-analysis:6380/0
+  - it: selects TLS when the cache service uses TLS
+    set:
+      valkey.enabled: true
+      valkey.tls.enabled: true
+      valkey.tls.existingSecret: cache-server-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: rediss://scanner-valkey:6379/0
+  - it: lets the credential URL come from an existing Secret
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      valkey.auth.usersExistingSecret: cache-auth
+      valkey.auth.aclUsers:
+        default:
+          permissions: "~* &* +@all"
+      extraEnv:
+        - name: SCANNER_TRIVY_CACHE_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: cache-auth
+              key: url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            valueFrom:
+              secretKeyRef:
+                name: cache-auth
+                key: url
+
+  - it: accepts a chart-managed Secret as the authenticated backend source
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      valkey.auth.usersExistingSecret: cache-auth
+      valkey.auth.aclUsers.default.permissions: "~* &* +@all"
+      secret.SCANNER_TRIVY_CACHE_BACKEND: redis://:fixture@cache:6379/0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SCANNER_TRIVY_CACHE_BACKEND
+            value: redis://scanner-valkey:6379/0
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: scanner-harbor-scanner-trivy-env

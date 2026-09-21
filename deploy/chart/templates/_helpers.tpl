@@ -240,37 +240,34 @@ NO_PROXY, which a forced SCANNER_ prefix would put out of reach.
 {{- end }}
 {{- end -}}
 
-{{/*
-Env var names claimed by .Values.config / .Values.secret, as a YAML list.
-
-This exists because envFrom is evaluated BEFORE env: a chart-set `env` entry
-always beats an envFrom source of the same name. Without dropping the chart's
-own entry, anything the user set through the passthrough would be silently
-ignored.
-*/}}
-{{- define "harbor-scanner-trivy.claimedEnvNames" -}}
-{{- $names := list -}}
-{{- range $source := (list (.Values.config | default dict) (.Values.secret | default dict)) -}}
-{{- range $name, $value := (include "harbor-scanner-trivy.toEnvVars" (dict "values" $source "prefix" "" "isSecret" false) | fromYaml) -}}
-{{- $names = append $names $name -}}
+{{/* Effective override sources, in Kubernetes precedence order. Values stay private. */}}
+{{- define "harbor-scanner-trivy.envOverrideSources" -}}
+{{- $sources := dict -}}
+{{- range $source := (list "config" "secret") -}}
+{{- range $name, $_ := (include "harbor-scanner-trivy.toEnvVars" (dict "values" (index $.Values $source | default dict) "prefix" "" "isSecret" false) | fromYaml) -}}
+{{- $_ := set $sources $name $source -}}
 {{- end -}}
 {{- end -}}
-{{- toYaml $names -}}
+{{- range .Values.extraEnv -}}
+{{- $source := ternary "secret" "extraEnv" (not (empty (dig "valueFrom" "secretKeyRef" dict .))) -}}
+{{- $_ := set $sources .name $source -}}
+{{- end -}}
+{{- toYaml $sources -}}
 {{- end -}}
 
 {{/*
 The container's final `env` list: the chart's own entries minus anything
-claimed by config/secret, then extraEnv appended.
+claimed by config/secret/extraEnv, then extraEnv appended.
 
 Precedence, lowest to highest:
   chart defaults  <  config / secret (envFrom)  <  extraEnv
 extraEnv wins over the passthrough for free, because it lands in `env`.
 */}}
 {{- define "harbor-scanner-trivy.env" -}}
-{{- $claimed := include "harbor-scanner-trivy.claimedEnvNames" . | fromYamlArray -}}
+{{- $sources := include "harbor-scanner-trivy.envOverrideSources" . | fromYaml -}}
 {{- $env := list -}}
 {{- range (include "harbor-scanner-trivy.chartEnv" . | fromYamlArray) -}}
-{{- if not (has .name $claimed) -}}
+{{- if not (hasKey $sources .name) -}}
 {{- $env = append $env . -}}
 {{- end -}}
 {{- end -}}
@@ -303,6 +300,14 @@ the user claimed through .Values.config / .Values.secret.
   value: {{ .Values.api.idleTimeout | quote }}
 - name: SCANNER_API_SERVER_METRICS_ENABLED
   value: {{ .Values.metrics.enabled | quote }}
+- name: SCANNER_METRICS_COLLECTION_INTERVAL
+  value: {{ printf "%ds" (int .Values.metrics.collection.intervalSeconds) | quote }}
+- name: SCANNER_METRICS_COLLECTION_TIMEOUT
+  value: {{ printf "%ds" (int .Values.metrics.collection.timeoutSeconds) | quote }}
+- name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+  value: {{ .Values.metrics.collection.cacheSizeEnabled | quote }}
+- name: SCANNER_METRICS_CACHE_MAX_FILES
+  value: {{ .Values.metrics.collection.maxCacheFiles | quote }}
 {{- if $tls }}
 - name: SCANNER_API_SERVER_TLS_CERTIFICATE
   value: /certs/tls.crt
@@ -318,12 +323,10 @@ the user claimed through .Values.config / .Values.secret.
 - name: SCANNER_TRIVY_REPORTS_DIR
   value: {{ .Values.trivy.reportsDir | quote }}
 - name: SCANNER_TRIVY_CACHE_BACKEND
-  value: {{ .Values.trivy.cacheBackend | quote }}
+  value: {{ include "harbor-scanner-trivy.cacheBackend" . | quote }}
 - name: SCANNER_TRIVY_CACHE_TTL
   value: {{ .Values.trivy.cacheTTL | quote }}
-- name: SCANNER_TRIVY_CACHE_MAX_SIZE
-  value: {{ .Values.trivy.cacheMaxSize | quote }}
-{{- if hasPrefix "redis" .Values.trivy.cacheBackend }}
+{{- if or (hasPrefix "redis" .Values.trivy.cacheBackend) .Values.trivy.cacheRedisTLS .Values.trivy.cacheRedisCACert .Values.trivy.cacheRedisCert .Values.trivy.cacheRedisKey }}
 - name: SCANNER_TRIVY_CACHE_REDIS_TLS
   value: {{ .Values.trivy.cacheRedisTLS | quote }}
 {{- with .Values.trivy.cacheRedisCACert }}
@@ -367,6 +370,20 @@ the user claimed through .Values.config / .Values.secret.
   value: {{ .Values.trivy.insecure | quote }}
 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
   value: {{ .Values.trivy.useSBOMAccessory | quote }}
+- name: SCANNER_TRIVY_IMAGE_SRC
+  value: {{ .Values.trivy.imageSrc | quote }}
+- name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+  value: {{ .Values.trivy.skipVersionCheck | quote }}
+- name: SCANNER_TRIVY_DISABLE_TELEMETRY
+  value: {{ .Values.trivy.disableTelemetry | quote }}
+{{- with .Values.trivy.maxImageSize }}
+- name: SCANNER_TRIVY_MAX_IMAGE_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.trivy.childGoMemLimit }}
+- name: SCANNER_TRIVY_CHILD_GOMEMLIMIT
+  value: {{ . | quote }}
+{{- end }}
 {{- with .Values.trivy.vexSource }}
 - name: SCANNER_TRIVY_VEX_SOURCE
   value: {{ . | quote }}
@@ -516,4 +533,3 @@ Shape is already guaranteed by values.schema.json, so this only sums the parts.
 {{- end -}}
 {{- $total -}}
 {{- end -}}
-

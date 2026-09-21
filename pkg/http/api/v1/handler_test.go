@@ -1,12 +1,15 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +18,7 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/mock"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 	"github.com/stretchr/testify/assert"
@@ -304,7 +308,7 @@ func TestRequestHandler_AcceptScanRequest(t *testing.T) {
 			r, err := http.NewRequest(http.MethodPost, "/api/v1/scan", strings.NewReader(tc.requestBody))
 			require.NoError(t, err)
 
-			NewAPIHandler(etc.BuildInfo{}, etc.Config{}, enqueuer, store, nil).ServeHTTP(rr, r)
+			NewAPIHandler(etc.BuildInfo{}, etc.Config{}, enqueuer, store, nil, nil).ServeHTTP(rr, r)
 
 			assert.Equal(t, tc.expectedStatus, rr.Code)
 			assert.Equal(t, tc.expectedContentType, rr.Header().Get("Content-Type"))
@@ -631,7 +635,7 @@ func TestRequestHandler_GetScanReport(t *testing.T) {
 				r.URL.RawQuery = tt.query.Encode()
 			}
 
-			NewAPIHandler(etc.BuildInfo{}, etc.Config{}, enqueuer, store, nil).ServeHTTP(rr, r)
+			NewAPIHandler(etc.BuildInfo{}, etc.Config{}, enqueuer, store, nil, nil).ServeHTTP(rr, r)
 
 			assert.Equal(t, tt.expectedStatus, rr.Code)
 			assert.Equal(t, tt.expectedContentType, rr.Header().Get("Content-Type"))
@@ -656,7 +660,7 @@ func TestRequestHandler_GetHealthy(t *testing.T) {
 	r, err := http.NewRequest(http.MethodGet, "/probe/healthy", nil)
 	require.NoError(t, err)
 
-	NewAPIHandler(etc.BuildInfo{}, etc.Config{}, enqueuer, store, nil).ServeHTTP(rr, r)
+	NewAPIHandler(etc.BuildInfo{}, etc.Config{}, enqueuer, store, nil, nil).ServeHTTP(rr, r)
 
 	rs := rr.Result()
 
@@ -665,22 +669,124 @@ func TestRequestHandler_GetHealthy(t *testing.T) {
 	store.AssertExpectations(t)
 }
 
+// fakeWorker answers the readiness checks without a queue behind it.
+type fakeWorker struct {
+	healthy, active error
+}
+
+func (fakeWorker) Start(context.Context)           {}
+func (fakeWorker) Stop()                           {}
+func (w fakeWorker) Healthy(context.Context) error { return w.healthy }
+func (w fakeWorker) Active() error                 { return w.active }
+
 func TestRequestHandler_GetReady(t *testing.T) {
-	enqueuer := mock.NewEnqueuer()
-	store := mock.NewStore()
+	for _, tc := range []struct {
+		name     string
+		worker   fakeWorker
+		binary   error
+		code     int
+		failed   []string
+		measured map[string]float64
+	}{
+		{
+			name:     "everything the pod needs to serve",
+			code:     http.StatusOK,
+			measured: map[string]float64{"queue": 1, "worker": 1, "binary": 1},
+		},
+		{
+			name:     "the job backend lost the consumer group",
+			worker:   fakeWorker{healthy: errors.New(`consumer group "scanner" is missing`)},
+			code:     http.StatusServiceUnavailable,
+			failed:   []string{"queue"},
+			measured: map[string]float64{"queue": 0, "worker": 1, "binary": 1},
+		},
+		{
+			name:     "the read loop stopped",
+			worker:   fakeWorker{active: errors.New("worker last reached the queue 5m0s ago")},
+			code:     http.StatusServiceUnavailable,
+			failed:   []string{"worker"},
+			measured: map[string]float64{"queue": 1, "worker": 0, "binary": 1},
+		},
+		{
+			name:     "the trivy binary is gone",
+			binary:   errors.New(`exec: "trivy": executable file not found in $PATH`),
+			code:     http.StatusServiceUnavailable,
+			failed:   []string{"binary"},
+			measured: map[string]float64{"queue": 1, "worker": 1, "binary": 0},
+		},
+		{
+			name:     "nothing works",
+			worker:   fakeWorker{healthy: errors.New("dial tcp: connection refused"), active: errors.New("worker has not reached the queue yet")},
+			binary:   errors.New("not found"),
+			code:     http.StatusServiceUnavailable,
+			failed:   []string{"queue", "worker", "binary"},
+			measured: map[string]float64{"queue": 0, "worker": 0, "binary": 0},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wrapper := trivy.NewMockWrapper()
+			wrapper.On("Available").Return(tc.binary)
+			recorder := metrics.New(true)
+			rr := httptest.NewRecorder()
+			r, err := http.NewRequest(http.MethodGet, "/probe/ready", nil)
+			require.NoError(t, err)
 
+			NewAPIHandler(etc.BuildInfo{}, etc.Config{}, nil, nil, wrapper, tc.worker, recorder).ServeHTTP(rr, r)
+
+			require.Equal(t, tc.code, rr.Result().StatusCode)
+			if tc.code == http.StatusOK {
+				require.Empty(t, rr.Body.String())
+			} else {
+				var body struct {
+					Ready  bool              `json:"ready"`
+					Failed map[string]string `json:"failed"`
+				}
+				require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+				require.False(t, body.Ready)
+				require.ElementsMatch(t, tc.failed, slices.Collect(maps.Keys(body.Failed)))
+			}
+			for check, want := range tc.measured {
+				value, ok := readyValue(t, recorder, check)
+				require.True(t, ok, check)
+				require.Equal(t, want, value, check)
+			}
+			wrapper.AssertExpectations(t)
+		})
+	}
+}
+
+// A process without a worker reports on what it has: the integration harness
+// serves the API without one, and delivery is then another pod's to answer for.
+func TestReadinessSkipsComponentsThisProcessDoesNotOwn(t *testing.T) {
 	rr := httptest.NewRecorder()
-
 	r, err := http.NewRequest(http.MethodGet, "/probe/ready", nil)
 	require.NoError(t, err)
+	recorder := metrics.New(true)
+	NewAPIHandler(etc.BuildInfo{}, etc.Config{}, nil, nil, nil, nil, recorder).ServeHTTP(rr, r)
+	require.Equal(t, http.StatusOK, rr.Result().StatusCode)
+	for _, check := range []string{"queue", "worker", "binary"} {
+		_, ok := readyValue(t, recorder, check)
+		require.False(t, ok, check)
+	}
+}
 
-	NewAPIHandler(etc.BuildInfo{}, etc.Config{}, enqueuer, store, nil).ServeHTTP(rr, r)
-
-	rs := rr.Result()
-
-	assert.Equal(t, http.StatusOK, rs.StatusCode)
-	enqueuer.AssertExpectations(t)
-	store.AssertExpectations(t)
+func readyValue(t *testing.T, r *metrics.Recorder, check string) (float64, bool) {
+	t.Helper()
+	families, err := r.Gatherer().Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != metrics.Prefix+"ready" {
+			continue
+		}
+		for _, m := range family.Metric {
+			for _, label := range m.Label {
+				if label.GetName() == "check" && label.GetValue() == check {
+					return m.GetGauge().GetValue(), true
+				}
+			}
+		}
+	}
+	return 0, false
 }
 
 func TestRequestHandler_GetMetadata(t *testing.T) {
@@ -948,7 +1054,7 @@ func TestRequestHandler_GetMetadata(t *testing.T) {
 			r, err := http.NewRequest(http.MethodGet, "/api/v1/metadata", nil)
 			require.NoError(t, err, tc.name)
 
-			NewAPIHandler(tc.buildInfo, tc.config, enqueuer, store, wrapper).ServeHTTP(rr, r)
+			NewAPIHandler(tc.buildInfo, tc.config, enqueuer, store, wrapper, nil).ServeHTTP(rr, r)
 
 			rs := rr.Result()
 
@@ -960,4 +1066,21 @@ func TestRequestHandler_GetMetadata(t *testing.T) {
 			wrapper.AssertExpectations(t)
 		})
 	}
+}
+
+func TestMetadataIncludesJavaBuildTimeWhenUpdatesDisabled(t *testing.T) {
+	wrapper := trivy.NewMockWrapper()
+	wrapper.On("GetVersion").Return(trivy.VersionInfo{JavaDB: &trivy.Metadata{
+		UpdatedAt:  time.Unix(1584517644, 0).UTC(),
+		NextUpdate: time.Unix(1584527644, 0).UTC(),
+	}}, nil)
+	handler := NewAPIHandler(etc.BuildInfo{}, etc.Config{Trivy: etc.Trivy{SkipJavaDBUpdate: true}}, nil, nil, wrapper, nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/metadata", nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	var metadata harbor.ScannerAdapterMetadata
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &metadata))
+	require.Equal(t, "2020-03-18T07:47:24Z", metadata.Properties[propertyJavaDBUpdatedAt])
+	require.NotContains(t, metadata.Properties, propertyJavaDBNextUpdateAt)
+	wrapper.AssertExpectations(t)
 }

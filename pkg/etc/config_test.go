@@ -2,6 +2,7 @@ package etc
 
 import (
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -45,6 +46,26 @@ func TestGetLogLevel(t *testing.T) {
 	}
 }
 
+func TestExplicitlyEmptyValueOverridesTheDefault(t *testing.T) {
+	// The chart renders imageSrc: "" as SCANNER_TRIVY_IMAGE_SRC="", which has
+	// to mean "leave the flag off" rather than fall back to the default.
+	t.Run("set to empty", func(t *testing.T) {
+		setEnvs(t, Envs{"SCANNER_TRIVY_IMAGE_SRC": ""})
+		cfg, err := GetConfig()
+		require.NoError(t, err)
+		require.Empty(t, cfg.Trivy.ImageSrc)
+	})
+	t.Run("not set at all", func(t *testing.T) {
+		// t.Setenv above restores whatever the test process inherited, which is
+		// not the same as the variable being absent. Only absence reaches the
+		// envDefault, so this subtest has to make it absent itself.
+		unsetEnv(t, "SCANNER_TRIVY_IMAGE_SRC")
+		cfg, err := GetConfig()
+		require.NoError(t, err)
+		require.Equal(t, "remote", cfg.Trivy.ImageSrc)
+	})
+}
+
 func TestGetConfig(t *testing.T) {
 	testCases := []struct {
 		name           string
@@ -58,6 +79,7 @@ func TestGetConfig(t *testing.T) {
 				"SCANNER_LOG_LEVEL": "debug",
 			},
 			expectedConfig: Config{
+				Metrics: Metrics{CollectionInterval: time.Minute, CollectionTimeout: 5 * time.Second, CacheMaxFiles: 10000},
 				API: API{
 					Addr:           ":8080",
 					ReadTimeout:    parseDuration(t, "15s"),
@@ -66,15 +88,21 @@ func TestGetConfig(t *testing.T) {
 					MetricsEnabled: true,
 				},
 				Trivy: Trivy{
-					DebugMode:   true,
-					CacheDir:    "/home/scanner/.cache/trivy",
-					ReportsDir:  "/home/scanner/.cache/reports",
-					VulnType:    "os,library",
-					Scanners:    "vuln",
-					Severity:    "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
-					Insecure:    false,
-					GitHubToken: "",
-					Timeout:     parseDuration(t, "5m0s"),
+					CacheBackend: "fs",
+					CacheTTL:     168 * time.Hour,
+					DebugMode:    true,
+					CacheDir:     "/home/scanner/.cache/trivy",
+					ReportsDir:   "/home/scanner/.cache/reports",
+					VulnType:     "os,library",
+					Scanners:     "vuln",
+					Severity:     "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+					Insecure:     false,
+					GitHubToken:  "",
+					Timeout:      parseDuration(t, "5m0s"),
+
+					ImageSrc:         "remote",
+					SkipVersionCheck: true,
+					DisableTelemetry: true,
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://localhost:6379",
@@ -98,6 +126,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			name: "Should return default config",
 			expectedConfig: Config{
+				Metrics: Metrics{CollectionInterval: time.Minute, CollectionTimeout: 5 * time.Second, CacheMaxFiles: 10000},
 				API: API{
 					Addr:           ":8080",
 					ReadTimeout:    parseDuration(t, "15s"),
@@ -106,15 +135,21 @@ func TestGetConfig(t *testing.T) {
 					MetricsEnabled: true,
 				},
 				Trivy: Trivy{
-					DebugMode:   false,
-					CacheDir:    "/home/scanner/.cache/trivy",
-					ReportsDir:  "/home/scanner/.cache/reports",
-					VulnType:    "os,library",
-					Scanners:    "vuln",
-					Severity:    "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
-					Insecure:    false,
-					GitHubToken: "",
-					Timeout:     parseDuration(t, "5m0s"),
+					CacheBackend: "fs",
+					CacheTTL:     168 * time.Hour,
+					DebugMode:    false,
+					CacheDir:     "/home/scanner/.cache/trivy",
+					ReportsDir:   "/home/scanner/.cache/reports",
+					VulnType:     "os,library",
+					Scanners:     "vuln",
+					Severity:     "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+					Insecure:     false,
+					GitHubToken:  "",
+					Timeout:      parseDuration(t, "5m0s"),
+
+					ImageSrc:         "remote",
+					SkipVersionCheck: true,
+					DisableTelemetry: true,
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://localhost:6379",
@@ -162,12 +197,17 @@ func TestGetConfig(t *testing.T) {
 				"SCANNER_TRIVY_TIMEOUT":              "15m30s",
 				"SCANNER_TRIVY_VEX_SOURCE":           "oci",
 				"SCANNER_TRIVY_SKIP_VEX_REPO_UPDATE": "true",
+				"SCANNER_TRIVY_IMAGE_SRC":            "docker",
+				"SCANNER_TRIVY_SKIP_VERSION_CHECK":   "false",
+				"SCANNER_TRIVY_DISABLE_TELEMETRY":    "false",
+				"SCANNER_TRIVY_MAX_IMAGE_SIZE":       "5GB",
+				"SCANNER_TRIVY_CHILD_GOMEMLIMIT":     "off",
 
 				"SCANNER_STORE_REDIS_NAMESPACE":    "store.ns",
 				"SCANNER_STORE_REDIS_SCAN_JOB_TTL": "2h45m15s",
 
 				"SCANNER_JOB_QUEUE_REDIS_NAMESPACE":    "job-queue.ns",
-				"SCANNER_JOB_QUEUE_WORKER_CONCURRENCY": "3",
+				"SCANNER_JOB_QUEUE_WORKER_CONCURRENCY": "1",
 
 				"SCANNER_REDIS_URL":                  "redis://harbor-harbor-redis:6379",
 				"SCANNER_REDIS_POOL_MAX_ACTIVE":      "3",
@@ -176,6 +216,7 @@ func TestGetConfig(t *testing.T) {
 				"SCANNER_API_SERVER_METRICS_ENABLED": "false",
 			},
 			expectedConfig: Config{
+				Metrics: Metrics{CollectionInterval: time.Minute, CollectionTimeout: 5 * time.Second, CacheMaxFiles: 10000},
 				API: API{
 					Addr:           ":4200",
 					TLSCertificate: "/certs/tls.crt",
@@ -190,6 +231,8 @@ func TestGetConfig(t *testing.T) {
 					MetricsEnabled: false,
 				},
 				Trivy: Trivy{
+					CacheBackend:      "fs",
+					CacheTTL:          168 * time.Hour,
 					CacheDir:          "/home/scanner/trivy-cache",
 					ReportsDir:        "/home/scanner/trivy-reports",
 					DebugMode:         true,
@@ -205,6 +248,11 @@ func TestGetConfig(t *testing.T) {
 					Timeout:           parseDuration(t, "15m30s"),
 					VEXSource:         "oci",
 					SkipVEXRepoUpdate: true,
+					ImageSrc:          "docker",
+					SkipVersionCheck:  false,
+					DisableTelemetry:  false,
+					MaxImageSize:      "5GB",
+					ChildGoMemLimit:   "off",
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://harbor-harbor-redis:6379",
@@ -221,7 +269,7 @@ func TestGetConfig(t *testing.T) {
 				},
 				JobQueue: JobQueue{
 					Namespace:         "job-queue.ns",
-					WorkerConcurrency: 3,
+					WorkerConcurrency: 1,
 				},
 			},
 		},
@@ -289,9 +337,38 @@ func setEnvs(t *testing.T, envs Envs) {
 	}
 }
 
+// unsetEnv removes a variable for the duration of the test and puts back what
+// the process had, which t.Setenv cannot express: it only restores a value.
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	original, had := os.LookupEnv(key)
+	require.NoError(t, os.Unsetenv(key))
+	t.Cleanup(func() {
+		if !had {
+			require.NoError(t, os.Unsetenv(key))
+			return
+		}
+		require.NoError(t, os.Setenv(key, original))
+	})
+}
+
 func parseDuration(t *testing.T, s string) time.Duration {
 	t.Helper()
 	duration, err := time.ParseDuration(s)
 	require.NoError(t, err)
 	return duration
+}
+
+func TestMetricsConfigurationValidation(t *testing.T) {
+	for _, tc := range []struct{ name, value string }{{"SCANNER_METRICS_COLLECTION_INTERVAL", "0s"}, {"SCANNER_METRICS_COLLECTION_TIMEOUT", "0s"}, {"SCANNER_METRICS_COLLECTION_TIMEOUT", "2m"}, {"SCANNER_METRICS_CACHE_MAX_FILES", "0"}} {
+		t.Run(tc.name+tc.value, func(t *testing.T) {
+			t.Setenv("SCANNER_API_SERVER_METRICS_ENABLED", "true")
+			t.Setenv("SCANNER_METRICS_COLLECTION_INTERVAL", "1m")
+			t.Setenv("SCANNER_METRICS_COLLECTION_TIMEOUT", "5s")
+			t.Setenv("SCANNER_METRICS_CACHE_MAX_FILES", "10000")
+			t.Setenv(tc.name, tc.value)
+			_, err := GetConfig()
+			require.ErrorContains(t, err, "invalid metrics collection settings")
+		})
+	}
 }

@@ -92,6 +92,14 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                   value: 60s
                 - name: SCANNER_API_SERVER_METRICS_ENABLED
                   value: "true"
+                - name: SCANNER_METRICS_COLLECTION_INTERVAL
+                  value: 60s
+                - name: SCANNER_METRICS_COLLECTION_TIMEOUT
+                  value: 5s
+                - name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+                  value: "false"
+                - name: SCANNER_METRICS_CACHE_MAX_FILES
+                  value: "10000"
                 - name: SCANNER_API_SERVER_TLS_CERTIFICATE
                   value: /certs/tls.crt
                 - name: SCANNER_API_SERVER_TLS_KEY
@@ -104,8 +112,6 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                   value: fs
                 - name: SCANNER_TRIVY_CACHE_TTL
                   value: 168h
-                - name: SCANNER_TRIVY_CACHE_MAX_SIZE
-                  value: 3GiB
                 - name: SCANNER_TRIVY_VULN_TYPE
                   value: os,library
                 - name: SCANNER_TRIVY_SECURITY_CHECKS
@@ -126,6 +132,12 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                   value: "false"
                 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
                   value: "false"
+                - name: SCANNER_TRIVY_IMAGE_SRC
+                  value: remote
+                - name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+                  value: "true"
+                - name: SCANNER_TRIVY_DISABLE_TELEMETRY
+                  value: "true"
                 - name: SCANNER_TRIVY_IGNORE_POLICY
                   value: /home/scanner/opa/policy.rego
                 - name: SCANNER_TRIVY_GITHUB_TOKEN
@@ -161,6 +173,12 @@ matches the GitOps render (external secrets, digest-pinned image, TLS):
                     name: harbor-scanner-trivy-env
               image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy@sha256:0000000000000000000000000000000000000000000000000000000000000000
               imagePullPolicy: IfNotPresent
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                      - /bin/sleep
+                      - "10"
               livenessProbe:
                 failureThreshold: 10
                 httpGet:
@@ -334,6 +352,14 @@ matches the default render:
                   value: 60s
                 - name: SCANNER_API_SERVER_METRICS_ENABLED
                   value: "true"
+                - name: SCANNER_METRICS_COLLECTION_INTERVAL
+                  value: 60s
+                - name: SCANNER_METRICS_COLLECTION_TIMEOUT
+                  value: 5s
+                - name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+                  value: "false"
+                - name: SCANNER_METRICS_CACHE_MAX_FILES
+                  value: "10000"
                 - name: SCANNER_TRIVY_CACHE_DIR
                   value: /home/scanner/.cache/trivy
                 - name: SCANNER_TRIVY_REPORTS_DIR
@@ -342,8 +368,6 @@ matches the default render:
                   value: fs
                 - name: SCANNER_TRIVY_CACHE_TTL
                   value: 168h
-                - name: SCANNER_TRIVY_CACHE_MAX_SIZE
-                  value: 3GiB
                 - name: SCANNER_TRIVY_VULN_TYPE
                   value: os,library
                 - name: SCANNER_TRIVY_SECURITY_CHECKS
@@ -368,6 +392,12 @@ matches the default render:
                   value: "false"
                 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
                   value: "false"
+                - name: SCANNER_TRIVY_IMAGE_SRC
+                  value: remote
+                - name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+                  value: "true"
+                - name: SCANNER_TRIVY_DISABLE_TELEMETRY
+                  value: "true"
                 - name: SCANNER_STORE_REDIS_NAMESPACE
                   value: harbor.scanner.trivy:data-store
                 - name: SCANNER_JOB_QUEUE_REDIS_NAMESPACE
@@ -390,6 +420,12 @@ matches the default render:
                   value: 1s
               image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v9.9.9-test
               imagePullPolicy: IfNotPresent
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                      - /bin/sleep
+                      - "10"
               livenessProbe:
                 failureThreshold: 10
                 httpGet:
@@ -545,18 +581,22 @@ matches the multi-replica render:
                   value: 60s
                 - name: SCANNER_API_SERVER_METRICS_ENABLED
                   value: "true"
+                - name: SCANNER_METRICS_COLLECTION_INTERVAL
+                  value: 60s
+                - name: SCANNER_METRICS_COLLECTION_TIMEOUT
+                  value: 5s
+                - name: SCANNER_METRICS_CACHE_SIZE_ENABLED
+                  value: "false"
+                - name: SCANNER_METRICS_CACHE_MAX_FILES
+                  value: "10000"
                 - name: SCANNER_TRIVY_CACHE_DIR
                   value: /home/scanner/.cache/trivy
                 - name: SCANNER_TRIVY_REPORTS_DIR
                   value: /home/scanner/.cache/reports
                 - name: SCANNER_TRIVY_CACHE_BACKEND
-                  value: redis://harbor-scan-cache:6379/0
+                  value: redis://harbor-scanner-trivy-valkey:6379/0
                 - name: SCANNER_TRIVY_CACHE_TTL
                   value: 168h
-                - name: SCANNER_TRIVY_CACHE_MAX_SIZE
-                  value: 3GiB
-                - name: SCANNER_TRIVY_CACHE_REDIS_TLS
-                  value: "false"
                 - name: SCANNER_TRIVY_VULN_TYPE
                   value: os,library
                 - name: SCANNER_TRIVY_SECURITY_CHECKS
@@ -581,12 +621,18 @@ matches the multi-replica render:
                   value: "false"
                 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
                   value: "false"
+                - name: SCANNER_TRIVY_IMAGE_SRC
+                  value: remote
+                - name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+                  value: "true"
+                - name: SCANNER_TRIVY_DISABLE_TELEMETRY
+                  value: "true"
                 - name: SCANNER_STORE_REDIS_NAMESPACE
                   value: harbor.scanner.trivy:data-store
                 - name: SCANNER_JOB_QUEUE_REDIS_NAMESPACE
                   value: harbor.scanner.trivy:job-queue
                 - name: SCANNER_JOB_QUEUE_WORKER_CONCURRENCY
-                  value: "4"
+                  value: "1"
                 - name: SCANNER_REDIS_URL
                   value: redis://harbor-harbor-redis:6379
                 - name: SCANNER_REDIS_POOL_MAX_ACTIVE
@@ -603,6 +649,12 @@ matches the multi-replica render:
                   value: 1s
               image: 8gears.container-registry.com/8gcr/harbor-scanner-trivy:v9.9.9-test
               imagePullPolicy: IfNotPresent
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                      - /bin/sleep
+                      - "10"
               livenessProbe:
                 failureThreshold: 10
                 httpGet:

@@ -1,6 +1,7 @@
 package trivy
 
 import (
+	"context"
 	"errors"
 	"net/http/httptest"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
@@ -174,7 +177,7 @@ func TestNewTarget_SBOMAccessory(t *testing.T) {
 	}
 
 	t.Run("uses SBOM accessory when enabled", func(t *testing.T) {
-		target, err := newTarget(imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, true)
+		target, err := newTarget(context.Background(), imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, true)
 		require.NoError(t, err)
 		require.Equal(t, TargetSBOM, target.kind)
 		require.True(t, target.fromAccessory)
@@ -186,7 +189,7 @@ func TestNewTarget_SBOMAccessory(t *testing.T) {
 	})
 
 	t.Run("scans image when disabled", func(t *testing.T) {
-		target, err := newTarget(imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, false)
+		target, err := newTarget(context.Background(), imageRef, etc.Trivy{CacheDir: t.TempDir()}, ext.DefaultAmbassador, false)
 		require.NoError(t, err)
 		require.Equal(t, TargetImage, target.kind)
 		require.False(t, target.fromAccessory)
@@ -199,7 +202,7 @@ func TestNewTarget_SBOMAccessory(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, remote.Write(repo.Digest(plainDigest.String()), plain))
 
-		target, err := newTarget(ImageRef{
+		target, err := newTarget(context.Background(), ImageRef{
 			Name:   repo.String() + "@" + plainDigest.String(),
 			Auth:   NoAuth{},
 			NonSSL: true,
@@ -270,17 +273,23 @@ func TestWrapper_Scan_SBOMAccessoryFallback(t *testing.T) {
 
 	ambassador.On("RunCmd", mock.MatchedBy(func(cmd *exec.Cmd) bool {
 		return len(cmd.Args) > 1 && cmd.Args[1] == "sbom"
-	})).Return([]byte("sbom parse error"), errors.New("exit status 1"))
+	})).Return([]byte{}, []byte("sbom parse error"), errors.New("exit status 1"))
 	ambassador.On("RunCmd", mock.MatchedBy(func(cmd *exec.Cmd) bool {
 		return len(cmd.Args) > 1 && cmd.Args[1] == "image"
-	})).Return([]byte{}, nil)
+	})).Return([]byte{}, []byte{}, nil)
 
-	got, err := NewWrapper(config, ambassador).Scan(ImageRef{
+	recorder := metrics.New(true)
+	got, err := NewWrapper(config, ambassador, testRoot(t), recorder).Scan(context.Background(), ImageRef{
 		Name: "registry.local:5000/library/node@" + imageDigest.String(),
 		Auth: NoAuth{},
 	}, ScanOption{Format: FormatJSON})
 	require.NoError(t, err)
 	require.Equal(t, expectedReport, got)
 
+	response := httptest.NewRecorder()
+	recorder.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
+	require.Contains(t, response.Body.String(), `harbor_scanner_trivy_sbom_accessory_events_total{event="fallback"} 1`)
+	require.Contains(t, response.Body.String(), `harbor_scanner_trivy_subprocess_duration_seconds_count{command="sbom",outcome="failed"} 1`)
+	require.Contains(t, response.Body.String(), `harbor_scanner_trivy_subprocess_duration_seconds_count{command="image",outcome="success"} 1`)
 	ambassador.AssertExpectations(t)
 }

@@ -1,11 +1,17 @@
 package trivy
 
 import (
+	"context"
+
 	"github.com/stretchr/testify/mock"
 )
 
 type MockWrapper struct {
 	mock.Mock
+}
+
+func (w *MockWrapper) Available() error {
+	return w.Called().Error(0)
 }
 
 func (w *MockWrapper) GetVersion() (VersionInfo, error) {
@@ -17,7 +23,7 @@ func NewMockWrapper() *MockWrapper {
 	return &MockWrapper{}
 }
 
-func (w *MockWrapper) Scan(imageRef ImageRef, opt ScanOption) (Report, error) {
-	args := w.Called(imageRef, opt)
+func (w *MockWrapper) Scan(ctx context.Context, imageRef ImageRef, opt ScanOption) (Report, error) {
+	args := w.Called(ctx, imageRef, opt)
 	return args.Get(0).(Report), args.Error(1)
 }
