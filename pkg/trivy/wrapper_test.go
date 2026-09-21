@@ -300,3 +300,28 @@ func tmpDirs(t *testing.T) (string, string) {
 
 	return cacheDir, reportsDir
 }
+
+func TestMalformedReportHasReportParseCategory(t *testing.T) {
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	img := &fake.FakeImage{}
+	img.ManifestReturns(&v1.Manifest{}, nil)
+	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+	path := filepath.Join(t.TempDir(), "report.json")
+	require.NoError(t, os.WriteFile(path, []byte("{malformed"), 0o600))
+	report, err := os.Open(path)
+	require.NoError(t, err)
+	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, nil)
+	wrapper := NewWrapper(etc.Trivy{}, ambassador)
+	_, err = wrapper.Scan(ImageRef{Name: "alpine:latest", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	var scanErr *ScanError
+	require.ErrorAs(t, err, &scanErr)
+	require.Equal(t, ErrCategoryReportParse, scanErr.Category)
+	var syntaxErr *json.SyntaxError
+	require.ErrorAs(t, err, &syntaxErr)
+	require.Contains(t, scanErr.Detail, "report json decode error")
+	require.Contains(t, scanErr.Detail, syntaxErr.Error())
+	ambassador.AssertExpectations(t)
+}

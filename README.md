@@ -18,6 +18,7 @@ Maintained by [container-registry.com], forked from [goharbor/harbor-scanner-tri
 - [What it offers](#what-it-offers)
 - [Install](#install)
 - [Releases](#releases)
+- [Operational metrics](#operational-metrics)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
@@ -150,6 +151,12 @@ A new Trivy release is picked up by Renovate and, once merged, cuts a matching a
 `:latest` on every push, and a PR gets a preview image or preview chart in the dev project when it changes the
 respective inputs, linked from a comment on the PR. How releases are cut, and what maintainers do, is in
 [docs/RELEASES.md](docs/RELEASES.md).
+
+## Operational metrics
+
+See [Operational metrics](docs/metrics.md) for scanner execution, workers, database freshness,
+cache/storage capacity, report persistence and Redis pool instrumentation, including
+collection settings and interpretation limits.
 
 ## Configuration
 

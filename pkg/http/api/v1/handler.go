@@ -16,12 +16,12 @@ import (
 	"github.com/container-registry/harbor-scanner-trivy/pkg/harbor"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/persistence"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/queue"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/trivy"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -37,6 +37,7 @@ const (
 var decoder = schema.NewDecoder()
 
 type requestHandler struct {
+	metrics  *metrics.Recorder
 	info     etc.BuildInfo
 	config   etc.Config
 	enqueuer queue.Enqueuer
@@ -45,8 +46,9 @@ type requestHandler struct {
 	api.BaseHandler
 }
 
-func NewAPIHandler(info etc.BuildInfo, config etc.Config, enqueuer queue.Enqueuer, store persistence.Store, wrapper trivy.Wrapper) http.Handler {
+func NewAPIHandler(info etc.BuildInfo, config etc.Config, enqueuer queue.Enqueuer, store persistence.Store, wrapper trivy.Wrapper, recorders ...*metrics.Recorder) http.Handler {
 	handler := &requestHandler{
+		metrics:  metrics.Optional(recorders),
 		info:     info,
 		config:   config,
 		enqueuer: enqueuer,
@@ -67,9 +69,12 @@ func NewAPIHandler(info etc.BuildInfo, config etc.Config, enqueuer queue.Enqueue
 	probeRouter.Methods(http.MethodGet).Path("/ready").HandlerFunc(handler.GetReady)
 
 	if config.API.MetricsEnabled {
-		router.Methods(http.MethodGet).Path("/metrics").Handler(promhttp.Handler())
+		router.Methods(http.MethodGet).Path("/metrics").Handler(handler.metrics.Handler())
 	}
 
+	if handler.metrics != nil && config.API.MetricsEnabled {
+		return handler.instrument(router)
+	}
 	return router
 }
 
@@ -202,6 +207,8 @@ func (h *requestHandler) validateCapabilities(capabilities []harbor.Capability) 
 }
 
 func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Request) {
+	result := "invalid_request"
+	defer func() { h.metrics.Inc("report_fetch_total", result) }()
 	vars := mux.Vars(req)
 	scanJobID, ok := vars[pathVarScanRequestID]
 	if !ok {
@@ -251,6 +258,7 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 		MediaType: query.SBOMMediaType,
 	})
 	if err != nil {
+		result = "error"
 		reqLog.Error("Error while getting scan job")
 		h.WriteJSONError(res, api.Error{
 			HTTPCode: http.StatusInternalServerError,
@@ -260,6 +268,7 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 	}
 
 	if scanJob == nil {
+		result = "not_found"
 		reqLog.Error("Cannot find scan job")
 		h.WriteJSONError(res, api.Error{
 			HTTPCode: http.StatusNotFound,
@@ -271,6 +280,7 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 	scanJobLog := reqLog.With(slog.String("scan_job_status", scanJob.Status.String()))
 
 	if scanJob.Status == job.Queued || scanJob.Status == job.Pending {
+		result = "pending"
 		scanJobLog.Debug("Scan job has not finished yet")
 		res.Header().Add("Location", req.URL.String())
 		res.WriteHeader(http.StatusFound)
@@ -278,6 +288,7 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 	}
 
 	if scanJob.Status == job.Failed {
+		result = "failed"
 		scanJobLog.Error("Scan job failed", slog.String("err", scanJob.Error))
 		h.WriteJSONError(res, api.Error{
 			HTTPCode: http.StatusInternalServerError,
@@ -287,6 +298,7 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 	}
 
 	if scanJob.Status != job.Finished {
+		result = "error"
 		scanJobLog.Error("Unexpected scan job status")
 		h.WriteJSONError(res, api.Error{
 			HTTPCode: http.StatusInternalServerError,
@@ -295,6 +307,11 @@ func (h *requestHandler) GetScanReport(res http.ResponseWriter, req *http.Reques
 		return
 	}
 
+	result = "ok"
+	if age := time.Since(scanJob.FinishedAt); !scanJob.FinishedAt.IsZero() && age >= 0 {
+		capability, format := metrics.JobLabels(scanJob.Key)
+		h.metrics.Observe("report_fetch_age_seconds", age.Seconds(), capability, format)
+	}
 	h.WriteJSON(res, scanJob.Report, reportMIMEType, http.StatusOK)
 }
 
@@ -334,6 +351,9 @@ func (h *requestHandler) GetMetadata(res http.ResponseWriter, _ *http.Request) {
 		properties[propertyDBNextUpdateAt] = vi.VulnerabilityDB.NextUpdate.Format(time.RFC3339)
 	}
 
+	if err == nil && vi.JavaDB != nil {
+		properties[propertyJavaDBUpdatedAt] = vi.JavaDB.UpdatedAt.Format(time.RFC3339)
+	}
 	if err == nil && vi.JavaDB != nil && !h.config.Trivy.SkipJavaDBUpdate {
 		properties[propertyJavaDBNextUpdateAt] = vi.JavaDB.NextUpdate.Format(time.RFC3339)
 	}
@@ -379,4 +399,50 @@ func (h *requestHandler) GetHealthy(res http.ResponseWriter, req *http.Request) 
 
 func (h *requestHandler) GetReady(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
+}
+
+// Preserve response-controller access while recording status, including unmatched
+// routes. The API does not stream or hijack connections.
+type metricResponse struct {
+	http.ResponseWriter
+	code int
+}
+
+func (w *metricResponse) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *metricResponse) WriteHeader(code int) {
+	if w.code == 0 {
+		w.code = code
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *metricResponse) Write(p []byte) (int, error) {
+	if w.code == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func (h *requestHandler) instrument(router *mux.Router) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/metrics" || req.URL.Path == "/probe/ready" || req.URL.Path == "/probe/healthy" {
+			router.ServeHTTP(w, req)
+			return
+		}
+		route := "unmatched"
+		var match mux.RouteMatch
+		if router.Match(req, &match) && match.Route != nil {
+			if template, err := match.Route.GetPathTemplate(); err == nil {
+				route = template
+			}
+		}
+		started := time.Now()
+		response := &metricResponse{ResponseWriter: w}
+		router.ServeHTTP(response, req)
+		if response.code == 0 {
+			response.code = http.StatusOK
+		}
+		h.metrics.Inc("http_requests_total", route, req.Method, strconv.Itoa(response.code))
+		h.metrics.Observe("http_request_duration_seconds", time.Since(started).Seconds(), route, req.Method)
+	})
 }

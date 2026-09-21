@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/container-registry/harbor-scanner-trivy/pkg/metrics"
+
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -275,12 +277,18 @@ func TestWrapper_Scan_SBOMAccessoryFallback(t *testing.T) {
 		return len(cmd.Args) > 1 && cmd.Args[1] == "image"
 	})).Return([]byte{}, nil)
 
-	got, err := NewWrapper(config, ambassador).Scan(ImageRef{
+	recorder := metrics.New(true)
+	got, err := NewWrapper(config, ambassador, recorder).Scan(ImageRef{
 		Name: "registry.local:5000/library/node@" + imageDigest.String(),
 		Auth: NoAuth{},
 	}, ScanOption{Format: FormatJSON})
 	require.NoError(t, err)
 	require.Equal(t, expectedReport, got)
 
+	response := httptest.NewRecorder()
+	recorder.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
+	require.Contains(t, response.Body.String(), `harbor_scanner_trivy_sbom_accessory_events_total{event="fallback"} 1`)
+	require.Contains(t, response.Body.String(), `harbor_scanner_trivy_subprocess_duration_seconds_count{command="sbom",outcome="failed"} 1`)
+	require.Contains(t, response.Body.String(), `harbor_scanner_trivy_subprocess_duration_seconds_count{command="image",outcome="success"} 1`)
 	ambassador.AssertExpectations(t)
 }
