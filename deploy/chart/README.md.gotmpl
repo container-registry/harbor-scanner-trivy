@@ -62,6 +62,14 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
   `secret` without a chart change, and every Kubernetes field the chart does not
   template is reachable through the merge hatches below.
 
+## Monitoring
+
+Enable `metrics.serviceMonitor.enabled` for Prometheus Operator scraping and
+`metrics.grafanaDashboard.enabled` to provision the Trivy and Valkey/Redis dashboards.
+See [dashboard setup and metric requirements](dashboards/README.md), including
+the required adapter image and cluster labels. Cache footprint collection is
+optional and bounded through `metrics.collection`.
+
 ## Configuring the adapter
 
 The adapter is configured entirely by environment variables, so `config` reaches
