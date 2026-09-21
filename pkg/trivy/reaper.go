@@ -42,6 +42,9 @@ func NewReaper(own *TempRoot, recorders ...*metrics.Recorder) *Reaper {
 // The returned function waits for the sampler to stop.
 func (r *Reaper) Start(ctx context.Context) func() {
 	r.reapSiblings()
+	// Sampled once here so the gauge is right when Start returns, not when the
+	// goroutine happens to get scheduled.
+	r.metrics.Set("temp_dirs_present", float64(childCount(r.own.Path())))
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
@@ -49,12 +52,12 @@ func (r *Reaper) Start(ctx context.Context) func() {
 		ticker := time.NewTicker(presentInterval)
 		defer ticker.Stop()
 		for {
-			r.metrics.Set("temp_dirs_present", float64(childCount(r.own.Path())))
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
 			}
+			r.metrics.Set("temp_dirs_present", float64(childCount(r.own.Path())))
 		}
 	}()
 	return func() { cancel(); <-done }
