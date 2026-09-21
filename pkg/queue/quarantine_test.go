@@ -90,7 +90,10 @@ func TestDeliveryWithoutJobMetadataIsQuarantined(t *testing.T) {
 	streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{Group: workerGroup, Consumer: w.consumer, Streams: []string{w.stream, ">"}, Count: 1}).Result()
 	require.NoError(t, err)
 	require.NoError(t, w.process(ctx, streams[0].Messages[0]))
-	require.True(t, rdb.HExists(ctx, w.stream+":quarantine", streams[0].Messages[0].ID).Val())
+	var stored quarantinedDelivery
+	require.NoError(t, json.Unmarshal([]byte(rdb.HGet(ctx, w.stream+":quarantine", streams[0].Messages[0].ID).Val()), &stored))
+	require.Contains(t, stored.Reason, "job metadata missing")
+	require.Equal(t, streams[0].Messages[0].Values, stored.Fields)
 	require.Zero(t, rdb.XLen(ctx, w.stream).Val())
 	require.Zero(t, rdb.XPending(ctx, w.stream, workerGroup).Val().Count)
 	require.Equal(t, float64(1), metricCount(t, r, "job_dispatch_total", "result", "not_found"))
