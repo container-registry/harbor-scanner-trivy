@@ -33,9 +33,10 @@ func TestMalformedDeliveryIsPreservedWithoutBlockingValidWork(t *testing.T) {
 	w.Stop()
 	payload, err := rdb.HGet(ctx, stream+":quarantine", id).Result()
 	require.NoError(t, err)
-	var stored map[string]interface{}
+	var stored quarantinedDelivery
 	require.NoError(t, json.Unmarshal([]byte(payload), &stored))
-	require.Equal(t, fields, stored)
+	require.Equal(t, "undecodable payload", stored.Reason)
+	require.Equal(t, fields, stored.Fields)
 	require.EqualValues(t, 0, rdb.XPending(ctx, stream, workerGroup).Val().Count)
 	w.observeQueue(ctx)
 	families, err := r.Gatherer().Gather()

@@ -22,8 +22,15 @@ var quarantineDelivery = redis.NewScript(`
 	redis.call('XDEL', KEYS[1], ARGV[2])
 	return 1`)
 
+// quarantinedDelivery is the hash value: the reason travels with the fields
+// because the log line that names it is long gone when an operator inspects the key.
+type quarantinedDelivery struct {
+	Reason string         `json:"reason"`
+	Fields map[string]any `json:"fields"`
+}
+
 func (w *streamWorker) quarantine(ctx context.Context, msg redis.XMessage, reason string) error {
-	payload, err := json.Marshal(msg.Values)
+	payload, err := json.Marshal(quarantinedDelivery{Reason: reason, Fields: msg.Values})
 	if err != nil {
 		return fmt.Errorf("preserving delivery %s: %w", msg.ID, err)
 	}
