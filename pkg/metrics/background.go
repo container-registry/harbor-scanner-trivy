@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
@@ -29,6 +30,8 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 		return func() {}
 	}
 	r.Set("worker_concurrency", float64(cfg.JobQueue.WorkerConcurrency))
+	backend := analysisCacheBackend(cfg.Trivy.CacheBackend)
+	r.Set("analysis_cache_backend_info", 1, backend)
 	r.Set("scan_timeout_seconds", cfg.Trivy.Timeout.Seconds())
 	r.Set("scan_job_ttl_seconds", cfg.RedisStore.ScanJobTTL.Seconds())
 	for _, db := range []string{"vulnerability", "java"} {
@@ -63,7 +66,7 @@ func (r *Recorder) Start(ctx context.Context, cfg etc.Config, adapterVersion str
 			r.collectFilesystem(cfg.Trivy.ReportsDir, "reports")
 			if cfg.Metrics.CacheSizeEnabled {
 				walkCtx, stop := context.WithTimeout(ctx, cfg.Metrics.CollectionTimeout)
-				r.collectCache(walkCtx, cfg.Trivy.CacheDir, cfg.Metrics.CacheMaxFiles)
+				r.collectCache(walkCtx, cfg.Trivy.CacheDir, cfg.Metrics.CacheMaxFiles, backend)
 				stop()
 			}
 			// Jitter avoids synchronized directory walks across scanner replicas.
@@ -170,11 +173,32 @@ func (r *Recorder) collectionResult(collector string, started time.Time, err err
 	}
 }
 
-func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int) {
+// Report only a bounded backend name, never a Redis URL or credentials.
+func analysisCacheBackend(configured string) string {
+	switch configured {
+	case "", "fs":
+		return "filesystem"
+	case "memory":
+		return "memory"
+	default:
+		if strings.HasPrefix(configured, "redis://") || strings.HasPrefix(configured, "rediss://") {
+			return "redis"
+		}
+		return "unknown"
+	}
+}
+
+func (r *Recorder) collectCache(ctx context.Context, root string, maxFiles int, backend string) {
 	started := time.Now()
 	remaining := maxFiles
 	var firstErr error
 	for _, part := range []struct{ kind, dir string }{{"analysis", "fanal"}, {"vulnerability_db", "db"}, {"java_db", "java-db"}} {
+		// A previous filesystem backend may have left fanal files behind. They
+		// are not the active cache and must not consume the collection budget.
+		if part.kind == "analysis" && backend != "filesystem" {
+			r.Delete("cache_size_bytes", part.kind)
+			continue
+		}
 		path := filepath.Join(root, part.dir)
 		size, err := directoryBytes(ctx, path, &remaining)
 		var pathErr *fs.PathError

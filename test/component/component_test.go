@@ -5,6 +5,7 @@ package component
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net/url"
 	"os"
@@ -34,10 +35,6 @@ func assertTrivyScanner(t *testing.T, s harbor.Scanner) {
 	assert.Equal(t, "Aqua Security", s.Vendor)
 	assert.Regexp(t, trivyVersionRegexp, s.Version)
 }
-
-const (
-	testNetwork = "component_test"
-)
 
 const (
 	registryImage       = "registry:2"
@@ -71,6 +68,7 @@ func TestComponent(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.TODO()
+	testNetwork := "component-test-" + rand.Text()
 	dp, err := tc.NewDockerProvider()
 	require.NoError(t, err)
 	nt, err := dp.CreateNetwork(ctx, tc.NetworkRequest{ //nolint:staticcheck // migrating to network.New is a separate change
@@ -81,10 +79,10 @@ func TestComponent(t *testing.T) {
 
 	redisC, err := dp.CreateContainer(ctx,
 		tc.ContainerRequest{
-			Name:       "redis",
-			Image:      "redis:5",
-			Networks:   []string{testNetwork},
-			WaitingFor: wait.ForLog("Ready to accept connections"),
+			Image:          "redis:7.4",
+			Networks:       []string{testNetwork},
+			NetworkAliases: map[string][]string{testNetwork: {"redis"}},
+			WaitingFor:     wait.ForLog("Ready to accept connections"),
 		})
 	require.NoError(t, err)
 	err = redisC.Start(ctx)
@@ -92,10 +90,10 @@ func TestComponent(t *testing.T) {
 	defer func() { _ = redisC.Terminate(ctx) }()
 	registryC, err := dp.CreateContainer(ctx,
 		tc.ContainerRequest{
-			Name:         "registry",
-			Image:        registryImage,
-			Networks:     []string{testNetwork},
-			ExposedPorts: []string{registryPort},
+			Image:          registryImage,
+			Networks:       []string{testNetwork},
+			NetworkAliases: map[string][]string{testNetwork: {"registry"}},
+			ExposedPorts:   []string{registryPort},
 			Env: map[string]string{
 				"REGISTRY_HTTP_ADDR":            "0.0.0.0:5443",
 				"REGISTRY_HTTP_TLS_CERTIFICATE": "/certs/cert.pem",
@@ -117,7 +115,6 @@ func TestComponent(t *testing.T) {
 	defer func() { _ = registryC.Terminate(ctx) }()
 
 	adapterC, err := dp.CreateContainer(ctx, tc.ContainerRequest{
-		Name:         "trivy-adapter",
 		Image:        adapterImage,
 		Networks:     []string{testNetwork},
 		ExposedPorts: []string{adapterPort},

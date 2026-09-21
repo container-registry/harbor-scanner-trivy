@@ -138,13 +138,6 @@ tests:
       - failedTemplate:
           errorMessage: "metrics.serviceMonitor.enabled requires metrics.enabled: the adapter would serve no /metrics endpoint to scrape."
 
-  - it: refuses several workers on the single-writer fs cache
-    set:
-      jobQueue.workerConcurrency: 4
-    asserts:
-      - failedTemplate:
-          errorMessage: "jobQueue.workerConcurrency above 1 needs trivy.cacheBackend set to a redis:// URL or memory; the fs scan cache admits one scan at a time."
-
   - it: refuses a Redis cache whose keys never expire
     set:
       trivy.cacheBackend: redis://scan-cache:6379/0
@@ -263,3 +256,75 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "flatten to the same environment variable name"
+
+  - it: rejects TLS settings for a filesystem cache before deployment
+    set:
+      trivy.cacheRedisTLS: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Redis TLS settings require a Redis scan cache; set trivy.cacheBackend or supply SCANNER_TRIVY_CACHE_BACKEND through a Secret."
+  - it: rejects a ConfigMap backend for authenticated bundled Valkey
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      config.SCANNER_TRIVY_CACHE_BACKEND: redis://cache:6379/0
+    asserts:
+      - failedTemplate:
+          errorMessage: "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)."
+  - it: rejects a literal backend override even when a lower precedence Secret exists
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      secret.SCANNER_TRIVY_CACHE_BACKEND: redis://:fixture@cache:6379/0
+      extraEnv:
+        - name: SCANNER_TRIVY_CACHE_BACKEND
+          value: redis://cache:6379/0
+    asserts:
+      - failedTemplate:
+          errorMessage: "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)."
+  - it: rejects a ConfigMap key reference as the authenticated backend source
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      extraEnv:
+        - name: SCANNER_TRIVY_CACHE_BACKEND
+          valueFrom:
+            configMapKeyRef:
+              name: cache
+              key: url
+    asserts:
+      - failedTemplate:
+          errorMessage: "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)."
+
+  - it: rejects a grace period shorter than the default drain
+    set:
+      terminationGracePeriodSeconds: 5
+    asserts:
+      - failedTemplate:
+          errorMessage: "terminationGracePeriodSeconds must exceed 10 seconds for the default preStop drain hook; increase it or explicitly replace/disable lifecycle.preStop."
+  - it: reserves time for SIGTERM after the default drain
+    set:
+      terminationGracePeriodSeconds: 10
+    asserts:
+      - failedTemplate:
+          errorMessage: "terminationGracePeriodSeconds must exceed 10 seconds for the default preStop drain hook; increase it or explicitly replace/disable lifecycle.preStop."
+
+  - it: rejects incomplete cache TLS material before deployment
+    set:
+      trivy.cacheBackend: rediss://cache:6379/0
+      trivy.cacheRedisCACert: /certs/ca.crt
+    asserts:
+      - failedTemplate:
+          errorMessage: "Redis scan cache TLS requires CA, certificate, and key together."
+
+  - it: rejects an explicit backend without Secret credentials when bundled authentication is enabled
+    templates: [validate-values.yaml]
+    set:
+      valkey.enabled: true
+      valkey.auth.enabled: true
+      valkey.auth.usersExistingSecret: cache-auth
+      valkey.auth.aclUsers.default.permissions: "~* &* +@all"
+      trivy.cacheBackend: redis://scanner-valkey:6379/0
+    asserts:
+      - failedTemplate:
+          errorMessage: "valkey.auth.enabled requires a credential-bearing SCANNER_TRIVY_CACHE_BACKEND override (use a Secret)."

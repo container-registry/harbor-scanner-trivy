@@ -1,0 +1,41 @@
+---
+suite: endpoint draining on termination
+templates:
+  - statefulset.yaml
+tests:
+  - it: keeps HTTP serving while terminating endpoints are removed
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command
+          value: [/bin/sleep, "10"]
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 60
+  - it: retains default draining alongside a custom postStart hook
+    set:
+      lifecycle.postStart.exec.command: [/bin/true]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command
+          value: [/bin/sleep, "10"]
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.postStart.exec.command
+          value: [/bin/true]
+  - it: lets a custom preStop replace the default handler
+    set:
+      lifecycle.preStop.httpGet:
+        path: /drain
+        port: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.preStop.httpGet.path
+          value: /drain
+      - notExists:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec
+  - it: allows explicitly disabling the default hook
+    set:
+      lifecycle.preStop: null
+      terminationGracePeriodSeconds: 5
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].lifecycle.preStop

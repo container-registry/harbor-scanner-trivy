@@ -16,9 +16,12 @@ func NewStore() *Store {
 	return &Store{}
 }
 
-func (s *Store) Create(ctx context.Context, scanJob job.ScanJob) error {
-	args := s.Called(ctx, scanJob)
-	return args.Error(0)
+func (s *Store) Enqueue(ctx context.Context, scanJob job.ScanJob, stream string, payload []byte) error {
+	return s.Called(ctx, scanJob, stream, payload).Error(0)
+}
+
+func (s *Store) Acknowledge(ctx context.Context, key job.ScanJobKey, stream, group, deliveryID string) error {
+	return s.Called(ctx, key, stream, group, deliveryID).Error(0)
 }
 
 func (s *Store) Get(ctx context.Context, scanJobKey job.ScanJobKey) (*job.ScanJob, error) {
