@@ -48,11 +48,19 @@ func TestTerminationReportsTheConventionalStatus(t *testing.T) {
 func TestCancellationIsNotAnExternalKill(t *testing.T) {
 	r := New(true)
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	cmd := exec.CommandContext(ctx, "sleep", "30")
 	cmd.WaitDelay = time.Second
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	_, _, err := r.Run(ctx, "image", cmd, ext.DefaultAmbassador.RunCmd)
-	defer cancel()
+	// Cancel once the child is running; a timer could win against exec and
+	// turn this into a start_error.
+	run := func(cmd *exec.Cmd) ([]byte, []byte, error) {
+		if err := cmd.Start(); err != nil {
+			return nil, nil, err
+		}
+		cancel()
+		return nil, nil, cmd.Wait()
+	}
+	_, _, err := r.Run(ctx, "image", cmd, run)
 	require.Error(t, err)
 	// Shutdown and lease loss cancel the scan; neither is an OOM kill.
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "canceled")))

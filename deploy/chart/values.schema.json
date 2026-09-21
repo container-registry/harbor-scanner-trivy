@@ -484,6 +484,7 @@
           "required": [
             "intervalSeconds",
             "timeoutSeconds",
+            "cacheSizeEnabled",
             "maxCacheFiles"
           ],
           "properties": {

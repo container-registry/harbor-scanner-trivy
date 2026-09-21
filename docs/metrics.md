@@ -60,7 +60,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `scan_retries_total` | counter | — | Attempts after interrupted execution or cache failure. |
 | `lease_losses_total` | counter | — | Failed lease renewal or lost ownership. |
 | `queue_unacknowledged_jobs` | gauge | — | Shared stream length including pending jobs; use max across pods. |
-| `queue_quarantined_jobs` | gauge | — | Malformed deliveries retained outside the active queue for inspection; use max across pods. Any nonzero value needs investigation. |
+| `queue_quarantined_jobs` | gauge | — | Malformed or orphaned deliveries retained outside the active queue for inspection; use max across pods. Any nonzero value needs investigation. |
 | `queue_collection_success` | gauge | — | Whether the latest queue collection succeeded. Failed measurements are removed. |
 | `queue_collection_last_success_timestamp_seconds` | gauge | — | Last successful queue collection; use `time() - metric` for its age. |
 | `queue_collection_errors_total` | counter | query | Failed queue measurements by query (`quarantine`, `length`, `oldest`, `group`). Counts measurement failures, not scan failures. Each sample can fail every query, so this is roughly four times the number of failed samples during an outage. |

@@ -21,17 +21,17 @@ var quarantineDelivery = redis.NewScript(`
 	redis.call('XDEL', KEYS[1], ARGV[2])
 	return 1`)
 
-func (w *streamWorker) quarantine(ctx context.Context, msg redis.XMessage) error {
+func (w *streamWorker) quarantine(ctx context.Context, msg redis.XMessage, reason string) error {
 	payload, err := json.Marshal(msg.Values)
 	if err != nil {
-		return fmt.Errorf("preserving malformed delivery %s: %w", msg.ID, err)
+		return fmt.Errorf("preserving delivery %s: %w", msg.ID, err)
 	}
 	preserved, err := quarantineDelivery.Run(ctx, w.rdb, []string{w.stream, w.stream + ":quarantine"}, workerGroup, msg.ID, payload).Int()
 	if err != nil {
-		return fmt.Errorf("quarantining malformed delivery %s: %w", msg.ID, err)
+		return fmt.Errorf("quarantining delivery %s: %w", msg.ID, err)
 	}
 	if preserved == 1 {
-		slog.Error("Malformed scan delivery quarantined", "delivery_id", msg.ID)
+		slog.Error("Scan delivery quarantined", "delivery_id", msg.ID, "reason", reason)
 	}
 	return nil
 }

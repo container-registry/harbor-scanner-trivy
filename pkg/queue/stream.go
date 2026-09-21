@@ -272,7 +272,7 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 	payload, ok := msg.Values["job"].(string)
 	if !ok || json.Unmarshal([]byte(payload), &delivery) != nil || delivery.Args.ScanRequest == nil {
 		w.metrics.Inc("job_dispatch_total", "decode_error")
-		return w.quarantine(parent, msg)
+		return w.quarantine(parent, msg, "undecodable payload")
 	}
 	lockKey := w.stream + ":lease:" + msg.ID
 	token := makeIdentifier()
@@ -327,7 +327,10 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 		return err
 	}
 	if state == nil {
-		return fmt.Errorf("scan job metadata missing for %s", delivery.Key.ID)
+		// Queued job keys never expire, so this is an evicted or deleted key.
+		// Left pending, the delivery would be reclaimed and fail every lease
+		// period forever.
+		return w.quarantine(ctx, msg, "job metadata missing for "+delivery.Key.ID)
 	}
 	if state.Status != job.Finished && state.Status != job.Failed {
 		if state.Attempts >= 3 {

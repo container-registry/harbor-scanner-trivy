@@ -444,6 +444,27 @@ func splitChildTempDir(environ []string) ([]string, string) {
 	return rest, tempDir
 }
 
+// scanFailingWith runs one scan whose child exited non-zero with this output
+// and returns what the classifier made of it.
+func scanFailingWith(t *testing.T, stdout, stderr string) *ScanError {
+	t.Helper()
+	ambassador := ext.NewMockAmbassador()
+	ambassador.On("Environ").Return([]string{})
+	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
+	img := &fake.FakeImage{}
+	img.ManifestReturns(&v1.Manifest{}, nil)
+	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
+	report, err := os.CreateTemp(t.TempDir(), "report")
+	require.NoError(t, err)
+	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
+	ambassador.On("RunCmd", mock.Anything).Return([]byte(stdout), []byte(stderr), &exec.ExitError{})
+	_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
+	var failure *ScanError
+	require.ErrorAs(t, err, &failure)
+	ambassador.AssertExpectations(t)
+	return failure
+}
+
 func TestExecutionRetryPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		output    string
@@ -457,22 +478,9 @@ func TestExecutionRetryPolicy(t *testing.T) {
 		{"failed to extract the archive", ErrCategoryUnscannable, false},
 	} {
 		t.Run(tc.output, func(t *testing.T) {
-			ambassador := ext.NewMockAmbassador()
-			ambassador.On("Environ").Return([]string{})
-			ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
-			img := &fake.FakeImage{}
-			img.ManifestReturns(&v1.Manifest{}, nil)
-			ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
-			report, err := os.CreateTemp(t.TempDir(), "report")
-			require.NoError(t, err)
-			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
-			ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte(tc.output), &exec.ExitError{})
-			_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
-			var failure *ScanError
-			require.ErrorAs(t, err, &failure)
+			failure := scanFailingWith(t, "", tc.output)
 			require.Equal(t, tc.category, failure.Category)
 			require.Equal(t, tc.retryable, failure.Retryable)
-			ambassador.AssertExpectations(t)
 		})
 	}
 }
@@ -686,40 +694,15 @@ func TestFailureIsDiagnosedFromStderrAndTrimmedToItsTail(t *testing.T) {
 		{"stdout is the fallback", "FATAL\tFatal error\tTOOMANYREQUESTS: retry-after: 60", "   \n", ErrCategoryRateLimit},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ambassador := ext.NewMockAmbassador()
-			ambassador.On("Environ").Return([]string{})
-			ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
-			img := &fake.FakeImage{}
-			img.ManifestReturns(&v1.Manifest{}, nil)
-			ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
-			report, err := os.CreateTemp(t.TempDir(), "report")
-			require.NoError(t, err)
-			ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
-			ambassador.On("RunCmd", mock.Anything).Return([]byte(tc.stdout), []byte(tc.stderr), &exec.ExitError{})
-			_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
-			var failure *ScanError
-			require.ErrorAs(t, err, &failure)
+			failure := scanFailingWith(t, tc.stdout, tc.stderr)
 			require.Equal(t, tc.expected, failure.Category)
-			ambassador.AssertExpectations(t)
 		})
 	}
 }
 
 func TestScanDetailCarriesTheTailOfTheDiagnostics(t *testing.T) {
-	ambassador := ext.NewMockAmbassador()
-	ambassador.On("Environ").Return([]string{})
-	ambassador.On("LookPath", "trivy").Return("/usr/local/bin/trivy", nil)
-	img := &fake.FakeImage{}
-	img.ManifestReturns(&v1.Manifest{}, nil)
-	ambassador.On("RemoteImage", mock.Anything, mock.Anything).Return(img, nil)
-	report, err := os.CreateTemp(t.TempDir(), "report")
-	require.NoError(t, err)
-	ambassador.On("TempFile", mock.Anything, mock.Anything).Return(report, nil)
 	stderr := strings.Repeat("noisy debug line\n", 1000) + "FATAL\tFatal error\tunsupported artifact type \"application/vnd.cncf.helm.config.v1+json\""
-	ambassador.On("RunCmd", mock.Anything).Return([]byte{}, []byte(stderr), &exec.ExitError{})
-	_, err = NewWrapper(etc.Trivy{}, ambassador, testRoot(t)).Scan(context.Background(), ImageRef{Name: "alpine", Auth: NoAuth{}}, ScanOption{Format: FormatJSON})
-	var failure *ScanError
-	require.ErrorAs(t, err, &failure)
+	failure := scanFailingWith(t, "", stderr)
 	require.Equal(t, ErrCategoryUnsupportedArtifact, failure.Category)
 	require.False(t, failure.Retryable)
 	require.Len(t, failure.Detail, detailLimit)

@@ -3680,7 +3680,7 @@
                   {
                     "options": {
                       "0": {
-                        "color": "red",
+                        "color": "#9FA7B3",
                         "index": 1,
                         "text": "Absent"
                       },
@@ -5107,7 +5107,7 @@
       "type": "stat",
       "id": 1102,
       "title": "Quarantined deliveries",
-      "description": "Deliveries that could not be decoded and were moved to <stream>:quarantine. Investigate any nonzero value; the payloads can contain registry credentials. Not retried automatically. Alert: [Trivy] Quarantined jobs.",
+      "description": "Deliveries that could not be decoded, or whose job key was gone, and were moved to <stream>:quarantine. Investigate any nonzero value; the payloads can contain registry credentials. Not retried automatically. Alert: [Trivy] Quarantined jobs.",
       "targets": [
         {
           "datasource": {
@@ -9424,7 +9424,7 @@
             {
               "options": {
                 "0": {
-                  "color": "red",
+                  "color": "#9FA7B3",
                   "index": 0,
                   "text": "Absent"
                 },
@@ -9608,7 +9608,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
+        "definition": "label_values(redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
         "description": "Select the exporter for Trivy\u2019s analysis-cache Redis/Valkey. The job/report Redis pool is monitored separately by the adapter.",
         "hide": 0,
         "includeAll": false,
@@ -9617,7 +9617,7 @@
         "name": "redis_service",
         "options": [],
         "query": {
-          "query": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
+          "query": "label_values(redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
           "refId": "redis_service"
         },
         "refresh": 1,

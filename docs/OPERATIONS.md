@@ -42,6 +42,7 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 | `timeout` | context deadline exceeded | yes | See "Timeouts". |
 | `cache` | Redis cache error, layer cache missing, cache may be in use | yes | See "Cache backends". |
 | `unscannable_layer` | archive extraction failed, unexpected EOF | no | Corrupt or non-image layer. |
+| `report_parse` | Trivy exited 0 but its report could not be decoded | no | The detail carries the decode error. A Trivy release whose output no longer matches the adapter's model, or a truncated report from a full disk; check `storage_available_bytes{area="reports"}`. |
 | `trivy_execution` | Any other non-zero exit | yes | Read the stderr tail in the adapter log (`ScanError.Detail` carries the last 4 KiB). |
 | `storage_full`, `storage_io` | ENOSPC / EIO from the adapter's own file operations | yes | Disk. A full disk inside the Trivy child shows up as `trivy_execution` with "no space left on device" in the detail. |
 
@@ -71,7 +72,7 @@ The queue is a Redis Stream with a consumer group (`<namespace>:stream:v1:scan_a
 
 - `queue_collection_success` = 0 with `queue_collection_errors_total{query="group"}` rising on its own, the other `query` labels flat: the consumer group is gone. (All four labels rising together is the job Redis being unreachable, not a lost group.) The stream and its deliveries may well survive, so this is lost group state rather than lost data: check the job Redis for a restart without persistence, and for a manual `XGROUP DESTROY`. The worker recreates the group and counts `queue_group_recreated_total`; on older builds restart the StatefulSet.
 - `queue_oldest_age_seconds` climbing while `jobs_in_progress` is 0 on every replica: entries are not being read. Check the group as above, then the worker logs for `Recovering scan delivery`.
-- `queue_quarantined_jobs` > 0: a delivery could not be decoded. Inspect `<namespace>:stream:v1:scan_artifact:quarantine` with `redis-cli` (payloads contain registry credentials, treat as secrets), fix the producer, delete the entry.
+- `queue_quarantined_jobs` > 0: a delivery could not be decoded, or its job key was gone while the delivery was not (an eviction policy that touches operational keys, or a manual delete). The log line names which. Inspect `<namespace>:stream:v1:scan_artifact:quarantine` with `redis-cli` (payloads contain registry credentials, treat as secrets), fix the producer, delete the entry.
 - `scan_retries_total` and `lease_losses_total` rising: workers are being interrupted mid-scan (OOMKill, timeout, restart) or the lease renewal is failing. Correlate with `subprocess_exits_total{reason="signal"}` and container restarts.
 - Reports live in the same Redis with a TTL (`SCANNER_STORE_REDIS_SCAN_JOB_TTL`); losing the Redis data loses queued work and unread reports, Harbor marks those scans as errors after its poll times out.
 
