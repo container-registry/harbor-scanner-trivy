@@ -66,7 +66,7 @@ var catalog = []definition{
 	{"queue_quarantined_jobs", "Malformed deliveries retained for operator inspection; use max across pods.", "gauge", nil, nil},
 	{"queue_collection_success", "Whether all queue metrics were collected successfully.", "gauge", nil, nil},
 	{"queue_collection_errors_total", "Failed queue measurements by query; a scan failure is not counted here.", "counter", []string{"query"}, nil},
-	{"queue_group_recreated_total", "Consumer group recreations after the queue backend lost it; until each one, no delivery could be read.", "counter", nil, nil},
+	{"queue_group_recreated_total", "Consumer group recreations after its state was lost (restart without persistence, manual deletion); the stream may survive, and until each one no delivery could be read.", "counter", nil, nil},
 	{"queue_collection_last_success_timestamp_seconds", "Unix timestamp of the last successful queue collection.", "gauge", nil, nil},
 	{"queue_oldest_age_seconds", "Age of oldest unacknowledged delivery; sampled every ten seconds.", "gauge", nil, nil},
 	{"build_info", "Adapter and Trivy binary versions.", "gauge", []string{"adapter_version", "trivy_version"}, nil},

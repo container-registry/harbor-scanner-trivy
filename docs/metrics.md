@@ -96,7 +96,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `analysis_cache_backend_info` | gauge | backend | Configured analysis-cache backend: `filesystem`, `redis`, `memory`, or `unknown`. Value is 1; no server URL or credentials are exposed. |
 | `metadata_collection_success` | gauge | — | Whether Trivy version and local vulnerability/Java metadata checks succeeded, including valid database absence. Does not test database integrity. |
 | `metadata_last_success_timestamp_seconds` | gauge | — | Last successful monitoring refresh of vulnerability/Java metadata; not database build or download time. |
-| `cache_size_bytes` | gauge | kind | Logical regular-file bytes for the verified local cache layout. `kind="analysis"` is emitted only for the filesystem backend; DB and Java sizes remain local for every backend. `kind="tmp_trivy"` is not cache: it is what running and abandoned children hold under the temp directory. |
+| `cache_size_bytes` | gauge | kind | Logical regular-file bytes for the verified local cache layout. `kind="analysis"` is emitted only for the filesystem backend; DB and Java sizes remain local for every backend. `kind="tmp_trivy"` is not cache: it is the scratch of running children under this adapter's own temp root (a child's directory is removed when it exits, and roots of earlier adapter processes at startup). |
 | `storage_capacity_bytes` | gauge | area | Filesystem capacity at the configured path; areas may share a filesystem. |
 | `storage_available_bytes` | gauge | area | Filesystem bytes available to the scanner at the configured path. |
 | `storage_inodes_available` | gauge | area | Available filesystem inodes where supported. |

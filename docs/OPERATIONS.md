@@ -14,7 +14,7 @@ code that produces the behaviour, not at documentation.
 | Is the job queue reachable and consumed? | `queue_collection_success`, `queue_collection_errors_total{query}`, `queue_group_recreated_total` | 1, flat, flat | Queue collection failing |
 | Is work piling up unread? | `queue_oldest_age_seconds` with `jobs_in_progress` | oldest age 0 when idle | Deliveries stuck in queue while workers idle |
 | Are scans succeeding? | `job_attempts_total{outcome}`, `job_failures_total{stage,category}` | successes > 0 while attempts > 0 | Scans attempted but none succeeded in 24h; Failure category spike |
-| Did Trivy die or time out? | `subprocess_exits_total{reason}`, `subprocess_exit_code_total{code}`, both restricted to the `image` and `sbom` values of `command`, which leaves out the `version` probe | `reason="success"`, `code="0"` | Failure category spike |
+| Did Trivy die or time out? | `subprocess_exits_total{reason}`, `subprocess_exit_code_total{code}`; the recurring `version` probe reports through the same series, so select `command="image"` or `command="sbom"` | `reason="success"`, `code="0"` | Failure category spike |
 | Is the vulnerability DB current? | `db_present`, `db_next_update_timestamp_seconds`, `db_updated_timestamp_seconds`, `db_schema_version` | present, next update in the future, schema matches the engine | Vulnerability DB not refreshed although scans run |
 | Does Harbor see the scanner? | `http_request_duration_seconds{route="/api/v1/metadata"}` p95 | well under 4 s | Metadata endpoint slow |
 | Is the disk filling? | `storage_available_bytes{area}`, `cache_size_bytes{kind}`, `temp_dirs_present` | stable | Local disk row on the dashboard |
@@ -100,7 +100,7 @@ Trivy writes under its own `$TMPDIR/trivy-<random>` (DB downloads, post-analyzer
 
 ## Log anchors
 
-Adapter (JSON `msg` field): `Running trivy failed` with `category` and `exit_code`, `Recovering scan delivery` and `Reading scan delivery` (queue reads failing), `Recreated the scan consumer group lost by the queue backend`, `Queue metric collection failed` / `Queue metric collection recovered`, `Scan delivery remains pending for recovery`, `Removed an abandoned Trivy temp directory`.
+Adapter (JSON `msg` field): `Running trivy failed` with `category` and `exit_code`, `Recovering scan delivery` and `Reading scan delivery` (queue reads failing), `Recreated the scan consumer group lost by the queue backend`, `Queue metric collection failed` / `Queue metric collection recovered`, `Scan delivery remains pending for recovery`, `Removed the temp root of a previous adapter process`.
 
 Trivy (stderr, tab separated `time LEVEL [prefix] message`): `[vulndb] Downloading vulnerability DB...`, `Failed to download artifact`, `Trying to download artifact from other repository...`, `Java DB is cached for 3 days`, `The first run cannot skip downloading DB`, `Trivy version is old`, `--skip-db-update cannot be specified with the old DB schema`, `layer cache missing`, `cache may be in use by another process`, `context deadline exceeded`, `unsupported artifact type`, `[secret] The size of the scanned file is too large`.
 

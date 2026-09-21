@@ -435,19 +435,16 @@ func TestRestAPI(t *testing.T) {
 	t.Run("GET /probe/ready", func(t *testing.T) {
 		// The real worker, queue and binary answer here, which is the only
 		// place the readiness checks run against something other than a fake.
-		// The condition runs on its own goroutine, so a fatal assertion here
-		// would Goexit without a verdict and the real error would be reported
-		// as a timeout. Keep the last error and report it after the wait.
-		var lastErr error
-		require.Eventually(t, func() bool {
+		// EventuallyWithT reports the last attempt's failure, so a timeout
+		// shows the transport error or status that kept the probe unready.
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			rs, err := ts.Client().Get(ts.URL + "/probe/ready")
-			if err != nil {
-				lastErr = err
-				return false
+			if !assert.NoError(c, err) {
+				return
 			}
 			defer rs.Body.Close()
-			return rs.StatusCode == http.StatusOK
-		}, 10*time.Second, 50*time.Millisecond, "last error from /probe/ready: %v", &lastErr)
+			assert.Equal(c, http.StatusOK, rs.StatusCode)
+		}, 10*time.Second, 50*time.Millisecond)
 	})
 }
 
