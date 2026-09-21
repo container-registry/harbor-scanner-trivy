@@ -66,7 +66,7 @@ func TestRestAPI(t *testing.T) {
 	wrapper, trivyConf := initTrivy(t, now)
 
 	// Set up worker
-	initWorker(t, ctx, store, jobQueue, rdb, wrapper)
+	worker := initWorker(t, ctx, store, jobQueue, rdb, wrapper)
 
 	// Set up registry
 	imageRef, sbomRef := initRegistry(t)
@@ -77,7 +77,7 @@ func TestRestAPI(t *testing.T) {
 			Commit:  "abc",
 			Date:    "2019-01-04T12:40",
 		},
-		etc.Config{Trivy: trivyConf}, enqueuer, store, wrapper)
+		etc.Config{Trivy: trivyConf}, enqueuer, store, wrapper, worker)
 
 	ts := httptest.NewServer(app)
 	t.Cleanup(ts.Close)
@@ -433,9 +433,18 @@ func TestRestAPI(t *testing.T) {
 	})
 
 	t.Run("GET /probe/ready", func(t *testing.T) {
-		rs, err := ts.Client().Get(ts.URL + "/probe/ready")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, rs.StatusCode)
+		// The real worker, queue and binary answer here, which is the only
+		// place the readiness checks run against something other than a fake.
+		// EventuallyWithT reports the last attempt's failure, so a timeout
+		// shows the transport error or status that kept the probe unready.
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			rs, err := ts.Client().Get(ts.URL + "/probe/ready")
+			if !assert.NoError(c, err) {
+				return
+			}
+			defer rs.Body.Close()
+			assert.Equal(c, http.StatusOK, rs.StatusCode)
+		}, 10*time.Second, 50*time.Millisecond)
 	})
 }
 
@@ -471,7 +480,10 @@ func initTrivy(t *testing.T, now time.Time) (trivy.Wrapper, etc.Trivy) {
 		IgnoreUnfixed:    true,
 		DebugMode:        true,
 	}
-	wrapper := trivy.NewWrapper(trivyConf, ext.DefaultAmbassador)
+	tempRoot, err := trivy.NewTempRoot()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tempRoot.Close()) })
+	wrapper := trivy.NewWrapper(trivyConf, ext.DefaultAmbassador, tempRoot)
 
 	return wrapper, trivyConf
 }
@@ -526,12 +538,13 @@ func initVulnDB(t *testing.T, now time.Time) string {
 
 func initWorker(t *testing.T, ctx context.Context, store persistence.Store, jobQueue etc.JobQueue,
 	rdb *goredis.Client, wrapper trivy.Wrapper,
-) {
+) queue.Worker {
 	controller := scan.NewController(store, wrapper, scan.NewTransformer(&scan.SystemClock{}))
 	worker := queue.NewWorker(jobQueue, rdb, controller, store)
 	t.Cleanup(worker.Stop)
 
 	worker.Start(ctx)
+	return worker
 }
 
 func initRegistry(t *testing.T) (name.Digest, name.Digest) {

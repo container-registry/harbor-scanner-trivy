@@ -146,7 +146,15 @@ class DashboardTest(unittest.TestCase):
             panels = sections[section]
             self.assertEqual(len(panels), 1)
             self.assertEqual(panels[0]["type"], "table")
-            self.assertEqual(len(panels[0]["targets"]), 5)
+            # Presence, updated-at, next-update, downloaded-at, updates-enabled
+            # and the schema version the engine reports for this database.
+            self.assertEqual(len(panels[0]["targets"]), 6)
+            # Found by what it queries, not by where it sits: adding or
+            # reordering a target must not fail a correct schema query.
+            schema = [t for t in panels[0]["targets"]
+                      if "harbor_scanner_trivy_db_schema_version" in t["expr"]]
+            self.assertEqual(len(schema), 1,
+                             f"{section}: expected exactly one db_schema_version target")
             for panel in panels:
                 for target in panel["targets"]:
                     self.assertIn(f'database="{database}"', target["expr"])

@@ -108,7 +108,7 @@ func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassa
 		category := classifyRemoteError(err)
 		return ScanTarget{}, &ScanError{
 			Category:  category,
-			Retryable: category != ErrCategoryAuth,
+			Retryable: retryable(category),
 			ImageRef:  imageRef.Name,
 			Detail:    "fetching image from registry",
 			Cause:     err,
@@ -122,9 +122,16 @@ func newTarget(ctx context.Context, imageRef ImageRef, config etc.Trivy, ambassa
 
 	m, err := target.img.Manifest()
 	if err != nil {
+		// Report what actually failed, not just where. A manifest read refused
+		// for credentials is terminal, and calling that "manifest" hid both the
+		// cause and the reason it was not retried.
+		category := classifyRemoteError(err)
+		if category == ErrCategoryImageFetch {
+			category = ErrCategoryManifest
+		}
 		return ScanTarget{}, &ScanError{
-			Category:  ErrCategoryManifest,
-			Retryable: classifyRemoteError(err) != ErrCategoryAuth,
+			Category:  category,
+			Retryable: retryable(category),
 			ImageRef:  imageRef.Name,
 			Detail:    "getting image manifest",
 			Cause:     err,
@@ -288,6 +295,9 @@ func classifyRemoteError(err error) ScanErrorCategory {
 	authFailure := isAuthenticationErrorMessage(msg)
 	var registryError *transport.Error
 	if errors.As(err, &registryError) {
+		if registryError.StatusCode == http.StatusTooManyRequests {
+			return ErrCategoryRateLimit
+		}
 		authFailure = registryError.StatusCode == http.StatusUnauthorized || registryError.StatusCode == http.StatusForbidden
 	}
 	switch {

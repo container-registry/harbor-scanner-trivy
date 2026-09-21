@@ -33,9 +33,10 @@ func TestMalformedDeliveryIsPreservedWithoutBlockingValidWork(t *testing.T) {
 	w.Stop()
 	payload, err := rdb.HGet(ctx, stream+":quarantine", id).Result()
 	require.NoError(t, err)
-	var stored map[string]interface{}
+	var stored quarantinedDelivery
 	require.NoError(t, json.Unmarshal([]byte(payload), &stored))
-	require.Equal(t, fields, stored)
+	require.Equal(t, "undecodable payload", stored.Reason)
+	require.Equal(t, fields, stored.Fields)
 	require.EqualValues(t, 0, rdb.XPending(ctx, stream, workerGroup).Val().Count)
 	w.observeQueue(ctx)
 	families, err := r.Gatherer().Gather()
@@ -48,7 +49,7 @@ func TestMalformedDeliveryIsPreservedWithoutBlockingValidWork(t *testing.T) {
 	}
 	require.EqualValues(t, 1, count)
 	// Retrying stale delivery data must not create another quarantine record.
-	require.NoError(t, w.quarantine(ctx, redis.XMessage{ID: id, Values: fields}))
+	require.NoError(t, w.quarantine(ctx, redis.XMessage{ID: id, Values: fields}, "test"))
 	require.EqualValues(t, 1, rdb.HLen(ctx, stream+":quarantine").Val())
 }
 
@@ -70,4 +71,30 @@ func TestFailedQuarantinePreservesPendingDelivery(t *testing.T) {
 	require.NoError(t, w.process(ctx, streams[0].Messages[0]))
 	require.True(t, rdb.HExists(ctx, w.stream+":quarantine", id).Val())
 	require.Zero(t, rdb.XLen(ctx, w.stream).Val())
+}
+
+// A queued job key never expires, so a delivery without one is an evicted or
+// deleted key that no worker can ever process.
+func TestDeliveryWithoutJobMetadataIsQuarantined(t *testing.T) {
+	_, rdb, s, cfg := setupQueue(t)
+	ctx := context.Background()
+	r := metrics.New(true)
+	w := NewWorker(cfg, rdb, nil, s, r).(*streamWorker)
+	require.NoError(t, rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err())
+	_, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
+	require.NoError(t, err)
+	keys := rdb.Keys(ctx, "*:scan-job:*").Val()
+	require.Len(t, keys, 1)
+	require.NoError(t, rdb.Del(ctx, keys...).Err())
+
+	streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{Group: workerGroup, Consumer: w.consumer, Streams: []string{w.stream, ">"}, Count: 1}).Result()
+	require.NoError(t, err)
+	require.NoError(t, w.process(ctx, streams[0].Messages[0]))
+	var stored quarantinedDelivery
+	require.NoError(t, json.Unmarshal([]byte(rdb.HGet(ctx, w.stream+":quarantine", streams[0].Messages[0].ID).Val()), &stored))
+	require.Contains(t, stored.Reason, "job metadata missing")
+	require.Equal(t, streams[0].Messages[0].Values, stored.Fields)
+	require.Zero(t, rdb.XLen(ctx, w.stream).Val())
+	require.Zero(t, rdb.XPending(ctx, w.stream, workerGroup).Val().Count)
+	require.Equal(t, float64(1), metricCount(t, r, "job_dispatch_total", "result", "not_found"))
 }

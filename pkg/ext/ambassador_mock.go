@@ -33,9 +33,9 @@ func (m *MockAmbassador) TempFile(dir, pattern string) (*os.File, error) {
 	return args.Get(0).(*os.File), args.Error(1)
 }
 
-func (m *MockAmbassador) RunCmd(cmd *exec.Cmd) ([]byte, error) {
+func (m *MockAmbassador) RunCmd(cmd *exec.Cmd) ([]byte, []byte, error) {
 	args := m.Called(cmd)
-	return args.Get(0).([]byte), args.Error(1)
+	return args.Get(0).([]byte), args.Get(1).([]byte), args.Error(2)
 }
 
 func (m *MockAmbassador) RemoteImage(ref name.Reference, options ...remote.Option) (v1.Image, error) {

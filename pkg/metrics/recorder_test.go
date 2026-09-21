@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
+	"github.com/container-registry/harbor-scanner-trivy/pkg/ext"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/http/api"
 	"github.com/container-registry/harbor-scanner-trivy/pkg/job"
 )
@@ -73,18 +74,18 @@ func TestBoundedCacheCollection(t *testing.T) {
 		require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0o700))
 		require.NoError(t, os.WriteFile(filepath.Join(root, dir, "data"), []byte("12345"), 0o600))
 	}
-	r.collectCache(context.Background(), root, 20, "filesystem")
+	r.collectCache(context.Background(), root, t.TempDir(), 20, "filesystem")
 	require.Equal(t, float64(5), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("analysis")))
-	r.collectCache(context.Background(), root, 1, "filesystem")
+	r.collectCache(context.Background(), root, t.TempDir(), 1, "filesystem")
 	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
 	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	n := 100
-	_, err := directoryBytes(ctx, root, &n)
+	_, err := directoryBytes(ctx, root, &n, failOnUnsupported)
 	require.ErrorIs(t, err, context.Canceled)
 	require.NoError(t, os.Symlink(root, filepath.Join(root, "fanal", "loop")))
-	_, err = directoryBytes(context.Background(), root, &n)
+	_, err = directoryBytes(context.Background(), root, &n, failOnUnsupported)
 	require.ErrorContains(t, err, "unsupported cache entry")
 }
 
@@ -103,8 +104,12 @@ func TestNonFilesystemCacheOmitsFanal(t *testing.T) {
 					require.NoError(t, os.Symlink(root, filepath.Join(root, "fanal")))
 				}
 				r.Set("cache_size_bytes", 999, "analysis")
-				r.collectCache(context.Background(), root, 4, backend)
-				require.Equal(t, 2, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+				// Four entries for the two database parts, one for the temp root.
+				r.collectCache(context.Background(), root, t.TempDir(), 5, backend)
+				// The two database parts plus the temp directories, which are
+				// reported for every backend.
+				require.Equal(t, 3, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+				require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
 				for _, kind := range []string{"vulnerability_db", "java_db"} {
 					require.Equal(t, float64(5), testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
 				}
@@ -124,7 +129,7 @@ func TestAnalysisCacheBackendInfo(t *testing.T) {
 			r := New(true)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			r.Start(ctx, etc.Config{Trivy: etc.Trivy{CacheBackend: configured}}, "test")()
+			r.Start(ctx, etc.Config{Trivy: etc.Trivy{CacheBackend: configured}}, "test", t.TempDir(), ext.DefaultAmbassador)()
 			require.Equal(t, 1, testutil.CollectAndCount(r.gauges["analysis_cache_backend_info"]))
 			require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["analysis_cache_backend_info"].WithLabelValues(want)))
 			families, err := r.Gatherer().Gather()
@@ -139,23 +144,26 @@ func TestAnalysisCacheBackendInfo(t *testing.T) {
 func TestSubprocessFailureAndUnavailableUsage(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command(filepath.Join(t.TempDir(), "does-not-exist"))
-	_, err := r.Run("image", cmd, func(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() })
+	_, _, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) { return ext.DefaultAmbassador.RunCmd(cmd) })
 	require.Error(t, err)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "start_error")))
 	require.Zero(t, testutil.CollectAndCount(r.histograms["subprocess_max_rss_bytes"]))
 }
 
 func TestCollectorShutdownAndOutputLimit(t *testing.T) {
-	var buffer limitedBuffer
-	_, err := buffer.Write([]byte(strings.Repeat("x", (1<<20)+1)))
-	require.Error(t, err)
+	buffer := ext.LimitedBuffer{Limit: ext.MaxStdout}
+	written, err := buffer.Write([]byte(strings.Repeat("x", ext.MaxStdout+1)))
+	require.NoError(t, err)
+	require.Equal(t, ext.MaxStdout+1, written)
+	require.True(t, buffer.Truncated())
+	require.Len(t, buffer.Bytes(), ext.MaxStdout)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cfg := etc.Config{Metrics: etc.Metrics{CollectionInterval: time.Minute, CollectionTimeout: time.Second}}
 	r := New(true)
-	r.Start(ctx, cfg, "test")()
+	r.Start(ctx, cfg, "test", t.TempDir(), ext.DefaultAmbassador)()
 	require.Zero(t, testutil.CollectAndCount(r.gauges["metadata_last_success_timestamp_seconds"]))
-	New(false).Start(context.Background(), cfg, "test")()
+	New(false).Start(context.Background(), cfg, "test", t.TempDir(), ext.DefaultAmbassador)()
 }
 
 func TestDisabledGathererIsEmpty(t *testing.T) {
@@ -181,24 +189,28 @@ func TestNonRegularDatabasePathIsUnknown(t *testing.T) {
 func TestUninitializedCachePartsAreEmpty(t *testing.T) {
 	r := New(true)
 	root := t.TempDir()
-	r.collectCache(context.Background(), root, 20, "filesystem")
-	for _, kind := range []string{"analysis", "vulnerability_db", "java_db"} {
+	r.collectCache(context.Background(), root, t.TempDir(), 20, "filesystem")
+	for _, kind := range []string{"analysis", "vulnerability_db", "java_db", "tmp_trivy"} {
 		require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues(kind)))
 	}
 	require.Equal(t, float64(1), testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
-	// Losing the entire mount/path must still invalidate the sample.
+	// Losing the entire cache mount/path must still invalidate those samples.
+	// The adapter's temp root is different: it does not exist until the first
+	// child runs, and no children holding no bytes is an observation, not a
+	// failed measurement.
 	require.NoError(t, os.Remove(root))
-	r.collectCache(context.Background(), root, 20, "filesystem")
-	require.Zero(t, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+	r.collectCache(context.Background(), root, filepath.Join(root, "gone"), 20, "filesystem")
+	require.Equal(t, 1, testutil.CollectAndCount(r.gauges["cache_size_bytes"]))
+	require.Zero(t, testutil.ToFloat64(r.gauges["cache_size_bytes"].WithLabelValues("tmp_trivy")))
 	require.Zero(t, testutil.ToFloat64(r.gauges["storage_collection_success"].WithLabelValues("cache_size")))
 }
 
 func TestSuccessfulChildWithRunnerErrorIsNotNonzeroExit(t *testing.T) {
 	r := New(true)
 	cmd := exec.Command("sh", "-c", "exit 0")
-	_, err := r.Run("image", cmd, func(cmd *exec.Cmd) ([]byte, error) {
+	_, _, err := r.Run(context.Background(), "image", cmd, func(cmd *exec.Cmd) ([]byte, []byte, error) {
 		require.NoError(t, cmd.Run())
-		return nil, io.ErrUnexpectedEOF
+		return nil, nil, io.ErrUnexpectedEOF
 	})
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	require.Equal(t, float64(1), testutil.ToFloat64(r.counters["subprocess_exits_total"].WithLabelValues("image", "other")))

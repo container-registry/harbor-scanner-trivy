@@ -112,7 +112,7 @@
         "label": "Valkey / Redis service",
         "name": "redis_service",
         "query": {
-          "query": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
+          "query": "label_values(redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
           "refId": "redis_service"
         },
         "skipUrlSync": false,
@@ -121,7 +121,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(redis_memory_used_bytes{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
+        "definition": "label_values(redis_up{cluster=~\"${cluster:regex}\",namespace=~\"${namespace:regex}\",service!=\"\"}, service)",
         "options": [],
         "refresh": 1,
         "sort": 1,

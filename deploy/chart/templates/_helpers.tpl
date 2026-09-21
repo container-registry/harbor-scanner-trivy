@@ -370,6 +370,20 @@ the user claimed through .Values.config / .Values.secret.
   value: {{ .Values.trivy.insecure | quote }}
 - name: SCANNER_TRIVY_USE_SBOM_ACCESSORY
   value: {{ .Values.trivy.useSBOMAccessory | quote }}
+- name: SCANNER_TRIVY_IMAGE_SRC
+  value: {{ .Values.trivy.imageSrc | quote }}
+- name: SCANNER_TRIVY_SKIP_VERSION_CHECK
+  value: {{ .Values.trivy.skipVersionCheck | quote }}
+- name: SCANNER_TRIVY_DISABLE_TELEMETRY
+  value: {{ .Values.trivy.disableTelemetry | quote }}
+{{- with .Values.trivy.maxImageSize }}
+- name: SCANNER_TRIVY_MAX_IMAGE_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.trivy.childGoMemLimit }}
+- name: SCANNER_TRIVY_CHILD_GOMEMLIMIT
+  value: {{ . | quote }}
+{{- end }}
 {{- with .Values.trivy.vexSource }}
 - name: SCANNER_TRIVY_VEX_SOURCE
   value: {{ . | quote }}

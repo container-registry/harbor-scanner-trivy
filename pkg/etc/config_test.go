@@ -2,6 +2,7 @@ package etc
 
 import (
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -45,6 +46,26 @@ func TestGetLogLevel(t *testing.T) {
 	}
 }
 
+func TestExplicitlyEmptyValueOverridesTheDefault(t *testing.T) {
+	// The chart renders imageSrc: "" as SCANNER_TRIVY_IMAGE_SRC="", which has
+	// to mean "leave the flag off" rather than fall back to the default.
+	t.Run("set to empty", func(t *testing.T) {
+		setEnvs(t, Envs{"SCANNER_TRIVY_IMAGE_SRC": ""})
+		cfg, err := GetConfig()
+		require.NoError(t, err)
+		require.Empty(t, cfg.Trivy.ImageSrc)
+	})
+	t.Run("not set at all", func(t *testing.T) {
+		// t.Setenv above restores whatever the test process inherited, which is
+		// not the same as the variable being absent. Only absence reaches the
+		// envDefault, so this subtest has to make it absent itself.
+		unsetEnv(t, "SCANNER_TRIVY_IMAGE_SRC")
+		cfg, err := GetConfig()
+		require.NoError(t, err)
+		require.Equal(t, "remote", cfg.Trivy.ImageSrc)
+	})
+}
+
 func TestGetConfig(t *testing.T) {
 	testCases := []struct {
 		name           string
@@ -78,6 +99,10 @@ func TestGetConfig(t *testing.T) {
 					Insecure:     false,
 					GitHubToken:  "",
 					Timeout:      parseDuration(t, "5m0s"),
+
+					ImageSrc:         "remote",
+					SkipVersionCheck: true,
+					DisableTelemetry: true,
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://localhost:6379",
@@ -121,6 +146,10 @@ func TestGetConfig(t *testing.T) {
 					Insecure:     false,
 					GitHubToken:  "",
 					Timeout:      parseDuration(t, "5m0s"),
+
+					ImageSrc:         "remote",
+					SkipVersionCheck: true,
+					DisableTelemetry: true,
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://localhost:6379",
@@ -168,6 +197,11 @@ func TestGetConfig(t *testing.T) {
 				"SCANNER_TRIVY_TIMEOUT":              "15m30s",
 				"SCANNER_TRIVY_VEX_SOURCE":           "oci",
 				"SCANNER_TRIVY_SKIP_VEX_REPO_UPDATE": "true",
+				"SCANNER_TRIVY_IMAGE_SRC":            "docker",
+				"SCANNER_TRIVY_SKIP_VERSION_CHECK":   "false",
+				"SCANNER_TRIVY_DISABLE_TELEMETRY":    "false",
+				"SCANNER_TRIVY_MAX_IMAGE_SIZE":       "5GB",
+				"SCANNER_TRIVY_CHILD_GOMEMLIMIT":     "off",
 
 				"SCANNER_STORE_REDIS_NAMESPACE":    "store.ns",
 				"SCANNER_STORE_REDIS_SCAN_JOB_TTL": "2h45m15s",
@@ -214,6 +248,11 @@ func TestGetConfig(t *testing.T) {
 					Timeout:           parseDuration(t, "15m30s"),
 					VEXSource:         "oci",
 					SkipVEXRepoUpdate: true,
+					ImageSrc:          "docker",
+					SkipVersionCheck:  false,
+					DisableTelemetry:  false,
+					MaxImageSize:      "5GB",
+					ChildGoMemLimit:   "off",
 				},
 				RedisPool: RedisPool{
 					URL:               "redis://harbor-harbor-redis:6379",
@@ -296,6 +335,21 @@ func setEnvs(t *testing.T, envs Envs) {
 	for k, v := range envs {
 		t.Setenv(k, v)
 	}
+}
+
+// unsetEnv removes a variable for the duration of the test and puts back what
+// the process had, which t.Setenv cannot express: it only restores a value.
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	original, had := os.LookupEnv(key)
+	require.NoError(t, os.Unsetenv(key))
+	t.Cleanup(func() {
+		if !had {
+			require.NoError(t, os.Unsetenv(key))
+			return
+		}
+		require.NoError(t, os.Setenv(key, original))
+	})
 }
 
 func parseDuration(t *testing.T, s string) time.Duration {

@@ -9,7 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Preserve malformed deliveries outside the active stream for operator inspection.
+// Preserve deliveries the worker cannot execute, an undecodable payload or a
+// job key the store no longer has, outside the active stream for operator inspection.
 // The hash is keyed by delivery ID so retries do not create duplicate copies.
 // If preserving the payload fails, leave the original delivery recoverable.
 var quarantineDelivery = redis.NewScript(`
@@ -21,17 +22,24 @@ var quarantineDelivery = redis.NewScript(`
 	redis.call('XDEL', KEYS[1], ARGV[2])
 	return 1`)
 
-func (w *streamWorker) quarantine(ctx context.Context, msg redis.XMessage) error {
-	payload, err := json.Marshal(msg.Values)
+// quarantinedDelivery is the hash value: the reason travels with the fields
+// because the log line that names it is long gone when an operator inspects the key.
+type quarantinedDelivery struct {
+	Reason string         `json:"reason"`
+	Fields map[string]any `json:"fields"`
+}
+
+func (w *streamWorker) quarantine(ctx context.Context, msg redis.XMessage, reason string) error {
+	payload, err := json.Marshal(quarantinedDelivery{Reason: reason, Fields: msg.Values})
 	if err != nil {
-		return fmt.Errorf("preserving malformed delivery %s: %w", msg.ID, err)
+		return fmt.Errorf("preserving delivery %s: %w", msg.ID, err)
 	}
 	preserved, err := quarantineDelivery.Run(ctx, w.rdb, []string{w.stream, w.stream + ":quarantine"}, workerGroup, msg.ID, payload).Int()
 	if err != nil {
-		return fmt.Errorf("quarantining malformed delivery %s: %w", msg.ID, err)
+		return fmt.Errorf("quarantining delivery %s: %w", msg.ID, err)
 	}
 	if preserved == 1 {
-		slog.Error("Malformed scan delivery quarantined", "delivery_id", msg.ID)
+		slog.Error("Scan delivery quarantined", "delivery_id", msg.ID, "reason", reason)
 	}
 	return nil
 }

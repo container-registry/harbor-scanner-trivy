@@ -273,13 +273,13 @@ func TestWrapper_Scan_SBOMAccessoryFallback(t *testing.T) {
 
 	ambassador.On("RunCmd", mock.MatchedBy(func(cmd *exec.Cmd) bool {
 		return len(cmd.Args) > 1 && cmd.Args[1] == "sbom"
-	})).Return([]byte("sbom parse error"), errors.New("exit status 1"))
+	})).Return([]byte{}, []byte("sbom parse error"), errors.New("exit status 1"))
 	ambassador.On("RunCmd", mock.MatchedBy(func(cmd *exec.Cmd) bool {
 		return len(cmd.Args) > 1 && cmd.Args[1] == "image"
-	})).Return([]byte{}, nil)
+	})).Return([]byte{}, []byte{}, nil)
 
 	recorder := metrics.New(true)
-	got, err := NewWrapper(config, ambassador, recorder).Scan(context.Background(), ImageRef{
+	got, err := NewWrapper(config, ambassador, testRoot(t), recorder).Scan(context.Background(), ImageRef{
 		Name: "registry.local:5000/library/node@" + imageDigest.String(),
 		Auth: NoAuth{},
 	}, ScanOption{Format: FormatJSON})

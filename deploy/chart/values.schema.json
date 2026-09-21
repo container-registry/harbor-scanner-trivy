@@ -484,6 +484,7 @@
           "required": [
             "intervalSeconds",
             "timeoutSeconds",
+            "cacheSizeEnabled",
             "maxCacheFiles"
           ],
           "properties": {
@@ -755,6 +756,30 @@
         },
         "useSBOMAccessory": {
           "type": "boolean"
+        },
+        "imageSrc": {
+          "type": "string",
+          "enum": [
+            "",
+            "docker",
+            "containerd",
+            "podman",
+            "remote"
+          ]
+        },
+        "skipVersionCheck": {
+          "type": "boolean"
+        },
+        "disableTelemetry": {
+          "type": "boolean"
+        },
+        "maxImageSize": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?\\s*([kKmMgGtT]i?[bB]?)?$"
+        },
+        "childGoMemLimit": {
+          "type": "string",
+          "pattern": "^(|off|[0-9]+([KMGT]iB)?)$"
         },
         "vexSource": {
           "type": "string",

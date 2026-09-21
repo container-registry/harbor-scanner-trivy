@@ -107,7 +107,10 @@ func TestDedicatedCacheBackends(t *testing.T) {
 				_, cfg := initTrivy(t, time.Now())
 				cfg.CacheBackend, cfg.CacheTTL = backendURL, time.Hour
 				cfg.CacheRedisCA, cfg.CacheRedisCert, cfg.CacheRedisKey = cert, cert, key
-				return trivy.NewWrapper(cfg, ext.DefaultAmbassador)
+				tempRoot, err := trivy.NewTempRoot()
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, tempRoot.Close()) })
+				return trivy.NewWrapper(cfg, ext.DefaultAmbassador, tempRoot)
 			}
 			ref := trivy.ImageRef{Name: image.String(), Auth: trivy.NoAuth{}, NonSSL: true}
 			coldStart := time.Now()
@@ -208,7 +211,7 @@ func testAPIWorkers(t *testing.T, rdb *redis.Client, newPod func() trivy.Wrapper
 				worker.Start(ctx)
 				t.Cleanup(worker.Stop)
 			}
-			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, s), s, w))
+			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, s), s, w, nil))
 			t.Cleanup(server.Close)
 			client := server.Client()
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -329,7 +332,7 @@ func testAPICacheRecovery(t *testing.T, cache *redis.Client, newPod func() trivy
 			wrapper := observedWrapper{Wrapper: newPod(), failures: make(chan error, 3)}
 			transformer := scan.NewTransformer(&scan.SystemClock{})
 			worker := queue.NewWorker(cfg, jobs, scan.NewController(store, wrapper, transformer), store)
-			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, store), store, wrapper))
+			server := httptest.NewServer(v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{}, queue.NewEnqueuer(cfg, store), store, wrapper, nil))
 			t.Cleanup(server.Close)
 			client := server.Client()
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }

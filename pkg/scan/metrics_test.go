@@ -30,6 +30,7 @@ func (w resultWrapper) Scan(context.Context, trivy.ImageRef, trivy.ScanOption) (
 	return trivy.Report{}, w.run()
 }
 func (resultWrapper) GetVersion() (trivy.VersionInfo, error) { return trivy.VersionInfo{}, nil }
+func (resultWrapper) Available() error                       { return nil }
 
 func countMetric(t *testing.T, r *metrics.Recorder, name string, labels map[string]string) float64 {
 	t.Helper()
@@ -114,7 +115,7 @@ func TestMetricsTrackProcessingOutcomeNotStatusWriteOrPolling(t *testing.T) {
 			} else {
 				require.Zero(t, countMetric(t, r, "report_size_bytes", nil))
 			}
-			handler := v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{API: etc.API{MetricsEnabled: true}}, nil, store, wrapper, r)
+			handler := v1.NewAPIHandler(etc.BuildInfo{}, etc.Config{API: etc.API{MetricsEnabled: true}}, nil, store, wrapper, nil, r)
 			for range 3 {
 				res := httptest.NewRecorder()
 				handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/scan/private-id/report", nil))

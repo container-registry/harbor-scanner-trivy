@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -208,6 +210,7 @@ func TestFailedQueueCollectionDropsStaleValues(t *testing.T) {
 	r := metrics.New(true)
 	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
 	ctx := context.Background()
+	requireGroup(t, w)
 	w.observeQueue(ctx)
 	last, ok := gaugeValue(t, r, "queue_collection_last_success_timestamp_seconds")
 	require.True(t, ok)
@@ -226,4 +229,200 @@ func TestFailedQueueCollectionDropsStaleValues(t *testing.T) {
 func TestDisabledMetricsDoNotReadRedis(t *testing.T) {
 	worker := &streamWorker{} // No recorder or Redis client: any Redis read would panic.
 	worker.monitorQueue(context.Background())
+}
+
+func requireGroup(t *testing.T, w *streamWorker) {
+	t.Helper()
+	_, err := w.ensureGroup(context.Background())
+	require.NoError(t, err)
+}
+
+func TestQueueOutageIsCountedPerQueryAndLoggedOnceOnEachTransition(t *testing.T) {
+	server, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
+	ctx := context.Background()
+	requireGroup(t, w)
+	var logged []string
+	previous := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.MessageKey {
+				logged = append(logged, a.Value.String())
+			}
+			return a
+		},
+	})))
+
+	w.observeQueue(ctx)
+	require.Empty(t, logged)
+	for _, query := range []string{"quarantine", "length", "oldest", "group"} {
+		require.Zero(t, metricCount(t, r, "queue_collection_errors_total", "query", query), query)
+	}
+
+	server.SetError("redis outage")
+	for range 3 {
+		w.observeQueue(ctx)
+	}
+	for _, query := range []string{"quarantine", "length", "oldest", "group"} {
+		require.Equal(t, float64(3), metricCount(t, r, "queue_collection_errors_total", "query", query), query)
+	}
+	require.Equal(t, []string{"Queue metric collection failed"}, logged)
+
+	server.SetError("")
+	w.observeQueue(ctx)
+	w.observeQueue(ctx)
+	require.Equal(t, []string{"Queue metric collection failed", "Queue metric collection recovered"}, logged)
+	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
+}
+
+func TestLostConsumerGroupIsRecreatedAndCounted(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	ctx := context.Background()
+	scanned := make(chan struct{}, 1)
+	w := NewWorker(cfg, rdb, scanFunc(func(ctx context.Context, key job.ScanJobKey, _ *harbor.ScanRequest) error {
+		select {
+		case scanned <- struct{}{}:
+		default:
+		}
+		return store.UpdateStatus(ctx, key, job.Finished)
+	}), store, r).(*streamWorker)
+	// A job backend without persistence comes back with no consumer group, and
+	// the group the worker created at startup is gone. Redis answers NOGROUP
+	// for a missing group and for a missing stream key alike.
+	requireGroup(t, w)
+	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
+
+	// Sampled with no worker running, so nothing can repair the group first.
+	w.observeQueue(ctx)
+	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Zero(t, status, "a queue nothing can read from is not healthy")
+	require.Equal(t, float64(1), metricCount(t, r, "queue_collection_errors_total", "query", "group"))
+
+	w.Start(ctx)
+	t.Cleanup(w.Stop)
+	// The loop recreates the group at startup like any restart would, so take
+	// it away again to reach the state the loop itself has to recover from.
+	require.Eventually(t, func() bool {
+		groups, err := rdb.XInfoGroups(ctx, w.stream).Result()
+		return err == nil && len(groups) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
+
+	_, err := NewEnqueuer(cfg, store).Enqueue(ctx, testRequest())
+	require.NoError(t, err)
+	select {
+	case <-scanned:
+	case <-time.After(15 * time.Second):
+		t.Fatal("no delivery was dispatched after the consumer group was lost")
+	}
+	// One recreation per loss, not one per replica that noticed it.
+	require.Equal(t, float64(1), metricCount(t, r, "queue_group_recreated_total", "", ""))
+
+	// Sample only once the loop has stopped: observeQueue is the monitor
+	// goroutine's, and calling it from the test alongside a running worker is a
+	// data race, not a scenario the adapter has.
+	w.Stop()
+	w.observeQueue(ctx)
+	status, _ = gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
+}
+
+func TestConcurrentReplicasCountOneRecreation(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	ctx := context.Background()
+	workers := make([]*streamWorker, 4)
+	for i := range workers {
+		workers[i] = NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
+	}
+	requireGroup(t, workers[0])
+	require.NoError(t, rdb.XGroupDestroy(ctx, workers[0].stream, workerGroup).Err())
+
+	// Run them at once: sequential calls would pass even if BUSYGROUP counted
+	// as a recreation, because only the first call would create anything.
+	cause := errors.New("NOGROUP No such key or consumer group")
+	recovered := make(chan bool, len(workers))
+	for _, w := range workers {
+		go func(w *streamWorker) { recovered <- w.recoverMissingGroup(ctx, cause) }(w)
+	}
+	for range workers {
+		require.True(t, <-recovered)
+	}
+	require.Equal(t, float64(1), metricCount(t, r, "queue_group_recreated_total", "", ""))
+}
+
+func TestCancelledCollectionIsNotAnOutage(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	r := metrics.New(true)
+	w := NewWorker(cfg, rdb, &countingController{}, store, r).(*streamWorker)
+	requireGroup(t, w)
+	w.observeQueue(context.Background())
+	status, _ := gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
+
+	// Shutdown cancels the sampler mid-call; the last word on the queue must
+	// not be a failure the adapter caused by stopping.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	w.observeQueue(ctx)
+	status, _ = gaugeValue(t, r, "queue_collection_success")
+	require.Equal(t, float64(1), status)
+}
+
+func TestWorkerHealthNeedsTheConsumerGroupNotJustAServer(t *testing.T) {
+	server, rdb, store, cfg := setupQueue(t)
+	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true)).(*streamWorker)
+	ctx := context.Background()
+
+	// The stream has to exist first: without it XInfoGroups fails on the missing
+	// key, and "reading consumer groups of ..." would satisfy a substring check
+	// for "consumer group" without the missing-group branch ever running.
+	require.NoError(t, rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: w.stream, Values: map[string]any{"fixture": "1"},
+	}).Err())
+	// A stream nothing has subscribed to answers XLEN but delivers nothing.
+	require.ErrorContains(t, w.Healthy(ctx), `consumer group "scanner" is missing`)
+	requireGroup(t, w)
+	require.NoError(t, w.Healthy(ctx))
+
+	require.NoError(t, rdb.XGroupDestroy(ctx, w.stream, workerGroup).Err())
+	require.ErrorContains(t, w.Healthy(ctx), `consumer group "scanner" is missing`)
+
+	requireGroup(t, w)
+	server.SetError("redis outage")
+	require.ErrorContains(t, w.Healthy(ctx), "redis outage")
+	server.SetError("")
+	require.NoError(t, w.Healthy(ctx))
+}
+
+func TestWorkerIsActiveWhileItReadsOrRenewsALease(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true)).(*streamWorker)
+	require.ErrorContains(t, w.Active(), "has not reached the queue")
+
+	w.beat()
+	require.NoError(t, w.Active())
+
+	// A scan longer than three lease periods keeps beating through its lease
+	// renewals; only a loop that stopped goes stale.
+	w.heartbeat.Store(time.Now().Add(-2 * w.leaseDuration).Unix())
+	require.NoError(t, w.Active())
+	w.heartbeat.Store(time.Now().Add(-4 * w.leaseDuration).Unix())
+	require.ErrorContains(t, w.Active(), "last reached the queue")
+}
+
+func TestStartedWorkerBeatsAndReportsHealthy(t *testing.T) {
+	_, rdb, store, cfg := setupQueue(t)
+	w := NewWorker(cfg, rdb, &countingController{}, store, metrics.New(true))
+	ctx := context.Background()
+	w.Start(ctx)
+	t.Cleanup(w.Stop)
+	require.Eventually(t, func() bool {
+		return w.Active() == nil && w.Healthy(ctx) == nil
+	}, 5*time.Second, 10*time.Millisecond)
 }

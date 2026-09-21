@@ -2,15 +2,35 @@ package queue
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // Collection runs independently of scans using the shared Redis client.
+// Long enough for XGROUP CREATE against a reachable backend, short enough that
+// an unreachable one is reported on the first sample rather than never.
+const groupWaitGrace = 5 * time.Second
+
 func (w *streamWorker) monitorQueue(ctx context.Context) {
 	if w.metrics == nil {
 		return
+	}
+	// Wait for the consumer group the samples are about, so the first sample of
+	// a pod booting against a backend that lost the group does not report a
+	// missing group the read loop is already recreating. Bounded, because the
+	// read loop retries forever: if the backend is simply down, the group never
+	// arrives and reporting that outage is this sampler's whole purpose.
+	select {
+	case <-ctx.Done():
+		return
+	case <-w.grouped:
+	case <-time.After(groupWaitGrace):
 	}
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -24,21 +44,34 @@ func (w *streamWorker) monitorQueue(ctx context.Context) {
 	}
 }
 
-func (w *streamWorker) observeQueue(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+func (w *streamWorker) observeQueue(parent context.Context) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	success := true
+	var failure error
+	failed := func(query string, err error) {
+		w.metrics.Inc("queue_collection_errors_total", query)
+		if failure == nil {
+			failure = fmt.Errorf("%s: %w", query, err)
+		}
+	}
 	if count, err := w.rdb.HLen(ctx, w.stream+":quarantine").Result(); err == nil {
 		w.metrics.Set("queue_quarantined_jobs", float64(count))
 	} else {
-		success = false
+		failed("quarantine", err)
 		w.metrics.Delete("queue_quarantined_jobs")
 	}
 	if depth, err := w.rdb.XLen(ctx, w.stream).Result(); err == nil {
 		w.metrics.Set("queue_unacknowledged_jobs", float64(depth))
 	} else {
-		success = false
+		failed("length", err)
 		w.metrics.Delete("queue_unacknowledged_jobs")
+	}
+	// XLEN and XRANGE answer without a consumer group, so a lost group leaves
+	// every other measurement healthy while no delivery can be read at all.
+	if groups, err := w.rdb.XInfoGroups(ctx, w.stream).Result(); err != nil {
+		failed("group", err)
+	} else if !slices.ContainsFunc(groups, func(g redis.XInfoGroup) bool { return g.Name == workerGroup }) {
+		failed("group", fmt.Errorf("consumer group %q is missing from stream %q", workerGroup, w.stream))
 	}
 	if messages, err := w.rdb.XRangeN(ctx, w.stream, "-", "+", 1).Result(); err == nil {
 		age := float64(0)
@@ -50,13 +83,33 @@ func (w *streamWorker) observeQueue(ctx context.Context) {
 		}
 		w.metrics.Set("queue_oldest_age_seconds", age)
 	} else {
-		success = false
+		failed("oldest", err)
 		w.metrics.Delete("queue_oldest_age_seconds")
 	}
-	if success {
-		w.metrics.Set("queue_collection_success", 1)
-		w.metrics.Set("queue_collection_last_success_timestamp_seconds", float64(time.Now().Unix()))
-	} else {
+	// Shutdown cancels every call in flight. Reporting that as an outage would
+	// leave a failed collection as the last thing the pod ever said.
+	if parent.Err() != nil {
+		return
+	}
+	w.reportCollection(failure)
+}
+
+// reportCollection logs state changes only. Collection samples every ten
+// seconds, so logging each failure would turn a Redis outage into a log flood
+// while the counter and the success gauge already carry the rate.
+func (w *streamWorker) reportCollection(failure error) {
+	if failure != nil {
 		w.metrics.Set("queue_collection_success", 0)
+		if !w.collectionFailing {
+			w.collectionFailing = true
+			slog.Error("Queue metric collection failed", slog.String("err", failure.Error()))
+		}
+		return
+	}
+	w.metrics.Set("queue_collection_success", 1)
+	w.metrics.Set("queue_collection_last_success_timestamp_seconds", float64(time.Now().Unix()))
+	if w.collectionFailing {
+		w.collectionFailing = false
+		slog.Info("Queue metric collection recovered")
 	}
 }
