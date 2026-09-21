@@ -71,6 +71,10 @@ type streamWorker struct {
 	collectionFailing bool
 	// Owned by the run goroutine; see recoverMissingGroup.
 	groupRecreations int
+	// The error the last recreation attempt failed with, so a backend that keeps
+	// refusing XGROUP CREATE is logged when that starts and when the error
+	// changes, not on every one-second retry.
+	groupRecreateErr string
 	// Closed by the run goroutine once the consumer group exists, so the
 	// sampler does not report a missing group that startup is still creating.
 	grouped chan struct{}
@@ -250,10 +254,17 @@ func (w *streamWorker) recoverMissingGroup(ctx context.Context, cause error) boo
 	}
 	created, err := w.ensureGroup(ctx)
 	if err != nil {
-		if ctx.Err() == nil {
-			slog.Error("Recreating the scan consumer group failed", "error", err, "cause", cause.Error())
+		if ctx.Err() == nil && err.Error() != w.groupRecreateErr {
+			w.groupRecreateErr = err.Error()
+			slog.Error("Recreating the scan consumer group failed; retrying every second",
+				"stream", w.stream, "group", workerGroup, "error", err, "cause", cause.Error())
 		}
 		return true
+	}
+	if w.groupRecreateErr != "" {
+		w.groupRecreateErr = ""
+		slog.Info("Recreating the scan consumer group succeeded after earlier failures",
+			"stream", w.stream, "group", workerGroup)
 	}
 	if !created {
 		return true
