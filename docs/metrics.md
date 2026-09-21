@@ -55,7 +55,7 @@ Every metric below uses the prefix `harbor_scanner_trivy_`. Histograms export
 | `http_requests_total` | counter | route, method, code | API requests by route template. |
 | `http_request_duration_seconds` | histogram | route, method | API handler duration. |
 | `jobs_enqueued_total` | counter | capability, format | Durably enqueued tasks. |
-| `job_dispatch_total` | counter | result | Worker dispatch outcomes, including skipped locks. |
+| `job_dispatch_total` | counter | result | Worker dispatch outcomes, including skipped locks. `decode_error` and `not_found` (job key gone) are the two outcomes that quarantine the delivery. |
 | `publish_no_subscribers_total` | counter | — | Deprecated: Streams do not require online subscribers. |
 | `scan_retries_total` | counter | — | Attempts after interrupted execution or cache failure. |
 | `lease_losses_total` | counter | — | Failed lease renewal or lost ownership. |

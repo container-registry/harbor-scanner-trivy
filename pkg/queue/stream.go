@@ -341,6 +341,7 @@ func (w *streamWorker) process(parent context.Context, msg redis.XMessage) error
 		// Queued job keys never expire, so this is an evicted or deleted key.
 		// Left pending, the delivery would be reclaimed and fail every lease
 		// period forever.
+		w.metrics.Inc("job_dispatch_total", "not_found")
 		return w.quarantine(ctx, msg, "job metadata missing for "+delivery.Key.ID)
 	}
 	if state.Status != job.Finished && state.Status != job.Failed {

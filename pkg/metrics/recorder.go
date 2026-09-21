@@ -235,7 +235,7 @@ func New(enabled bool) *Recorder {
 	for _, result := range []string{"ok", "pending", "failed", "not_found", "error", "invalid_request"} {
 		r.Add("report_fetch_total", 0, result)
 	}
-	for _, result := range []string{"lock_acquired", "lock_busy", "lock_error", "decode_error"} {
+	for _, result := range []string{"lock_acquired", "lock_busy", "lock_error", "decode_error", "not_found"} {
 		r.Add("job_dispatch_total", 0, result)
 	}
 	for _, query := range []string{"quarantine", "length", "oldest", "group"} {

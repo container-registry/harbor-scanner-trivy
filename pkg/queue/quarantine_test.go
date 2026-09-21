@@ -78,7 +78,8 @@ func TestFailedQuarantinePreservesPendingDelivery(t *testing.T) {
 func TestDeliveryWithoutJobMetadataIsQuarantined(t *testing.T) {
 	_, rdb, s, cfg := setupQueue(t)
 	ctx := context.Background()
-	w := NewWorker(cfg, rdb, nil, s).(*streamWorker)
+	r := metrics.New(true)
+	w := NewWorker(cfg, rdb, nil, s, r).(*streamWorker)
 	require.NoError(t, rdb.XGroupCreateMkStream(ctx, w.stream, workerGroup, "0").Err())
 	_, err := NewEnqueuer(cfg, s).Enqueue(ctx, testRequest())
 	require.NoError(t, err)
@@ -92,4 +93,5 @@ func TestDeliveryWithoutJobMetadataIsQuarantined(t *testing.T) {
 	require.True(t, rdb.HExists(ctx, w.stream+":quarantine", streams[0].Messages[0].ID).Val())
 	require.Zero(t, rdb.XLen(ctx, w.stream).Val())
 	require.Zero(t, rdb.XPending(ctx, w.stream, workerGroup).Val().Count)
+	require.Equal(t, float64(1), metricCount(t, r, "job_dispatch_total", "result", "not_found"))
 }
