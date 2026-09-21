@@ -317,7 +317,7 @@ the title must be a [Conventional Commit](https://www.conventionalcommits.org) (
 release-please reads), and every commit needs a DCO sign-off (`git commit -s`). Both are enforced by lefthook
 hooks and in CI.
 
-Every PR runs `typos`, dependency review and [zizmor] on the workflows (all actions pinned to full SHAs). Code
+Every PR runs dependency review and [zizmor] on the workflows (all actions pinned to full SHAs). Code
 changes also run unit, integration and component tests, `golangci-lint`, yamllint and `govulncheck`; chart changes
 run the chart gate (`task helm:ci`). Hot-path Go benchmarks guard the scan and transform code against regressions
 ([#12]):

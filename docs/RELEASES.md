@@ -213,8 +213,7 @@ in `trivy-cve-overrides.txt` against the pristine tag, so a stale override
 fails the build instead of shipping.
 
 Renovate is limited to `versions.env` (`enabledManagers: custom.regex`);
-dependabot keeps gomod and github-actions. The typos pin stays unmanaged
-because its hand-computed checksum pin must be updated together with it.
+dependabot keeps gomod and github-actions.
 
 ## Release Artifacts
 
