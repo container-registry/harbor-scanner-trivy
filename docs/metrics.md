@@ -168,10 +168,10 @@ measurements cover every workload sharing the instance.
   derives a positive effective TTL from scan timeout when its setting is zero;
   direct store callers can still use zero to disable expiry.
 - `/probe/ready` fails only for what stops this pod from serving: the job
-  backend answering and still holding the worker's consumer group (`queue`), the
-  read loop having iterated or renewed a lease within three lease periods
-  (`worker`), and the Trivy binary being on `PATH` (`binary`, cached for a
-  minute). Database freshness, disk space and the analysis cache are deliberately
+  backend not answering or no longer holding the worker's consumer group
+  (`queue`), the read loop having neither iterated nor renewed a lease for three
+  lease periods (`worker`), or the Trivy binary missing from `PATH` (`binary`,
+  cached for a minute). Database freshness, disk space and the analysis cache are deliberately
   not readiness. A 503 removes the pod from the Service, Harbor's metadata ping
   then fails, its `Metadata` goes nil, and a scan-all in that state finishes as
   Success having scanned nothing; a stale database still produces reports. Alert
