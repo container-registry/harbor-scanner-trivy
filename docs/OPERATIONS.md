@@ -42,6 +42,8 @@ The dashboard `harbor-trivy-scanner` (chart `deploy/chart/dashboards/trivy.json`
 | `timeout` | context deadline exceeded | yes | See "Timeouts". |
 | `cache` | Redis cache error, layer cache missing, cache may be in use | yes | See "Cache backends". |
 | `unscannable_layer` | archive extraction failed, unexpected EOF | no | Corrupt or non-image layer. |
+| `image_fetch` | The adapter could not parse the image reference Harbor sent, before any registry call | no | The detail carries the reference; a Harbor-side naming problem, not a registry one. |
+| `manifest` | The adapter's own manifest read failed for a reason that is not 401/403, 429, connectivity or a timeout (those keep their own category) | yes | Registry returned something unexpected for this reference; check the registry log for the request. |
 | `report_parse` | Trivy exited 0 but its report could not be decoded | no | The detail carries the decode error. A Trivy release whose output no longer matches the adapter's model, or a truncated report from a full disk; check `storage_available_bytes{area="reports"}`. |
 | `trivy_execution` | Any other non-zero exit | yes | Read the stderr tail in the adapter log (`ScanError.Detail` carries the last 4 KiB). |
 | `storage_full`, `storage_io` | ENOSPC / EIO from the adapter's own file operations | yes | Disk. A full disk inside the Trivy child shows up as `trivy_execution` with "no space left on device" in the detail. |
