@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.42.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.41.0...v0.42.0) (2026-09-21)
+
+
+### Features
+
+* **metrics:** classify scan failures, real readiness, queue self-recovery and engine defaults ([#110](https://github.com/container-registry/harbor-scanner-trivy/issues/110)) ([858421c](https://github.com/container-registry/harbor-scanner-trivy/commit/858421c001baa144c38cfd32c614d4ed693ce4fe))
+* **metrics:** Expose scanner operational telemetry ([#98](https://github.com/container-registry/harbor-scanner-trivy/issues/98)) ([2dcf13c](https://github.com/container-registry/harbor-scanner-trivy/commit/2dcf13cf9a893f618004e055694accb65b9ab732))
+* **perf:** Trivy scans with durable workers and dedicated Valkey ([#106](https://github.com/container-registry/harbor-scanner-trivy/issues/106)) ([903c5e2](https://github.com/container-registry/harbor-scanner-trivy/commit/903c5e252d6c6ac6da2ce48e44a4202adfdb76a4))
+
+
+### Upstream
+
+* feat: restrict TLS cipher suites and curves for FIPS 140 compliance ([#109](https://github.com/container-registry/harbor-scanner-trivy/issues/109)) ([5c73f0f](https://github.com/container-registry/harbor-scanner-trivy/commit/5c73f0f3fd1bcc4a0683facb4807d6d102465bd8))
+
 ## [0.41.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.40.1...v0.41.0) (2026-09-14)
 
 
