@@ -118,8 +118,10 @@ jobs:
             while IFS= read -r line || [ -n "$line" ]; do
               if echo "$line" | grep -qE '^\s*(-\s+)?uses:\s+'; then
                 ref=$(echo "$line" | sed 's/.*uses:[[:space:]]*//' | awk '{print $1}')
-                # Skip local actions (starting with ./) and docker:// references
-                if echo "$ref" | grep -qE '^(\.\/|docker://)'; then
+                # `$/` resolves to this repository at the running commit, so it
+                # is pinned by construction. `./` is deliberately not skipped:
+                # it loads whatever the workspace holds and zizmor flags it.
+                if echo "$ref" | grep -qE '^(\$/|docker://)'; then
                   continue
                 fi
                 if ! echo "$line" | grep -qE '@[a-f0-9]{40}[[:space:]]+#[[:space:]]*v[0-9]'; then
@@ -134,6 +136,7 @@ jobs:
             echo "All 'uses:' references must be pinned to a full 40-char commit SHA"
             echo "followed by a version comment."
             echo "Example: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.0"
+            echo "In-repo actions and workflows use the self-repository form: uses: \$/.github/..."
             exit 1
           fi
           echo "All actions are pinned."

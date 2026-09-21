@@ -66,7 +66,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       - name: Resolve version
         env:
@@ -191,7 +191,7 @@ jobs:
           ref: ${{ inputs.checkout_ref }}
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
         with:
           go: "false"
 

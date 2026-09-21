@@ -224,7 +224,7 @@ def check(values):
     if get(values, "global.imageRegistry") and not offline:
         db = str(effective(values, "trivy.dbRepository", "SCANNER_TRIVY_DB_REPOSITORY",
                            "ghcr.io/aquasecurity/trivy-db"))
-        if db.startswith("ghcr.io/"):
+        if db.split("/", 1)[0] == "ghcr.io":
             warn(
                 "trivy.dbRepository",
                 "still points at ghcr.io while global.imageRegistry redirects "
