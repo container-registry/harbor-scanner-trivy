@@ -10,11 +10,6 @@ run:
 
 linters:
   default: standard
-  enable:
-    - misspell
-  settings:
-    misspell:
-      locale: US
   exclusions:
     generated: lax
     presets:
