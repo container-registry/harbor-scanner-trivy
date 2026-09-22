@@ -8,7 +8,7 @@ change, so none of them can silently rot.
 | Example | What it shows |
 |---------|---------------|
 | [`harbor-integration/`](harbor-integration/) | The default case: adapter alongside a `goharbor/harbor-helm` release, sharing Harbor's Redis |
-| [`external-redis/`](external-redis/) | A password-protected Redis whose URL never enters the pod spec |
+| [`high-throughput/`](high-throughput/) | Several scanner pods sharing a dedicated Valkey analysis cache, job Redis URL from a Secret, Grafana dashboards |
 | [`tls-cert-manager/`](tls-cert-manager/) | HTTPS API with a cert-manager-issued certificate, plus mutual TLS |
 | [`flux/`](flux/) | GitOps delivery with FluxCD: digest-pinned image, externally owned Secrets |
 | [`air-gapped/`](air-gapped/) | Mirrored registry, no egress to GitHub, pre-seeded Trivy DB |

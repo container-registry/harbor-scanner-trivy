@@ -1,0 +1,45 @@
+---
+# Throughput scales with pods, not workers per pod: each replica runs one
+# Trivy process against its own local vulnerability DB volume.
+replicaCount: 3
+podManagementPolicy: Parallel
+jobQueue:
+  workerConcurrency: 1
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+
+persistence:
+  size: 5Gi
+
+# Job queue and reports: Harbor's existing Redis/Valkey (6.2+), non-evicting.
+# The URL, password included, comes from a Secret you own.
+redis:
+  existingSecret: harbor-scanner-trivy-redis
+  existingSecretKey: url
+
+# Image/layer analysis shared by all replicas: a dedicated, evicting Valkey.
+# Never point redis.* at it.
+valkey:
+  enabled: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+trivy:
+  cacheTTL: 168h
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    cluster: production-eu
+  grafanaDashboard:
+    enabled: true

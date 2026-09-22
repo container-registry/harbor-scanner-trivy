@@ -259,7 +259,7 @@ trivy:
 This enables the same official Valkey chart as Harbor-next (`0.9.3`) as a separate analysis-cache instance.
 Defaults are `maxmemory 512mb`, `allkeys-lru`, and a 1 GiB container limit; tune them for your workload.
 For an external cache, leave `valkey.enabled: false` and set `trivy.cacheBackend` to its URL.
-See the [dedicated cache example](deploy/chart/example/dedicated-cache/) for Secret and TLS configuration.
+See the [high-throughput example](deploy/chart/example/high-throughput/) for multi-pod values.
 All scanner pods share two separate stores: Harbor's existing Redis/Valkey holds adapter jobs, leases,
 job state and reports, while the dedicated cache holds reusable image/layer analysis instead of `fanal.db`.
 Evicted analysis can be recomputed without evicting pending jobs or reports. Vulnerability and Java

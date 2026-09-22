@@ -29,7 +29,7 @@ trivy:
   cacheTTL: 168h
 ```
 
-With `valkey.enabled`, the default `fs` backend resolves to the subchart's primary Service. Its release-scoped name keeps it separate from Harbor's existing `valkey` Service; do not override that name to collide. See the [dedicated cache example](../deploy/chart/example/dedicated-cache/) for upstream ACL and TLS configuration. External caches remain supported by disabling the subchart and setting `trivy.cacheBackend` explicitly.
+With `valkey.enabled`, the default `fs` backend resolves to the subchart's primary Service. Its release-scoped name keeps it separate from Harbor's existing `valkey` Service; do not override that name to collide. See the [high-throughput example](../deploy/chart/example/high-throughput/) for a complete multi-pod values file. External caches remain supported by disabling the subchart and setting `trivy.cacheBackend` explicitly.
 
 For credentials, provision a Secret `trivy-analysis-cache` with a `url` key containing the full URL, then override the environment entry:
 
@@ -40,6 +40,19 @@ extraEnv:
       secretKeyRef:
         name: trivy-analysis-cache
         key: url
+```
+
+For the bundled cache with authentication, put the ACL password under `default` and the URL-encoded credential URL under `url` in the same Secret. For release `scanner` the URL is `redis://default:<encoded-password>@scanner-valkey:6379/0`. Helm validation rejects `valkey.auth.enabled` without this adapter override, and rendering never generates the password:
+
+```yaml
+valkey:
+  enabled: true
+  auth:
+    enabled: true
+    usersExistingSecret: trivy-analysis-cache
+    aclUsers:
+      default:
+        permissions: "~* &* +@all"
 ```
 
 Use `rediss://` or `trivy.cacheRedisTLS: true` to encrypt cache traffic with system trust roots, especially when using credentials. A `redis://` connection without TLS sends credentials and cache data in plaintext; use it only within a trusted, isolated network or when transport encryption is provided separately. Trivy 0.74.0 requires CA, client certificate and key together when supplying custom certificate files. For mutual TLS, add:

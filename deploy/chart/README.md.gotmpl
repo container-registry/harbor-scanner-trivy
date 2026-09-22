@@ -37,7 +37,7 @@ http://harbor-scanner-trivy.harbor.svc:8080
 
 The defaults assume Harbor's own Redis at `redis://harbor-harbor-redis:6379`.
 Point `redis.url` at yours, or read the whole URL out of a Secret with
-`redis.existingSecret` (see [`example/external-redis/`](example/external-redis/)).
+`redis.existingSecret` (see [`example/high-throughput/`](example/high-throughput/)).
 
 ## Scaling and upgrading
 
@@ -54,7 +54,7 @@ submissions, drain existing scans, and replace all adapter pods before resuming.
 See the [scaling and migration guide](../../docs/SCALING.md) for Secret/TLS
 examples, recovery semantics, sizing, metrics, and rollback.
 
-The [dedicated cache example](example/dedicated-cache/) runs three scanner pods
+The [high-throughput example](example/high-throughput/) runs three scanner pods
 with one worker each and a separate Valkey cache with memory headroom and
 `allkeys-lru` eviction. When working from source, run `task helm:dependencies`
 before rendering or installing the chart.
@@ -258,7 +258,7 @@ moved to the `existingSecret` family, and probes became data. See
 
 ## Examples
 
-See [`example/`](example/) - Harbor integration, external Redis, cert-manager
+See [`example/`](example/) - Harbor integration, multiple pods with Redis, cert-manager
 TLS, FluxCD, and air-gapped installs. CI renders all of them on every change.
 
 {{ template "chart.maintainersSection" . }}
