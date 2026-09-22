@@ -1,26 +1,163 @@
 # Scaling scan throughput
 
-Run one worker per adapter pod and add replicas to increase throughput. Each pod needs its own writable Trivy database directory because vulnerability and Java databases remain local, even with Redis analysis caching. The adapter rejects `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY` values other than `1`. Use a dedicated Redis/Valkey instance to share image/layer analysis across pods.
+This guide explains what limits scan throughput, which settings change it, and
+which signals tell you what to change next. For a working values file, start
+from the [high-throughput example](../deploy/chart/example/high-throughput/).
+Metric definitions are in the [metrics catalog](metrics.md) and the panels in
+the [dashboard guide](../deploy/chart/dashboards/README.md).
 
-## Connections and storage
+Sections: [How scaling works](#how-scaling-works) and [Background](#background)
+explain; [Tuning levers](#tuning-levers), [Monitoring](#monitoring),
+[Configuration reference](#configuration-reference) and
+[Upgrade and rollback](#upgrade-and-rollback) are reference.
 
-| Data | Connection/storage | Retention |
+## How scaling works
+
+### One worker per pod, more pods
+
+Each adapter pod runs exactly one worker, and each worker runs one Trivy
+process at a time. Throughput scales by adding pods, not workers:
+`jobQueue.workerConcurrency` (`SCANNER_JOB_QUEUE_WORKER_CONCURRENCY`) must be
+`1`, and the adapter and chart reject other values. Two Trivy processes in one
+pod would contend for the BoltDB lock on the local analysis cache
+(`fanal.db`), and vulnerability database updates are local to the pod anyway.
+
+Every pod keeps its own PVC for the vulnerability database, Java index and
+temporary files. Never share one writable PVC between replicas.
+
+A scan passes through these stages:
+
+1. Harbor's jobservice picks an `IMAGE_SCAN` task and calls the adapter's `POST /api/v1/scan`.
+2. The adapter stores the job and appends it to a Redis Stream, then returns `202`.
+3. A free worker in any pod claims the delivery and runs Trivy.
+4. The worker stores the report; Harbor polls `GET /api/v1/scan/{id}/report` until it gets it.
+
+### Two Redis instances
+
+A single pod needs one Redis. Several pods that should share Trivy's image
+analysis need a second, separate instance. They hold different data and must
+not be merged: the cache evicts keys, the job store must not.
+
+|  | Job store | Analysis cache |
 | --- | --- | --- |
-| Accepted jobs, deliveries, ownership, reports | Existing `SCANNER_REDIS_URL` (Helm `redis.*`) | Unacknowledged work persists; completed jobs/reports expire after acknowledgement |
-| Trivy image/layer analysis (`fanal::*`) | `SCANNER_TRIVY_CACHE_BACKEND` (Helm `trivy.cacheBackend`), dedicated instance | Positive TTL, set on writes; instance memory budget and eviction |
-| Vulnerability and Java databases, temporary files | Separate local volume per pod | Managed by Trivy; size pod disk and memory for scans and DB updates |
+| Required | Always | Only to share analysis across pods; without it each pod analyzes into its own `fanal.db` |
+| Typically | Harbor's existing Redis/Valkey (default `redis://harbor-harbor-redis:6379`) | Bundled Valkey (`valkey.enabled: true`) or an external instance |
+| Helm values | `redis.*` | `valkey.*`, or `trivy.cacheBackend` for an external one |
+| Stores | Queued scans, leases, job state, reports until Harbor fetches them | Trivy image/layer analysis (`fanal::*` keys) |
+| If its data is lost | Queued scans and unfetched reports are lost; resubmit from Harbor | Images are analyzed again: slower, nothing lost |
+| Eviction | Must be off | Expected (`allkeys-lru`) |
+| Server | Redis 6.2+ or Valkey; Sentinel supported | `redis://` or `rediss://`; no Sentinel, no Cluster |
 
-The job backend requires Redis 6.2+ (for `XAUTOCLAIM`) or compatible Valkey. Startup checks command availability before opening the API; its ACL needs `COMMAND INFO` as well as Streams, string, expiry and Lua commands, plus `HSET` and `HLEN` for quarantine and its metrics. Integration tests exercise Redis 7.4 and Valkey 8.1 with authentication and mutual TLS. The Trivy analysis-cache client supports `redis://` and adapter-normalized `rediss://`, not Sentinel or Redis Cluster endpoints. The existing job connection still supports Sentinel.
+A different logical database number on Harbor's instance is not a separate
+instance: logical databases share `maxmemory`, the eviction policy and CPU, and
+fail together.
 
-Enable the optional dedicated Valkey subchart (`valkey.enabled: true`) or provision an external analysis cache separately from Harbor's Redis/Valkey. The dependency is the same official chart and version as Harbor-next: `valkey` 0.9.3 from `oci://ghcr.io/valkey-io/valkey-helm`. Logical databases share the instance's `maxmemory`, eviction policy and CPU, and fail together. Keep operational job storage on a non-evicting instance with persistence/replication appropriate to the required durability. Streams retain work through client disconnects and worker restarts. Recovery from a Redis server failure depends on its persistence and failover configuration. Accepted jobs use storage until they complete. Monitor the backlog and limit submissions when workers cannot keep up.
+With a shared cache, a layer analyzed by one pod is neither downloaded nor
+analyzed again by the others.
 
-## Helm deployment
+### What limits throughput
 
-The [high-throughput example](../deploy/chart/example/high-throughput/) is the reference values file: one worker per pod, separate per-pod database volumes from the chart's volume claim templates, job Redis from a Secret and the bundled Valkey analysis cache. Do not give replicas one shared writable PVC, even with a Redis analysis cache. Start with two or three replicas and evaluate more against the same workload.
+The ceilings apply in this order. Adding adapter pods only helps once the
+earlier ones are raised.
 
-With `valkey.enabled`, the default `fs` backend resolves to the subchart's primary Service. Its release-scoped name keeps it separate from Harbor's existing `valkey` Service; do not override that name to collide. External caches remain supported by disabling the subchart and setting `trivy.cacheBackend` explicitly.
+1. **Harbor jobservice workers.** Harbor runs at most `max_job_workers` jobs at
+   once, scans included (harbor-helm `jobservice.maxJobWorkers`, default 10;
+   harbor-next-helm `jobservice.max_job_workers`, default 4). Each scan holds a
+   worker until Harbor has fetched the report, and most of that time is Harbor's
+   report polling interval, not scanning. In one production installation with 4
+   jobservice workers, a scan-all ran at 50 to 75 scans/min with anywhere from 1
+   to 10 adapter pods.
+2. **Harbor's PostgreSQL.** Every scan task writes to Harbor's database. When
+   the jobservice pool is raised, database CPU and connections become the next
+   limit, together with any other Harbor sharing that database.
+3. **Adapter pods.** Once Harbor delivers faster than the workers finish, the
+   adapter queue grows and more pods help, as long as CPU, memory, registry
+   bandwidth, local disk and the analysis cache have headroom.
 
-For credentials, provision a Secret `trivy-analysis-cache` with a `url` key containing the full URL, then override the environment entry:
+## Tuning levers
+
+| Lever | Setting | Effect | Cost and caveats |
+| --- | --- | --- | --- |
+| Harbor scan concurrency | Harbor `jobservice.maxJobWorkers` / `max_job_workers` | Raises the first ceiling | More load on Harbor's PostgreSQL; raise in steps |
+| Adapter pods | `replicaCount`, `podManagementPolicy: Parallel` | One more concurrent scan per pod | Each new pod creates a PVC and downloads the vulnerability DB once |
+| Autoscaling | `autoscaling.*` (CPU-based HPA) | Pods follow load | Scale-down cancels the pod's running scan; another pod recovers it |
+| Pod resources | `resources`, `trivy.childGoMemLimit` | Fewer OOM kills and less CPU throttling on large images | Raise memory before replicas; the Trivy child gets 80% of the memory limit as its soft heap limit by default |
+| Shared analysis cache | `valkey.enabled` or `trivy.cacheBackend` | Pods reuse each other's layer analysis | One more instance to run |
+| Cache capacity and TTL | `valkey.valkeyConfig` (`maxmemory`), `valkey.resources`, `trivy.cacheTTL` | Fewer re-analyses | Memory; see [Analysis cache sizing](#analysis-cache-sizing) |
+| SBOM reuse | `trivy.useSBOMAccessory: true` | Rescans reuse SBOMs this adapter generated before, skipping image analysis | Requires those SBOM accessories to exist; otherwise falls back to a full scan |
+| Local volume | `persistence.size` (default `5Gi`) | Room for databases and unpacked images | Too small fails scans on large images |
+| Scan timeout | `trivy.timeout` (default `5m0s`) | Long scans finish instead of failing | A stuck scan holds its pod longer; also sets default report retention (`2 * timeout + 3s`) |
+| Job store pool | `redis.pool.maxActive` (default `5`) | Fewer waits for a Redis connection | Only if pool timeouts appear |
+
+Scaling a StatefulSet down keeps the removed pods' PVCs. To delete them
+automatically, set `persistentVolumeClaimRetentionPolicy` through
+`statefulSetSpecOverrides`.
+
+## Monitoring
+
+The Trivy dashboard shows every signal below; the Valkey dashboard covers the
+analysis cache. Adapter metric names omit the `harbor_scanner_trivy_` prefix.
+Start from the symptom:
+
+| Symptom | Signal | Change |
+| --- | --- | --- |
+| Harbor's scan queue grows while adapter workers are idle | `harbor_task_queue_size` / `harbor_task_queue_latency{type="IMAGE_SCAN"}` high, `jobs_in_progress` 0 | Harbor jobservice workers |
+| Harbor database saturated during scan-all | PostgreSQL CPU and connections (outside this dashboard) | Stop raising jobservice workers |
+| Adapter backlog grows, all workers busy | `queue_oldest_age_seconds` and `queue_unacknowledged_jobs` rising, `jobs_in_progress` 1 on every pod | Add pods |
+| Scans slow on busy pods | CPU throttling panel, `job_duration_seconds` p95 | CPU requests, or more pods |
+| OOM kills or restarts | Last termination was OOM, `subprocess_max_rss_bytes` near the limit | `resources.limits.memory` |
+| Pods re-analyze the same layers | Cache hit rate low, `redis_evicted_keys_total` rising, memory at `maxmemory` | Cache `maxmemory` and `valkey.resources`, or `trivy.cacheTTL` |
+| Disk running out | `storage_available_bytes`, estimated time to full | `persistence.size` |
+| Waiting on the job store | `redis_pool_timeouts_total`, pool wait time | `redis.pool.maxActive` |
+| Work stuck while workers idle | `queue_oldest_age_seconds` rising with `jobs_in_progress` 0 everywhere | See queue health below |
+
+Queue health:
+
+- Every pod reports the same shared queue: aggregate queue metrics with `max`,
+  not `sum`. If they are missing, check `queue_collection_success` and
+  `queue_collection_errors_total`.
+- `ready{check=~"queue|worker|binary"}` mirrors `/probe/ready`. A pod turns
+  unready when the job store is unreachable, its consumer group is gone, the
+  worker loop has stalled for three lease periods, or the Trivy binary is
+  missing. Database freshness, disk space and the analysis cache are deliberately
+  excluded: an unready pod leaves the Service, and Harbor would report a
+  scan-all against it as successful with zero scans. Alert on those separately.
+- `queue_group_recreated_total` rises after the job store restarted without
+  persistence. Workers resume, but lost deliveries must be resubmitted from Harbor.
+- `queue_quarantined_jobs` above zero means undeliverable jobs; see
+  [Quarantine](#quarantine).
+- `job_attempts_total{outcome="failed"}` counts attempts, including ones that
+  are retried; it is not the number of failed scans.
+
+## Configuration reference
+
+### Job store
+
+- Redis 6.2+ (`XAUTOCLAIM`) or Valkey, standalone or Sentinel.
+- Eviction off, persistence and replication matching the durability you need.
+  Accepted jobs never expire, so memory grows with the backlog; limit submissions
+  when workers cannot keep up.
+- Pass the URL through `redis.existingSecret` so the password stays out of the pod spec.
+- A restricted ACL user needs `COMMAND INFO`, Streams, string, expiry and Lua
+  commands, plus `HSET` and `HLEN`. The adapter checks them at startup, before
+  opening the API.
+
+Never trim unacknowledged stream entries or delete consumers with pending
+deliveries.
+
+### Analysis cache
+
+**Bundled Valkey.** `valkey.enabled: true` deploys the official `valkey` chart
+0.9.3 from `oci://ghcr.io/valkey-io/valkey-helm`, the same as Harbor-next. The
+default `trivy.cacheBackend: fs` then resolves to the subchart's primary
+Service. Its release-scoped name keeps it apart from Harbor's own `valkey`
+Service; do not override it into a collision. Upstream values pass through
+under `valkey`. Defaults: `maxmemory 512mb`, `allkeys-lru`, 1 GiB container
+limit, no snapshots or AOF.
+
+**External instance.** Keep `valkey.enabled: false` and set
+`trivy.cacheBackend` to its URL. With credentials, put the full URL in a Secret
+and override the environment variable:
 
 ```yaml
 extraEnv:
@@ -31,7 +168,11 @@ extraEnv:
         key: url
 ```
 
-For the bundled cache with authentication, put the ACL password under `default` and the URL-encoded credential URL under `url` in the same Secret. For release `scanner` the URL is `redis://default:<encoded-password>@scanner-valkey:6379/0`. Helm validation rejects `valkey.auth.enabled` without this adapter override, and rendering never generates the password:
+**Bundled Valkey with authentication.** Put the ACL password under `default`
+and the URL-encoded credential URL under `url` in the same Secret, and keep the
+`extraEnv` override above. For release `scanner` the URL is
+`redis://default:<encoded-password>@scanner-valkey:6379/0`. Helm rejects
+`valkey.auth.enabled` without the override and never generates the password.
 
 ```yaml
 valkey:
@@ -44,11 +185,12 @@ valkey:
         permissions: "~* &* +@all"
 ```
 
-Use `rediss://` or `trivy.cacheRedisTLS: true` to encrypt cache traffic with system trust roots, especially when using credentials. A `redis://` connection without TLS sends credentials and cache data in plaintext; use it only within a trusted, isolated network or when transport encryption is provided separately. Trivy 0.74.0 requires CA, client certificate and key together when supplying custom certificate files. For mutual TLS, add:
+**TLS.** Use `rediss://` or `trivy.cacheRedisTLS: true` for system trust roots.
+Without TLS, credentials and cache data cross the network in plaintext. For a
+private CA or mutual TLS, Trivy 0.74.0 needs CA, certificate and key together:
 
 ```yaml
 trivy:
-  cacheTTL: 168h
   cacheRedisTLS: true
   cacheRedisCACert: /etc/trivy-cache/ca.crt
   cacheRedisCert: /etc/trivy-cache/tls.crt
@@ -63,85 +205,131 @@ extraVolumeMounts:
     readOnly: true
 ```
 
-Merge these settings under a single `trivy` mapping in your values file. If certificate paths come from an external Secret or ConfigMap through `extraEnvFrom`, Helm cannot inspect its keys offline; provide the full CA/certificate/key trio, which the adapter validates at startup. Use the chart certificate settings or three named `extraEnv` references for render-time completeness checks. Allow network egress to both backends and the registry and database mirrors. With `networkPolicy.egressEnabled: true`, add the bundled cache to `networkPolicy.egress` as well; enabling the subchart does not add a rule. Allow the cache pods in the same namespace on the configured Valkey port, and allow DNS resolution. The adapter passes cache credentials through Trivy's environment and redacts them from returned diagnostics. Startup logs show the cache type and TTL.
+Helm checks the trio at render time when it comes from these settings or three
+named `extraEnv` entries; through `extraEnvFrom` it cannot, and the adapter
+validates it at startup instead.
 
-Use `SCANNER_TRIVY_CACHE_*` to configure the adapter; these settings override inherited native `TRIVY_*` cache variables. Validation rejects invalid URLs, incomplete TLS inputs and non-positive Redis TTLs. A configuration error stops startup instead of selecting filesystem caching.
+**Validation.** `SCANNER_TRIVY_CACHE_*` wins over inherited `TRIVY_*` variables.
+Invalid URLs, incomplete TLS inputs and a non-positive TTL stop startup instead
+of falling back to the filesystem cache. Startup logs show the cache type and
+TTL, never the URL.
 
-## Cache budget and reuse
+### Analysis cache sizing
 
-Configure the dedicated instance's `maxmemory` and a cache eviction policy such as `allkeys-lru`; the bundled subchart defaults to `maxmemory 512mb`, `allkeys-lru`, a 1 GiB container limit, and disabled snapshots/AOF. Change `valkey.valkeyConfig` and `valkey.resources` together when sizing it. The subchart is disabled by default; its upstream persistence, ACL and TLS values pass through under `valkey`.
+- Keep the container memory limit above `maxmemory` for allocator, client and
+  replication overhead, and change `valkey.valkeyConfig` and `valkey.resources`
+  together. See [Valkey's eviction guidance](https://valkey.io/topics/lru-cache/).
+- Set `trivy.cacheTTL` above your rescan interval with margin. The TTL is set on
+  write and not renewed by reads; eviction can remove entries earlier.
+- An undersized cache means repeated analysis and lower throughput however many
+  pods run. Size by measurement: `used_memory`, evictions and hit rate on the
+  Valkey dashboard. `fanal.db` size does not predict it (see
+  [Cache memory](#cache-memory)).
+- An entry evicted between lookup and use fails the scan with `layer cache
+  missing`; the adapter retries it as a `cache` failure. Frequent `cache`
+  failures mean the budget is too small.
+- `trivy.cacheMaxSize` is deprecated and ignored.
 
-Reserve memory beyond `maxmemory` for process/allocator overhead, clients, replication buffers and persistence overhead. Set the pod/container memory limit above `maxmemory` to leave that headroom. Check [Valkey's eviction guidance](https://valkey.io/topics/lru-cache/).
+To measure on your workload, point a test cache at a representative image mix
+and run cold and warm scans with the pod counts you plan. Record `INFO memory`
+(`used_memory`, `used_memory_dataset`, `used_memory_rss`) and `evicted_keys`
+before and after, sample `fanal::*` keys with `SCAN` and `MEMORY USAGE`, and
+observe at least one full TTL cycle and a scan-all peak. Replicas of the cache
+each hold a full copy.
 
-Choose a positive TTL longer than the expected rescan interval with margin. Reads do not renew the TTL, and eviction can remove entries earlier. Expired entries are analyzed again. If entries disappear during a scan, or the cache cannot accept writes, the scan may need a retry. An undersized cache causes repeated analysis and lowers throughput, even if you add workers. `trivy.cacheMaxSize` is deprecated and ignored: no filesystem cache size cap was implemented.
+### Network policy
 
-The size of `fanal.db` does not predict Redis RAM usage. Both store analyzed image/layer metadata, excluding registry blobs. BoltDB files include pages and reusable free space; Redis adds key, object and allocator overhead. TTL and eviction change the retained working set, and replicas/persistence change total deployment consumption. Unique scanned layers, analyzer output and scan history matter more than registry size. Trivy's cache values are JSON; the adapter's report gzip compression does not apply to them. Measure Redis `used_memory`, peak/RSS, evictions, hits/misses and sampled key sizes; there is no fixed disk-to-RAM conversion. Historical details are in [the cache analysis](WORKER_CACHE_ANALYSIS.md).
+With `networkPolicy.egressEnabled: true`, allow egress to the job store, the
+analysis cache, the registries and the database mirrors, plus DNS. Enabling the
+Valkey subchart does not add an egress rule; add its pods and port to
+`networkPolicy.egress` yourself.
 
-For vulnerability rescans, `trivy.useSBOMAccessory: true` can reuse compatible Harbor SBOM accessories generated by this adapter. Generate and retain those SBOMs first; enabling reuse does not generate them. Missing, invalid or unusable accessories fall back to full-image analysis. Existing non-vulnerability scanner behavior is preserved; see [Scaling scan throughput](../README.md#scaling-scan-throughput).
+### Termination
 
-## Delivery and shutdown
-
-Before accepting a job, the enqueuer atomically saves the job and its stream delivery. Pods share a consumer group, with one active attempt per pod. Each worker renews its one-minute lease every 20 seconds. Lua checks ownership before saving status or reports and before acknowledging delivery, so a worker that has lost ownership cannot write stale results.
-
-An interrupted attempt stays pending. Another pod reclaims it after its idle lease window, checks completion, and resumes if needed. Shutdown cancels the active Trivy subprocess and leaves its delivery recoverable.
-
-The chart's default pre-stop hook keeps HTTP serving for ten seconds while Kubernetes removes the terminating pod from Service endpoints; this prevents report polls from reaching an already closed listener during ordinary endpoint propagation. Custom `lifecycle.preStop` hooks replace that delay and must allow equivalent draining.
-
-Completed but unacknowledged work retains its completion record, so recovery can acknowledge it without rescanning. Acknowledgement deletes the stream entry and starts `SCANNER_STORE_REDIS_SCAN_JOB_TTL` on job/report keys. Queue wait and execution do not consume that retention window.
-
-Delivery is at least once. A crash between scanning and saving completion can cause another worker to repeat the analysis. Cache errors, network failures, timeouts, unclassified CLI failures, cancellation and persistence interruptions leave work pending. After three started attempts, another recovery marks the job failed with a visible retry-limit error. Harbor can submit it again after the underlying problem is fixed. Known authentication and unscannable-image errors become terminal reports immediately. Malformed HTTP requests are rejected before enqueue. Invalid image references, unsupported image content and report parsing failures remain terminal; registry and manifest retrieval failures receive bounded retries unless authentication is rejected. Ownership fencing prevents stale results from replacing newer results; it cannot guarantee zero overlapping computation during network partitions. Do not trim unacknowledged stream entries or delete consumers with pending deliveries.
-
-Deliveries the worker cannot execute, an undecodable payload or a job key the store no longer has, are moved out of the active stream into the `<stream>:quarantine` Redis hash, keyed by their original delivery ID. Each value is a JSON object with `reason` and the original `fields`, retained without expiry for inspection (entries written by earlier releases hold the fields alone); the fields can contain registry credentials, so treat them as secrets. Investigate any nonzero `harbor_scanner_trivy_queue_quarantined_jobs` value. After correcting the cause and resubmitting any affected scan through Harbor, an operator can remove the inspected hash entry. If quarantine storage fails, the original delivery remains recoverable. Storage errors before an attempt starts do not consume the three-attempt scan limit.
+The chart's pre-stop hook keeps the API serving for ten seconds while the pod
+leaves the Service endpoints, so Harbor's report polls do not hit a closed
+listener. A custom `lifecycle.preStop` replaces it and must drain equally long.
+`terminationGracePeriodSeconds` (default 60) bounds the rest of shutdown; the
+running scan is cancelled and recovered by another pod.
 
 ## Upgrade and rollback
 
-The Streams queue is incompatible with the previous Pub/Sub protocol. A normal rolling upgrade that mixes these versions is unsafe.
+Releases before Redis Streams used Pub/Sub. The two protocols cannot run side by
+side, so a normal rolling upgrade is unsafe.
 
-1. Stop scheduled/bulk scan submissions and scan-on-push in Harbor, and let its outstanding work drain. Confirm no queued or running adapter jobs remain; stop if drain cannot be verified.
-2. Verify the job backend supports Redis Streams recovery and has persistence and capacity configured. Preserve existing job/store namespaces and report retention.
-3. Stop all old adapter pods, upgrade the binary and chart together, configure the dedicated cache, and start the new pods. For Helm/GitOps, use a staged scale-to-zero transition to keep the queue protocols separate.
-4. Check startup logs and readiness, submit a smoke scan, retrieve its report, then resume submissions.
+1. In Harbor, stop scheduled and bulk scans and scan-on-push, and let
+   outstanding work drain. Stop if you cannot confirm that no adapter jobs are
+   queued or running.
+2. Check that the job store is Redis 6.2+ or Valkey with persistence and
+   capacity. Keep the existing job and store namespaces and report retention.
+3. Scale the old adapter to zero, upgrade image and chart together, configure
+   the analysis cache, and start the new pods. With GitOps, stage the
+   scale-to-zero as its own change.
+4. Check startup logs and readiness, run one scan and fetch its report, then
+   resume submissions.
 
-Old Pub/Sub notifications cannot be replayed automatically. If an earlier outage already stranded old queued work, identify it in Harbor and resubmit it after the upgrade; don't delete operational keys blindly. Historical `fanal.db` entries are not imported into Redis, so the analysis cache initially warms through scans.
+Old Pub/Sub notifications are not replayed: resubmit stranded work from Harbor.
+Existing `fanal.db` contents are not imported; the Redis cache warms up through scans.
 
-Rollback follows the same stop-submissions/drain/stop-all sequence. Confirm the Streams queue is empty before starting an old binary. Configure `fs` and one worker per pod (or settings that the old binary actually supports); old binaries ignore these new adapter cache variables. Preserve completed reports long enough for Harbor to fetch them. Do not mix old workers with outstanding Streams jobs.
+Rollback is the same sequence in reverse: stop submissions, drain, confirm the
+stream is empty, stop all new pods, then start the old version with the `fs`
+cache and one worker per pod. Keep completed reports until Harbor has fetched
+them, and never run old workers while Streams jobs are outstanding.
 
-## Monitoring and validation
+## Background
 
-The existing `/metrics` endpoint exports:
+### Delivery and recovery
 
-- `harbor_scanner_trivy_jobs_in_progress`: active attempts in this pod, at most one.
-- `harbor_scanner_trivy_job_attempts_total{outcome="success|failed"}`: observed attempts, including retryable failures; a failed attempt does not necessarily mean a terminally failed job.
-- `harbor_scanner_trivy_job_duration_seconds`: attempt latency histogram, including report persistence.
-- `harbor_scanner_trivy_scan_retries_total` and `harbor_scanner_trivy_lease_losses_total`: recovery and ownership trouble.
-- `harbor_scanner_trivy_queue_unacknowledged_jobs` and `harbor_scanner_trivy_queue_oldest_age_seconds`: shared backlog, including pending scans. Use `max` across pods; `sum` would count the shared queue once per replica. Collection runs every ten seconds independently of scans, with a five-second timeout. Failed measurements are removed. Check `harbor_scanner_trivy_queue_collection_success` and the age of `harbor_scanner_trivy_queue_collection_last_success_timestamp_seconds` before interpreting missing queue data.
-- `harbor_scanner_trivy_queue_collection_errors_total{query=~"quarantine|length|oldest|group"}`: failed queue measurements, which say the queue could not be read rather than that scanning failed. The adapter logs the failure once when collection starts failing and once when it recovers, so alert on this counter and on `queue_collection_success`, not on log volume.
-- `harbor_scanner_trivy_ready{check=~"queue|worker|binary"}`: the readiness probe's view of this pod. `/probe/ready` returns 503 with the failing checks in its body when the job backend is unreachable or has lost the worker's consumer group, when the read loop has neither iterated nor renewed a lease for three lease periods, or when the Trivy binary is missing. A long scan renewing its lease is proof of life, so it stays ready although the delivery loop is not iterating meanwhile. It deliberately ignores database freshness, disk space and the analysis cache: a 503 removes the pod from the Service, and Harbor then reports a scan-all against it as Success with zero scans, so those belong in alerts. `/probe/healthy` is unconditional and never restarts the pod for a readiness failure.
-- `harbor_scanner_trivy_queue_group_recreated_total`: the consumer group's state was lost and the worker recreated it. This is lost group state, not proof of lost deliveries: a manual `XGROUP DESTROY` keeps the stream intact, and after a job Redis/Valkey restarted without persistence new enqueues recreate the stream while nothing recreated the group, so every read fails with `NOGROUP` although the queue still reports a length and age. The worker recreates the group from `0` and resumes; `query="group"` is what turns `queue_collection_success` to 0 meanwhile. Deliveries that were in a stream lost with the restart must be resubmitted through Harbor. Persistence on the job instance prevents the restart case altogether.
+The adapter saves each job and its stream delivery atomically before returning
+`202`. All pods share one consumer group. A worker holds a one-minute lease on
+its delivery and renews it every 20 seconds; every status, report and
+acknowledgement write checks the lease first, so a worker that lost ownership
+cannot overwrite newer results.
 
-Pair these with Harbor completion/failure rates, registry transfer metrics, pod CPU/memory/temporary-storage usage and the dedicated cache's memory, eviction, hit/miss and latency statistics. Raising replicas helps only while registry bandwidth, CPU, local storage, job delivery and cache service have spare capacity.
+If a pod dies or shuts down mid-scan, the delivery stays pending. After the
+lease expires, another pod claims it, checks whether it already completed, and
+otherwise scans again. Delivery is therefore at least once: a crash between
+scanning and saving can repeat a scan, and a network partition can briefly let
+two pods compute the same result, but only one result is kept.
 
-Reproduce the cache tests with Trivy 0.74.0 on `PATH` and Docker available:
+A job fails for good after three started attempts, with a visible retry-limit
+error; Harbor can resubmit it once the cause is fixed. Cache and network errors,
+timeouts, cancellations and unclassified Trivy failures are retried; so are
+registry and manifest fetch errors unless authentication was rejected.
+Authentication failures, invalid references, unscannable images and unparsable
+reports fail immediately. Storage errors before an attempt starts do not count
+against the three.
 
-```sh
-go test -race -v -tags=integration -run TestDedicatedCacheBackends ./test/integration/api
-go test -race ./pkg/queue ./pkg/scan ./pkg/trivy ./pkg/etc
-go test -tags=integration ./test/integration/...
-```
+Acknowledgement removes the stream entry and starts the report retention
+(`store.redisScanJobTTL`); time in the queue or in a scan does not consume it.
 
-The cache test uses a fixed Alpine image, a small fixture vulnerability DB, independent local directories and an HTTP registry. It asserts identical findings and zero additional layer GETs from two and four warm scanner instances, then verifies eight HTTP-submitted scans through two and four real controllers/workers on each backend. It exercises Redis 7.4 and Valkey 8.1 with password authentication/mutual TLS, TTL expiration, cache eviction/write failure, and recovery after restoring capacity.
+### Quarantine
 
-Queue tests cover concurrent workers, accepted backlog with no workers, cancellation/reclaim, repeated lease renewal, stale-write fencing, retry exhaustion and completion surviving delayed acknowledgement. Lease tests use an accelerated interval to avoid waits of more than five minutes.
+Deliveries a worker cannot execute (an undecodable payload, or a job the store
+no longer has) move to the `<stream>:quarantine` hash, keyed by delivery ID,
+with a `reason` and the original fields. They never expire. The fields can hold
+registry credentials, so treat them as secrets. After fixing the cause and
+resubmitting from Harbor, delete the entry.
 
-The following measurements come from one local macOS ARM64 run with Trivy 0.74.0 and Docker Desktop, using the small fixture described above:
+### Cache memory
 
-| Backend | Cold scan | Two warm instances, batch | Four warm instances, batch | Cache peak used memory |
+Cache memory cannot be derived from `fanal.db` size: BoltDB files include free
+pages, Redis adds per-key and allocator overhead, and TTL and eviction change
+what is retained. The number of unique layers scanned within the TTL drives it,
+not the registry size. Pods that miss the same new layer at the same time each
+analyze it, since Trivy writes cache entries without a lock; the last write wins.
+
+### Benchmark
+
+One laptop run (macOS ARM64, Trivy 0.74.0) with a small fixed image and a
+preloaded vulnerability database:
+
+| Backend | Cold scan | 2 warm pods | 4 warm pods | Cache peak memory |
 | --- | --- | --- | --- | --- |
-| Redis 7.4 | 527 ms | 107 ms (~1,124 scans/min) | 118 ms (~2,038 scans/min) | 1,290,336 bytes |
-| Valkey 8.1 | 181 ms | 110 ms (~1,096 scans/min) | 124 ms (~1,931 scans/min) | 1,219,440 bytes |
+| Redis 7.4 | 527 ms | ~1,124 scans/min | ~2,038 scans/min | 1.3 MB |
+| Valkey 8.1 | 181 ms | ~1,096 scans/min | ~1,931 scans/min | 1.2 MB |
 
-All warm batches downloaded zero additional image layers and matched baseline findings. These short batches include CLI startup and use preseeded fixture vulnerability databases; they do not establish sustained throughput, production cache size, p50/p95 latency, pod CPU/RSS/temp-storage peaks, cold full-database downloads or refresh behavior. Before choosing production replica counts and memory budgets, measure those dimensions against a representative fixed image set and database version, including long scans, pod termination and cache pressure. The results do not establish linear scaling or a throughput SLA.
-
-HTTP recovery tests now disrupt the dedicated cache connection and exhaust its memory budget, then verify that the same accepted scan completes after recovery without resubmission.
-
-The following acceptance scenarios still need testing: eviction precisely between cache lookup and layer application, cold/refreshing vulnerability and Java databases, and process-level interruption/recovery during a scan lasting over five minutes. Current tests cover queue recovery and subprocess cancellation separately. These gaps matter when deciding whether the adapter is ready for a particular production workload.
+Warm pods downloaded no image layers again and returned the same findings as a
+cold scan, and going from 2 to 4 pods raised throughput about 1.8 times. Use it to compare
+backends and pod counts, not to predict real throughput: in production, Harbor's
+jobservice sets the limit first (see [What limits throughput](#what-limits-throughput)).
