@@ -27,25 +27,8 @@ kubectl -n harbor create secret generic harbor-scanner-trivy-redis \
   --from-literal=url='redis://:s3cr3t@harbor-redis:6379/5'
 ```
 
-Sentinel works for the job connection
-(`redis+sentinel://:s3cr3t@sentinel-a:26379,sentinel-b:26379/mymaster/5`),
-not for the analysis cache.
-
-To use an external analysis cache instead of the bundled one, set
-`valkey.enabled: false` and point `trivy.cacheBackend` at it, or pass a
-credential URL through a Secret:
-
-```yaml
-extraEnv:
-  - name: SCANNER_TRIVY_CACHE_BACKEND
-    valueFrom:
-      secretKeyRef:
-        name: trivy-analysis-cache
-        key: url
-```
-
-The same override is required when `valkey.auth.enabled` is set. TLS, ACL and
-upgrading from Pub/Sub releases are covered in the
+Sentinel URLs work for the job connection. For an external or password-protected
+analysis cache, TLS, sizing and upgrading from Pub/Sub releases, see the
 [scaling guide](../../../../docs/SCALING.md).
 
 ## Grafana dashboards

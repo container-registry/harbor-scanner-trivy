@@ -16,20 +16,9 @@ Enable the optional dedicated Valkey subchart (`valkey.enabled: true`) or provis
 
 ## Helm deployment
 
-The chart's default per-pod volume claim templates provide independent database directories. Do not give replicas one shared writable PVC, even with a Redis analysis cache. Start with two replicas and evaluate four against the same workload.
+The [high-throughput example](../deploy/chart/example/high-throughput/) is the reference values file: one worker per pod, separate per-pod database volumes from the chart's volume claim templates, job Redis from a Secret and the bundled Valkey analysis cache. Do not give replicas one shared writable PVC, even with a Redis analysis cache. Start with two or three replicas and evaluate more against the same workload.
 
-```yaml
-replicaCount: 2
-podManagementPolicy: Parallel
-jobQueue:
-  workerConcurrency: 1
-valkey:
-  enabled: true
-trivy:
-  cacheTTL: 168h
-```
-
-With `valkey.enabled`, the default `fs` backend resolves to the subchart's primary Service. Its release-scoped name keeps it separate from Harbor's existing `valkey` Service; do not override that name to collide. See the [high-throughput example](../deploy/chart/example/high-throughput/) for a complete multi-pod values file. External caches remain supported by disabling the subchart and setting `trivy.cacheBackend` explicitly.
+With `valkey.enabled`, the default `fs` backend resolves to the subchart's primary Service. Its release-scoped name keeps it separate from Harbor's existing `valkey` Service; do not override that name to collide. External caches remain supported by disabling the subchart and setting `trivy.cacheBackend` explicitly.
 
 For credentials, provision a Secret `trivy-analysis-cache` with a `url` key containing the full URL, then override the environment entry:
 

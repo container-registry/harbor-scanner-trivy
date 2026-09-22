@@ -39,23 +39,13 @@ Point `redis.url` at yours, or read the whole URL out of a Secret with
 
 ## Scaling and upgrading
 
-Keep `jobQueue.workerConcurrency: 1`; larger values fail validation. Increase
-`replicaCount` and give each pod its own local database volume. For cache reuse,
-enable `valkey.enabled` to deploy Harbor-next's official Valkey chart (`0.9.3`)
-as a dedicated cache, or set `trivy.cacheBackend` to an external cache. Set a
-positive `trivy.cacheTTL` and configure the instance's memory budget and eviction
-policy. Logical databases on Harbor's instance share those limits. Keep
-`redis.url` pointing to the separate job/report backend.
-
-This version uses Redis Streams. Upgrades from Pub/Sub versions must stop scan
-submissions, drain existing scans, and replace all adapter pods before resuming.
-See the [scaling and migration guide](../../docs/SCALING.md) for Secret/TLS
-examples, recovery semantics, sizing, metrics, and rollback.
-
-The [high-throughput example](example/high-throughput/) runs three scanner pods
-with one worker each and a separate Valkey cache with memory headroom and
-`allkeys-lru` eviction. When working from source, run `task helm:dependencies`
-before rendering or installing the chart.
+Keep `jobQueue.workerConcurrency: 1` and scale with `replicaCount`; each pod
+keeps its own database volume. The [high-throughput example](example/high-throughput/)
+has the values for several pods sharing a dedicated Valkey analysis cache
+(`valkey.enabled`), with `redis.*` kept on the job/report backend. Upgrades from
+Pub/Sub versions must drain scans first; see the
+[scaling and migration guide](../../docs/SCALING.md). When working from source,
+run `task helm:dependencies` before rendering or installing the chart.
 
 ## Chart features
 
