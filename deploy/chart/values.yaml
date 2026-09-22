@@ -409,7 +409,7 @@ valkey:
     limits:
       memory: 64Mi
   # -- Upstream ACL configuration. With auth enabled, supply the adapter's full
-  # credential-bearing URL through a Secret override; see example/dedicated-cache.
+  # credential-bearing URL through a Secret override; see example/high-throughput.
   # Use TLS to encrypt credentials and cache traffic outside a trusted network.
   auth:
     enabled: false

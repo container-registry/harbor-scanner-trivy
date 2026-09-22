@@ -228,52 +228,14 @@ The adapter reads all configuration from environment variables at startup; it ha
 
 ### Scaling scan throughput
 
-Keep `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY=1`; the adapter rejects values above `1`. Each worker starts a
-Trivy process, and processes in the same pod share a cache directory. Concurrent scans can fail on the BoltDB
-file lock in `fanal.db`. Redis removes that analysis-cache lock, but vulnerability databases and their updates
-remain local. See [Trivy's database and cache lock guidance].
-
-Add adapter pods to increase throughput, with one worker and a separate local database volume per pod. A
-dedicated Redis/Valkey instance lets them share Trivy's image/layer analysis. Keep job state, locks and reports
-on the existing adapter connection (`SCANNER_REDIS_URL`).
-
-Use a separate cache instance because `maxmemory` and eviction policies apply to the whole Redis/Valkey
-instance. Another logical database number in Harbor's instance would still expose operational data to cache
-eviction and share its memory budget. Configure the dedicated instance's memory budget and eviction
-policy, and set a positive Trivy cache TTL based on the rescan interval. See [Valkey key eviction].
-
-The adapter validates these settings and forwards them to Trivy. Unsupported worker counts fail at startup
-and during Helm rendering. Use the `SCANNER_TRIVY_CACHE_*` settings; they take precedence over inherited native
-`TRIVY_*` cache settings. Startup logs show the effective backend type and TTL without the cache URL.
-
-```yaml
-replicaCount: 2
-jobQueue:
-  workerConcurrency: 1
-valkey:
-  enabled: true
-trivy:
-  cacheTTL: 168h
-```
-
-This enables the same official Valkey chart as Harbor-next (`0.9.3`) as a separate analysis-cache instance.
-Defaults are `maxmemory 512mb`, `allkeys-lru`, and a 1 GiB container limit; tune them for your workload.
-For an external cache, leave `valkey.enabled: false` and set `trivy.cacheBackend` to its URL.
-See the [dedicated cache example](deploy/chart/example/dedicated-cache/) for Secret and TLS configuration.
-All scanner pods share two separate stores: Harbor's existing Redis/Valkey holds adapter jobs, leases,
-job state and reports, while the dedicated cache holds reusable image/layer analysis instead of `fanal.db`.
-Evicted analysis can be recomputed without evicting pending jobs or reports. Vulnerability and Java
-index databases remain on each pod's own volume. See the [dashboard storage layout](deploy/chart/dashboards/README.md#what-lives-in-each-instance)
-for the three-pod deployment example and how the two instances map to panels.
-
-The job backend uses Redis Streams with acknowledgement and recovery and requires Redis 6.2+ or compatible
-Valkey. When upgrading from Pub/Sub releases, drain scans before replacing all adapter pods. Read the
-[scaling deployment and migration guide](docs/SCALING.md) for Secret/TLS configuration, memory sizing, recovery,
-metrics, test results, and rollback steps. The chart's deprecated `trivy.cacheMaxSize` is ignored; it never
-enforced a filesystem size limit.
+Keep `SCANNER_JOB_QUEUE_WORKER_CONCURRENCY=1` and add pods for throughput, each with its own local database
+volume; concurrent Trivy processes in one pod contend for the `fanal.db` lock (see
+[Trivy's database and cache lock guidance]). Share image/layer analysis across pods through a dedicated
+Redis/Valkey instance, never Harbor's job/report Redis. The
+[high-throughput example](deploy/chart/example/high-throughput/) has the Helm values; the
+[scaling guide](docs/SCALING.md) covers cache sizing, TLS, recovery and upgrading from Pub/Sub releases.
 
 [Trivy's database and cache lock guidance]: https://trivy.dev/docs/latest/references/troubleshooting/#database-and-cache-lock-errors
-[Valkey key eviction]: https://valkey.io/topics/lru-cache/
 
 ### Redis connection
 

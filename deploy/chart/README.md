@@ -35,27 +35,17 @@ http://harbor-scanner-trivy.harbor.svc:8080
 
 The defaults assume Harbor's own Redis at `redis://harbor-harbor-redis:6379`.
 Point `redis.url` at yours, or read the whole URL out of a Secret with
-`redis.existingSecret` (see [`example/external-redis/`](example/external-redis/)).
+`redis.existingSecret` (see [`example/high-throughput/`](example/high-throughput/)).
 
 ## Scaling and upgrading
 
-Keep `jobQueue.workerConcurrency: 1`; larger values fail validation. Increase
-`replicaCount` and give each pod its own local database volume. For cache reuse,
-enable `valkey.enabled` to deploy Harbor-next's official Valkey chart (`0.9.3`)
-as a dedicated cache, or set `trivy.cacheBackend` to an external cache. Set a
-positive `trivy.cacheTTL` and configure the instance's memory budget and eviction
-policy. Logical databases on Harbor's instance share those limits. Keep
-`redis.url` pointing to the separate job/report backend.
-
-This version uses Redis Streams. Upgrades from Pub/Sub versions must stop scan
-submissions, drain existing scans, and replace all adapter pods before resuming.
-See the [scaling and migration guide](../../docs/SCALING.md) for Secret/TLS
-examples, recovery semantics, sizing, metrics, and rollback.
-
-The [dedicated cache example](example/dedicated-cache/) runs three scanner pods
-with one worker each and a separate Valkey cache with memory headroom and
-`allkeys-lru` eviction. When working from source, run `task helm:dependencies`
-before rendering or installing the chart.
+Keep `jobQueue.workerConcurrency: 1` and scale with `replicaCount`; each pod
+keeps its own database volume. The [high-throughput example](example/high-throughput/)
+has the values for several pods sharing a dedicated Valkey analysis cache
+(`valkey.enabled`), with `redis.*` kept on the job/report backend. Upgrades from
+Pub/Sub versions must drain scans first; see the
+[scaling and migration guide](../../docs/SCALING.md). When working from source,
+run `task helm:dependencies` before rendering or installing the chart.
 
 ## Chart features
 
@@ -254,7 +244,7 @@ moved to the `existingSecret` family, and probes became data. See
 
 ## Examples
 
-See [`example/`](example/) - Harbor integration, external Redis, cert-manager
+See [`example/`](example/) - Harbor integration, multiple pods with Redis, cert-manager
 TLS, FluxCD, and air-gapped installs. CI renders all of them on every change.
 
 ## Maintainers
@@ -456,7 +446,7 @@ Kubernetes: `>=1.28.0-0`
 | trivy.vulnType | string | `"os,library"` | Comma-separated vulnerability types: `os`, `library`. |
 | updateStrategy | object | `{}` | StatefulSet update strategy. Empty means the Kubernetes default (`RollingUpdate`). |
 | valkey | object | `{"auth":{"enabled":false},"dataStorage":{"enabled":false},"enabled":false,"fullnameOverride":"","initResources":{"limits":{"memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"replica":{"enabled":false},"resources":{"limits":{"memory":"1Gi"},"requests":{"cpu":"100m","memory":"768Mi"}},"tls":{"enabled":false},"valkeyConfig":"maxmemory 512mb\nmaxmemory-policy allkeys-lru\nsave \"\"\nappendonly no\n"}` | Dedicated analysis-cache instance using the same official Valkey chart as Harbor-next (0.9.3). Upstream chart values pass through under this key. This instance must not store Harbor jobs/reports: its keys can be evicted. |
-| valkey.auth | object | `{"enabled":false}` | Upstream ACL configuration. With auth enabled, supply the adapter's full credential-bearing URL through a Secret override; see example/dedicated-cache. Use TLS to encrypt credentials and cache traffic outside a trusted network. |
+| valkey.auth | object | `{"enabled":false}` | Upstream ACL configuration. With auth enabled, supply the adapter's full credential-bearing URL through a Secret override; see example/high-throughput. Use TLS to encrypt credentials and cache traffic outside a trusted network. |
 | valkey.dataStorage | object | `{"enabled":false}` | Cache data is disposable; restart warms it again. Configure upstream dataStorage and persistence separately if retaining a warm cache is desired. |
 | valkey.enabled | bool | `false` | Deploy a dedicated cache and automatically select it when trivy.cacheBackend is fs. Disabled by default so existing external-cache deployments are preserved. With networkPolicy.egressEnabled, explicitly allow egress to the cache pods and DNS; enabling this subchart does not add NetworkPolicy rules. |
 | valkey.fullnameOverride | string | `""` | Resource name overrides pass through to the upstream chart. Empty names are release-scoped, avoiding Harbor's operational Valkey service. |
