@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.1.0...chart-v1.1.1) (2026-09-24)
+
+
+### Documentation
+
+* merge Redis examples into one multi-pod high-throughput example ([#120](https://github.com/container-registry/harbor-scanner-trivy/issues/120)) ([8f8f25c](https://github.com/container-registry/harbor-scanner-trivy/commit/8f8f25c3edc2b676f0c28c71ca1f6f0c3f06141c))
+
 ## [1.1.0](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.0.1...chart-v1.1.0) (2026-09-21)
 
 
