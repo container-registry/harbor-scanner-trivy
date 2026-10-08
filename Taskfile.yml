@@ -437,7 +437,8 @@ tasks:
         --platform {{.PLATFORMS}}
         --build-arg TRIVY_VERSION={{.TRIVY_BASE_IMAGE_VERSION}}
         --build-arg TRIVY_COMMIT="$(cat "bin/$(echo '{{.PLATFORMS}}' | cut -d, -f1 | tr '/' '-')/.trivy-commit")"
-        --build-arg LPROBE_VERSION={{.LPROBE_VERSION}}
+        --build-arg HEALTHPROBE_VERSION={{.HEALTHPROBE_VERSION}}
+        --build-arg HEALTHPROBE_DIGEST={{.HEALTHPROBE_DIGEST}}
         -t {{.FULL_TAG}}
         {{.OUTPUT}}
         .

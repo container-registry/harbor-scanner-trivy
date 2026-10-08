@@ -89,11 +89,12 @@ jobs:
 
       - name: Load build args
         run: |
-          # versions.env is the single source of truth for both pins; the
+          # versions.env is the single source of truth for the pins; the
           # trivy commit is stamped by task build:trivy next to the binary.
           {
             echo "TRIVY_BASE_IMAGE_VERSION=$(grep '^TRIVY_BASE_IMAGE_VERSION=' versions.env | cut -d= -f2)"
-            echo "LPROBE_VERSION=$(grep '^LPROBE_VERSION=' versions.env | cut -d= -f2)"
+            echo "HEALTHPROBE_VERSION=$(grep '^HEALTHPROBE_VERSION=' versions.env | cut -d= -f2)"
+            echo "HEALTHPROBE_DIGEST=$(grep '^HEALTHPROBE_DIGEST=' versions.env | cut -d= -f2)"
             echo "TRIVY_COMMIT=$(cat "bin/${PLATFORM_PAIR}/.trivy-commit")"
           } >> "$GITHUB_ENV"
 
@@ -139,7 +140,8 @@ jobs:
           build-args: |
             TRIVY_VERSION=${{ env.TRIVY_BASE_IMAGE_VERSION }}
             TRIVY_COMMIT=${{ env.TRIVY_COMMIT }}
-            LPROBE_VERSION=${{ env.LPROBE_VERSION }}
+            HEALTHPROBE_VERSION=${{ env.HEALTHPROBE_VERSION }}
+            HEALTHPROBE_DIGEST=${{ env.HEALTHPROBE_DIGEST }}
           tags: ${{ inputs.registry_address }}/${{ inputs.registry_project }}/harbor-scanner-trivy
           # No tag is published here; the merge job assembles the tag from the
           # per-platform digests this pushes.

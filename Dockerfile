@@ -1,11 +1,13 @@
 # Binary is pre-cross-compiled by `task build` into bin/linux-<arch>/.
 # TRIVY_VERSION (pinned as TRIVY_BASE_IMAGE_VERSION in versions.env) and
-# LPROBE_VERSION (pinned in versions.env) are passed by `task image`; there are
-# deliberately no defaults so builds fail loudly without them.
+# HEALTHPROBE_VERSION/HEALTHPROBE_DIGEST (pinned in versions.env) are passed by
+# `task image`; there are deliberately no defaults so builds fail loudly without
+# them.
 ARG TRIVY_VERSION
-ARG LPROBE_VERSION
+ARG HEALTHPROBE_VERSION
+ARG HEALTHPROBE_DIGEST
 
-FROM ghcr.io/fivexl/lprobe:${LPROBE_VERSION} AS lprobe
+FROM 8gears.container-registry.com/healthprobe/healthprobe:${HEALTHPROBE_VERSION}@${HEALTHPROBE_DIGEST} AS healthprobe
 
 FROM aquasec/trivy:${TRIVY_VERSION}
 
@@ -22,7 +24,7 @@ LABEL org.opencontainers.image.title="harbor-scanner-trivy" \
 
 RUN addgroup -S scanner && adduser -S -G scanner -h /home/scanner scanner
 
-COPY --from=lprobe /lprobe /lprobe
+COPY --from=healthprobe /healthprobe /healthprobe
 COPY bin/linux-${TARGETARCH}/scanner-trivy /home/scanner/bin/scanner-trivy
 
 # Overwrite the base image's prebuilt trivy with our source-built binary
@@ -40,11 +42,11 @@ EXPOSE 8080
 EXPOSE 8443
 # Shell form so port and scheme follow SCANNER_API_SERVER_ADDR and the TLS
 # config at runtime (exec form gets no env expansion). mTLS via
-# SCANNER_API_SERVER_CLIENT_CAS still fails the probe: lprobe has no client
+# SCANNER_API_SERVER_CLIENT_CAS still fails the probe: healthprobe has no client
 # cert to present.
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
     CMD addr="${SCANNER_API_SERVER_ADDR:-:8080}"; \
-        /lprobe -port "${addr##*:}" -endpoint /probe/ready ${SCANNER_API_SERVER_TLS_CERTIFICATE:+-tls -tls-no-verify}
+        /healthprobe -port "${addr##*:}" -endpoint /probe/ready ${SCANNER_API_SERVER_TLS_CERTIFICATE:+-tls -tls-no-verify}
 
 USER scanner
 
