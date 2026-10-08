@@ -138,6 +138,9 @@ tasks:
         trap 'rm -rf "$TRIVY_DIR"' EXIT
         git clone --branch v{{.TRIVY_BASE_IMAGE_VERSION}} --depth 1 https://github.com/aquasecurity/trivy.git "$TRIVY_DIR"
         cd "$TRIVY_DIR"
+        # setup-go exports GOTOOLCHAIN=local with our go.mod's Go, which can be
+        # older than the go directive of the trivy tag; let the clone fetch its own.
+        export GOTOOLCHAIN=auto
         # Written to a file because the loops below redirect from it: in a
         # pipeline the while-read body is a subshell, where `exit 1` would end
         # the subshell rather than fail the build. awk NF newline-terminates
