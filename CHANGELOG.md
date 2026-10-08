@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.42.1](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.42.0...v0.42.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* **image:** replace lprobe with healthprobe for the HEALTHCHECK ([#133](https://github.com/container-registry/harbor-scanner-trivy/issues/133)) ([879c0ba](https://github.com/container-registry/harbor-scanner-trivy/commit/879c0ba67e24f2e873cb717eca24b83518ebfeb9))
+
+
+### Documentation
+
+* merge Redis examples into one multi-pod high-throughput example ([#120](https://github.com/container-registry/harbor-scanner-trivy/issues/120)) ([8f8f25c](https://github.com/container-registry/harbor-scanner-trivy/commit/8f8f25c3edc2b676f0c28c71ca1f6f0c3f06141c))
+
 ## [0.42.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.41.0...v0.42.0) (2026-09-21)
 
 
