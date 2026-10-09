@@ -293,14 +293,18 @@ func validateLayers(imageRef string, layers []v1.Descriptor) error {
 func classifyRemoteError(err error) ScanErrorCategory {
 	msg := strings.ToLower(err.Error())
 	authFailure := isAuthenticationErrorMessage(msg)
+	notFound := isArtifactNotFoundMessage(msg)
 	var registryError *transport.Error
 	if errors.As(err, &registryError) {
 		if registryError.StatusCode == http.StatusTooManyRequests {
 			return ErrCategoryRateLimit
 		}
 		authFailure = registryError.StatusCode == http.StatusUnauthorized || registryError.StatusCode == http.StatusForbidden
+		notFound = registryError.StatusCode == http.StatusNotFound
 	}
 	switch {
+	case notFound:
+		return ErrCategoryArtifactNotFound
 	case authFailure:
 		return ErrCategoryAuth
 	case strings.Contains(msg, "connection refused") || strings.Contains(msg, "no such host") || strings.Contains(msg, "dial tcp"):

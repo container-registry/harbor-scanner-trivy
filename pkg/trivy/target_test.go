@@ -162,6 +162,16 @@ func TestClassifyRemoteError(t *testing.T) {
 			expected: ErrCategoryRateLimit,
 		},
 		{
+			name:     "structured 404",
+			err:      fmt.Errorf("fetching manifest: %w", &transport.Error{StatusCode: 404}),
+			expected: ErrCategoryArtifactNotFound,
+		},
+		{
+			name:     "manifest unknown",
+			err:      errors.New("GET https://registry/v2/a/manifests/sha256:abc: MANIFEST_UNKNOWN: manifest unknown"),
+			expected: ErrCategoryArtifactNotFound,
+		},
+		{
 			name:     "generic error",
 			err:      errors.New("some unknown error"),
 			expected: ErrCategoryImageFetch,
@@ -185,6 +195,7 @@ func TestManifestFailureReportsWhatFailedNotOnlyWhere(t *testing.T) {
 	}{
 		{"credentials refused", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 401}), ErrCategoryAuth, false},
 		{"registry throttling", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 429}), ErrCategoryRateLimit, true},
+		{"artifact deleted", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 404}), ErrCategoryArtifactNotFound, false},
 		{"anything else", errors.New("unexpected end of JSON input"), ErrCategoryManifest, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
