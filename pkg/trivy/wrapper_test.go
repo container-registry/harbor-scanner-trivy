@@ -600,6 +600,36 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 			expected:  ErrCategoryAuth,
 			retryable: false,
 		},
+		{
+			// Harbor answers NOT_FOUND only after the credentials passed, so the
+			// UNAUTHORIZED from Trivy's anonymous fallback in the same report is
+			// not the cause: the artifact was deleted while the scan was queued.
+			name: "artifact deleted before the scan",
+			output: "2026-10-09T11:53:28Z\tFATAL\tFatal error\trun error: image scan error: scan error: unable to initialize a scan service: unable to initialize artifact: unable to initialize container image: unable to find the specified image \"harbor-core:80/infrastructure/iismanager@sha256:4121d57aa3f13843aaf2e75d680c480545b45d3ed13b33a710472b9e956567bf\" in [\"remote\"]: 2 errors occurred:\n" +
+				"\t* remote error: GET http://harbor-core:80/v2/infrastructure/iismanager/manifests/sha256:4121d57aa3f13843aaf2e75d680c480545b45d3ed13b33a710472b9e956567bf: NOT_FOUND: artifact infrastructure/iismanager@sha256:4121d57aa3f13843aaf2e75d680c480545b45d3ed13b33a710472b9e956567bf not found\n" +
+				"\t* remote error: GET http://harbor-core:80/v2/infrastructure/iismanager/manifests/sha256:4121d57aa3f13843aaf2e75d680c480545b45d3ed13b33a710472b9e956567bf: UNAUTHORIZED: unauthorized to access repository: infrastructure/iismanager, action: pull: unauthorized to access repository: infrastructure/iismanager, action: pull\n",
+			expected:  ErrCategoryArtifactNotFound,
+			retryable: false,
+		},
+		{
+			name:      "manifest unknown to the registry",
+			output:    "2026-10-09T11:53:28Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/library/alpine/manifests/sha256:abc: MANIFEST_UNKNOWN: manifest unknown",
+			expected:  ErrCategoryArtifactNotFound,
+			retryable: false,
+		},
+		{
+			name:      "repository unknown to the registry",
+			output:    "2026-10-09T11:53:28Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/gone/manifests/latest: NAME_UNKNOWN: repository name not known to registry",
+			expected:  ErrCategoryArtifactNotFound,
+			retryable: false,
+		},
+		{
+			// The words alone, in a path or a description, are not a registry error code.
+			name:      "not found as prose",
+			output:    "2026-10-09T11:53:28Z\tFATAL\tFatal error\trun error: file not found in layer",
+			expected:  ErrCategoryTrivyExec,
+			retryable: true,
+		},
 	}
 
 	for _, tt := range tests {
