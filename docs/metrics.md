@@ -152,7 +152,7 @@ measurements cover every workload sharing the instance.
   failures: a throttling registry, or a vulnerability/Java database that could not be
   fetched. `category="db_schema"` (binary and database schema disagree) and
   `category="unsupported_artifact"` (the reference is not a scannable image) and
-  `category="artifact_not_found"` (the artifact was deleted before the scan ran) are
+  `category="artifact_not_found"` (the registry could not resolve the image reference) are
   terminal, so the worker does not retry them. A schema or flag complaint is
   classified before the download rules, and so is a `cache` fault: Trivy reaches
   its bolt analysis cache through the same `DB error:` wrapper as a database

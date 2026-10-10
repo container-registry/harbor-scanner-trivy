@@ -167,6 +167,16 @@ func TestClassifyRemoteError(t *testing.T) {
 			expected: ErrCategoryArtifactNotFound,
 		},
 		{
+			// errors.As finds the first registry error, here the anonymous 401;
+			// the NOT_FOUND after it must still decide the category.
+			name: "not found joined after an auth refusal",
+			err: errors.Join(
+				&transport.Error{StatusCode: 401, Errors: []transport.Diagnostic{{Code: transport.UnauthorizedErrorCode, Message: "unauthorized to access repository"}}},
+				&transport.Error{StatusCode: 404, Errors: []transport.Diagnostic{{Code: "NOT_FOUND", Message: "artifact team/app@sha256:abc not found"}}},
+			),
+			expected: ErrCategoryArtifactNotFound,
+		},
+		{
 			name:     "manifest unknown",
 			err:      errors.New("GET https://registry/v2/a/manifests/sha256:abc: MANIFEST_UNKNOWN: manifest unknown"),
 			expected: ErrCategoryArtifactNotFound,
