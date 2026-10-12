@@ -162,6 +162,26 @@ func TestClassifyRemoteError(t *testing.T) {
 			expected: ErrCategoryRateLimit,
 		},
 		{
+			name:     "structured 404",
+			err:      fmt.Errorf("fetching manifest: %w", &transport.Error{StatusCode: 404}),
+			expected: ErrCategoryArtifactNotFound,
+		},
+		{
+			// errors.As finds the first registry error, here the anonymous 401;
+			// the NOT_FOUND after it must still decide the category.
+			name: "not found joined after an auth refusal",
+			err: errors.Join(
+				&transport.Error{StatusCode: 401, Errors: []transport.Diagnostic{{Code: transport.UnauthorizedErrorCode, Message: "unauthorized to access repository"}}},
+				&transport.Error{StatusCode: 404, Errors: []transport.Diagnostic{{Code: "NOT_FOUND", Message: "artifact team/app@sha256:abc not found"}}},
+			),
+			expected: ErrCategoryArtifactNotFound,
+		},
+		{
+			name:     "manifest unknown",
+			err:      errors.New("GET https://registry/v2/a/manifests/sha256:abc: MANIFEST_UNKNOWN: manifest unknown"),
+			expected: ErrCategoryArtifactNotFound,
+		},
+		{
 			name:     "generic error",
 			err:      errors.New("some unknown error"),
 			expected: ErrCategoryImageFetch,
@@ -185,6 +205,7 @@ func TestManifestFailureReportsWhatFailedNotOnlyWhere(t *testing.T) {
 	}{
 		{"credentials refused", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 401}), ErrCategoryAuth, false},
 		{"registry throttling", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 429}), ErrCategoryRateLimit, true},
+		{"artifact deleted", fmt.Errorf("manifest: %w", &transport.Error{StatusCode: 404}), ErrCategoryArtifactNotFound, false},
 		{"anything else", errors.New("unexpected end of JSON input"), ErrCategoryManifest, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

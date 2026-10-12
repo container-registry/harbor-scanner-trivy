@@ -552,6 +552,8 @@ func classifyTrivyError(output string) ScanErrorCategory {
 		return ErrCategoryUnsupportedArtifact
 	}
 	switch {
+	case isArtifactNotFoundMessage(lower):
+		return ErrCategoryArtifactNotFound
 	case isAuthenticationErrorMessage(lower):
 		return ErrCategoryAuth
 	case strings.Contains(lower, "connection refused") || strings.Contains(lower, "no such host") || strings.Contains(lower, "dial tcp"):

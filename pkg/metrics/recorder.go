@@ -27,7 +27,7 @@ var values = map[string][]string{
 	"outcome":    {"success", "failed", "error", "not_found", "not_applied", "other"},
 	"command":    {"image", "sbom", "version", "other"},
 	"stage":      {"status", "target", "auth", "scan", "transform", "report", "internal", "other"},
-	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "rate_limit", "db_download", "db_schema", "unsupported_artifact", "internal", "unknown", "other"},
+	"category":   {"image_fetch", "manifest", "auth", "unscannable_layer", "trivy_execution", "network", "timeout", "report_parse", "storage_full", "storage_io", "persistence", "cache", "rate_limit", "db_download", "db_schema", "unsupported_artifact", "artifact_not_found", "internal", "unknown", "other"},
 	"encoding":   {"raw", "compressed", "other"},
 	"record":     {"job", "report", "other"},
 	"operation":  {"enqueue", "status", "read", "report", "acknowledge", "other"},
