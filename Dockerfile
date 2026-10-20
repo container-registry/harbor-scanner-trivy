@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Binary is pre-cross-compiled by `task build` into bin/linux-<arch>/.
 # TRIVY_VERSION (pinned as TRIVY_BASE_IMAGE_VERSION in versions.env) and
 # HEALTHPROBE_VERSION/HEALTHPROBE_DIGEST (pinned in versions.env) are passed by
@@ -8,6 +9,10 @@ ARG HEALTHPROBE_VERSION
 ARG HEALTHPROBE_DIGEST
 
 FROM 8gears.container-registry.com/healthprobe/healthprobe:${HEALTHPROBE_VERSION}@${HEALTHPROBE_DIGEST} AS healthprobe
+=======
+# That's the only place where you're supposed to specify version of Trivy.
+ARG TRIVY_VERSION=0.76.0
+>>>>>>> e6e4331 (chore: bump Trivy to v0.76.0)
 
 FROM aquasec/trivy:${TRIVY_VERSION}
 

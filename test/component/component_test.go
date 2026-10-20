@@ -25,9 +25,19 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+<<<<<<< HEAD
 // The image stamps Scanner.Version as "<version> (<short-sha>)"; the sha
 // changes with every Trivy bump, so it is matched by pattern instead.
 var trivyVersionRegexp = regexp.MustCompile(`^0\.75\.0 \([0-9a-f]{8,}\)$`)
+=======
+var (
+	trivyScanner = harbor.Scanner{
+		Name:    "Trivy",
+		Vendor:  "Aqua Security",
+		Version: "0.76.0",
+	}
+)
+>>>>>>> e6e4331 (chore: bump Trivy to v0.76.0)
 
 func assertTrivyScanner(t *testing.T, s harbor.Scanner) {
 	t.Helper()
