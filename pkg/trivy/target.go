@@ -300,10 +300,14 @@ func classifyRemoteError(err error) ScanErrorCategory {
 			return ErrCategoryRateLimit
 		}
 		authFailure = registryError.StatusCode == http.StatusUnauthorized || registryError.StatusCode == http.StatusForbidden
-		// Widened rather than overwritten like authFailure: errors.As returns
-		// only the first registry error, and a NOT_FOUND joined after an
-		// anonymous 401 must still win.
-		notFound = notFound || registryError.StatusCode == http.StatusNotFound
+		// Only a 404 decides notFound: errors.As returns only the first
+		// registry error, and a NOT_FOUND joined after an anonymous 401 must
+		// still win. A 404 from the /v2/ ping or the token realm means a
+		// misconfigured endpoint, not a deleted artifact, and must stay
+		// retryable.
+		if registryError.StatusCode == http.StatusNotFound {
+			notFound = registryError.Request == nil || strings.Contains(registryError.Request.URL.Path, "/manifests/")
+		}
 	}
 	switch {
 	case notFound:

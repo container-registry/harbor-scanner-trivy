@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/container-registry/harbor-scanner-trivy/pkg/etc"
@@ -172,6 +174,21 @@ func TestClassifyRemoteError(t *testing.T) {
 				&transport.Error{StatusCode: 401, Errors: []transport.Diagnostic{{Code: transport.UnauthorizedErrorCode, Message: "unauthorized to access repository"}}},
 				&transport.Error{StatusCode: 404, Errors: []transport.Diagnostic{{Code: "NOT_FOUND", Message: "artifact team/app@sha256:abc not found"}}},
 			),
+			expected: ErrCategoryArtifactNotFound,
+		},
+		{
+			name:     "registry ping answers 404",
+			err:      &transport.Error{StatusCode: 404, Request: &http.Request{Method: http.MethodGet, URL: &url.URL{Scheme: "https", Host: "registry", Path: "/v2/"}}, Errors: []transport.Diagnostic{{Code: "NOT_FOUND", Message: "not found"}}},
+			expected: ErrCategoryImageFetch,
+		},
+		{
+			name:     "token realm answers 404",
+			err:      &transport.Error{StatusCode: 404, Request: &http.Request{Method: http.MethodGet, URL: &url.URL{Scheme: "https", Host: "registry", Path: "/service/token"}}},
+			expected: ErrCategoryImageFetch,
+		},
+		{
+			name:     "manifest request answers 404",
+			err:      &transport.Error{StatusCode: 404, Request: &http.Request{Method: http.MethodGet, URL: &url.URL{Scheme: "https", Host: "registry", Path: "/v2/team/app/manifests/sha256:abc"}}},
 			expected: ErrCategoryArtifactNotFound,
 		},
 		{
