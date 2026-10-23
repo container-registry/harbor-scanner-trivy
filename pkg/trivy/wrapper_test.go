@@ -601,9 +601,6 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 			retryable: false,
 		},
 		{
-			// Harbor answers NOT_FOUND only after the credentials passed, so the
-			// UNAUTHORIZED from Trivy's anonymous fallback in the same report is
-			// not the cause: the artifact was deleted while the scan was queued.
 			name: "artifact deleted before the scan",
 			output: "2026-10-09T11:53:28Z\tFATAL\tFatal error\trun error: image scan error: scan error: unable to initialize a scan service: unable to initialize artifact: unable to initialize container image: unable to find the specified image \"harbor-core:80/team/app@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10\" in [\"remote\"]: 2 errors occurred:\n" +
 				"\t* remote error: GET http://harbor-core:80/v2/team/app/manifests/sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10: NOT_FOUND: artifact team/app@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10 not found\n" +
@@ -624,7 +621,6 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 			retryable: false,
 		},
 		{
-			// The words alone, in a path or a description, are not a registry error code.
 			name:      "not found as prose",
 			output:    "2026-10-09T11:53:28Z\tFATAL\tFatal error\trun error: file not found in layer",
 			expected:  ErrCategoryTrivyExec,

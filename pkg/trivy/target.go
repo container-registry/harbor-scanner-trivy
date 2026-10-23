@@ -300,8 +300,9 @@ func classifyRemoteError(err error) ScanErrorCategory {
 			return ErrCategoryRateLimit
 		}
 		authFailure = registryError.StatusCode == http.StatusUnauthorized || registryError.StatusCode == http.StatusForbidden
-		// Only widened: errors.As stops at the first registry error, and a
-		// NOT_FOUND joined after an anonymous 401 must not be overruled by it.
+		// Widened rather than overwritten like authFailure: errors.As returns
+		// only the first registry error, and a NOT_FOUND joined after an
+		// anonymous 401 must still win.
 		notFound = notFound || registryError.StatusCode == http.StatusNotFound
 	}
 	switch {

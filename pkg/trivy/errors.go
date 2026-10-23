@@ -89,10 +89,10 @@ func isAuthenticationErrorMessage(message string) bool {
 	return false
 }
 
-// Registry error codes that mean the reference no longer resolves, matched as
-// the "CODE:" token a distribution error prints, not as prose. Harbor answers
-// NOT_FOUND only once the credentials passed, so it outranks the UNAUTHORIZED
-// that Trivy's anonymous fallback adds to the same report.
+// Matched as the "CODE:" token a distribution error prints, so prose such as
+// "file not found in layer" does not count. Harbor answers NOT_FOUND only after
+// the credentials passed, so callers rank it above the UNAUTHORIZED that
+// Trivy's anonymous fallback adds to the same report.
 func isArtifactNotFoundMessage(message string) bool {
 	for _, word := range strings.Fields(strings.ToLower(message)) {
 		switch word {

@@ -167,8 +167,6 @@ func TestClassifyRemoteError(t *testing.T) {
 			expected: ErrCategoryArtifactNotFound,
 		},
 		{
-			// errors.As finds the first registry error, here the anonymous 401;
-			// the NOT_FOUND after it must still decide the category.
 			name: "not found joined after an auth refusal",
 			err: errors.Join(
 				&transport.Error{StatusCode: 401, Errors: []transport.Diagnostic{{Code: transport.UnauthorizedErrorCode, Message: "unauthorized to access repository"}}},
