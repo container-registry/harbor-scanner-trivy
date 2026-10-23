@@ -171,6 +171,17 @@ tasks:
         while read -r module audited required; do
           go mod edit -require "$module@$required"
         done < "$TRIVY_DIR/.cve-overrides"
+        # tidy -e also swallows module download failures, which then surface
+        # only as "missing go.sum entry" from go build. Downloading first, with
+        # retries, keeps a flaky module proxy a retried network error.
+        for attempt in 1 2 3; do
+          go mod download && break
+          if [ "$attempt" -eq 3 ]; then
+            echo "go mod download failed $attempt times" >&2
+            exit 1
+          fi
+          sleep $((attempt * 15))
+        done
         # -e so unrelated package-load errors in trivy's testdata don't abort
         # the tidy; a broken override still surfaces, either in the check below
         # or as a failing go build (errexit fails the task either way).
