@@ -111,6 +111,10 @@ see [docs/RELEASES.md](docs/RELEASES.md). Two rules follow from that:
 * Commit messages (and PR titles, which become the squash commit) follow
   [Conventional Commits](https://www.conventionalcommits.org): `feat:` triggers a minor
   release, `fix:` a patch release; `chore:`/`ci:`/`build:`/`test:` do not trigger releases.
+* A Trivy bump uses the type Renovate gives it in [`renovate.json`](renovate.json): a patch
+  bump of `TRIVY_BASE_IMAGE_VERSION` is `fix(deps):`, a minor or major one `feat(deps):`,
+  and a Go toolchain bump that clears an advisory is `fix(deps):`. Each changes the shipped
+  image, and a `chore(deps):` title leaves it unreleased on `main`.
 * Every commit must carry a DCO sign-off (`git commit -s`).
 
 On a pull request the [PR Title](.github/workflows/pr-title.yml) workflow checks the title
