@@ -600,6 +600,32 @@ func TestClassifyTrivyErrorTaxonomy(t *testing.T) {
 			expected:  ErrCategoryAuth,
 			retryable: false,
 		},
+		{
+			name: "artifact deleted before the scan",
+			output: "2026-10-09T11:53:28Z\tFATAL\tFatal error\trun error: image scan error: scan error: unable to initialize a scan service: unable to initialize artifact: unable to initialize container image: unable to find the specified image \"harbor-core:80/team/app@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10\" in [\"remote\"]: 2 errors occurred:\n" +
+				"\t* remote error: GET http://harbor-core:80/v2/team/app/manifests/sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10: NOT_FOUND: artifact team/app@sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10 not found\n" +
+				"\t* remote error: GET http://harbor-core:80/v2/team/app/manifests/sha256:5216338b40a7b96416b8b9858974bbe4acc3096ee60acbc4dfb1ee02aecceb10: UNAUTHORIZED: unauthorized to access repository: team/app, action: pull: unauthorized to access repository: team/app, action: pull\n",
+			expected:  ErrCategoryArtifactNotFound,
+			retryable: false,
+		},
+		{
+			name:      "manifest unknown to the registry",
+			output:    "2026-10-09T11:53:28Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/library/alpine/manifests/sha256:abc: MANIFEST_UNKNOWN: manifest unknown",
+			expected:  ErrCategoryArtifactNotFound,
+			retryable: false,
+		},
+		{
+			name:      "repository unknown to the registry",
+			output:    "2026-10-09T11:53:28Z\tFATAL\tFatal error\timage scan error: GET https://registry/v2/gone/manifests/latest: NAME_UNKNOWN: repository name not known to registry",
+			expected:  ErrCategoryArtifactNotFound,
+			retryable: false,
+		},
+		{
+			name:      "not found as prose",
+			output:    "2026-10-09T11:53:28Z\tFATAL\tFatal error\trun error: file not found in layer",
+			expected:  ErrCategoryTrivyExec,
+			retryable: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -663,6 +689,20 @@ func TestClassifierNeedsMoreThanAMatchingSubstring(t *testing.T) {
 			// terminal; retrying a 401 only spends the attempt limit.
 			name:     "a database artifact the registry refuses",
 			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact: GET https://ghcr.io/v2/aquasecurity/trivy-db/manifests/2: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
+			// One mirror lacks the manifest, the next refuses the adapter: the
+			// NOT_FOUND concerns the database, not the scanned image.
+			name: "a database artifact missing on one mirror and refused by another",
+			output: "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact from any source: 2 errors occurred:\n" +
+				"\t* GET https://mirror.gcr.io/v2/aquasec/trivy-db/manifests/2: NOT_FOUND: manifest not found\n" +
+				"\t* GET https://ghcr.io/v2/aquasecurity/trivy-db/manifests/2: UNAUTHORIZED: authentication required\n",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "a Java database artifact missing on one mirror and refused by another",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: Java DB error: GET https://mirror.gcr.io/v2/aquasec/trivy-java-db/manifests/1: MANIFEST_UNKNOWN: manifest unknown; GET https://ghcr.io/v2/aquasecurity/trivy-java-db/manifests/1: UNAUTHORIZED: authentication required",
 			expected: ErrCategoryAuth,
 		},
 		{

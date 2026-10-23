@@ -25,15 +25,17 @@ const (
 	ErrCategoryDBDownload          ScanErrorCategory = "db_download"
 	ErrCategoryDBSchema            ScanErrorCategory = "db_schema"
 	ErrCategoryUnsupportedArtifact ScanErrorCategory = "unsupported_artifact"
+	ErrCategoryArtifactNotFound    ScanErrorCategory = "artifact_not_found"
 )
 
 // retryable reports whether a further attempt can plausibly succeed. Unknown CLI
 // failures stay retryable within the worker's attempt limit. A schema mismatch
 // needs a new binary or database and an unsupported artifact never becomes
-// scannable, so both are terminal.
+// scannable, so both are terminal. An artifact deleted after Harbor queued the
+// scan does not come back.
 func retryable(category ScanErrorCategory) bool {
 	switch category {
-	case ErrCategoryAuth, ErrCategoryUnscannable, ErrCategoryDBSchema, ErrCategoryUnsupportedArtifact:
+	case ErrCategoryAuth, ErrCategoryUnscannable, ErrCategoryDBSchema, ErrCategoryUnsupportedArtifact, ErrCategoryArtifactNotFound:
 		return false
 	}
 	return true
@@ -81,6 +83,20 @@ func isAuthenticationErrorMessage(message string) bool {
 			}
 		}
 		if (word == "unauthorized" || word == "forbidden") && (i == 0 || strings.HasSuffix(words[i-1], ":")) && (strings.HasSuffix(words[i], ":") || i == len(words)-1) {
+			return true
+		}
+	}
+	return false
+}
+
+// Matched as the "CODE:" token a distribution error prints, so prose such as
+// "file not found in layer" does not count. Harbor answers NOT_FOUND only after
+// the credentials passed, so callers rank it above the UNAUTHORIZED that
+// Trivy's anonymous fallback adds to the same report.
+func isArtifactNotFoundMessage(message string) bool {
+	for _, word := range strings.Fields(strings.ToLower(message)) {
+		switch word {
+		case "not_found:", "manifest_unknown:", "name_unknown:":
 			return true
 		}
 	}
