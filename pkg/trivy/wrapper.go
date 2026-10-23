@@ -501,6 +501,9 @@ func fatalDiagnostics(output string) string {
 // classifyTrivyError categorizes Trivy CLI errors by pattern-matching the output.
 func classifyTrivyError(output string) ScanErrorCategory {
 	lower := strings.ToLower(fatalDiagnostics(output))
+	dbDownload := strings.Contains(lower, "failed to download artifact") ||
+		strings.Contains(lower, "db error:") ||
+		(strings.Contains(lower, "java db") && strings.Contains(lower, "error"))
 	// Infrastructure failures are matched first: their messages routinely also
 	// carry the generic keywords ("error", "timeout") matched further down.
 	switch {
@@ -543,16 +546,15 @@ func classifyTrivyError(output string) ScanErrorCategory {
 	// A 401/403 on the database artifact is the registry refusing the adapter,
 	// which no retry fixes, so authentication is settled before the retryable
 	// download rules claim the message.
-	case !isAuthenticationErrorMessage(lower) &&
-		(strings.Contains(lower, "failed to download artifact") ||
-			strings.Contains(lower, "db error:") ||
-			(strings.Contains(lower, "java db") && strings.Contains(lower, "error"))):
+	case !isAuthenticationErrorMessage(lower) && dbDownload:
 		return ErrCategoryDBDownload
 	case strings.Contains(lower, "unsupported artifact type"):
 		return ErrCategoryUnsupportedArtifact
 	}
 	switch {
-	case isArtifactNotFoundMessage(lower):
+	// A NOT_FOUND from a database mirror is not the scanned artifact missing;
+	// such a failure only gets here because it also carries a 401/403.
+	case !dbDownload && isArtifactNotFoundMessage(lower):
 		return ErrCategoryArtifactNotFound
 	case isAuthenticationErrorMessage(lower):
 		return ErrCategoryAuth

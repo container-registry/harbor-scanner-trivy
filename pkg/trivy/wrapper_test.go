@@ -692,6 +692,20 @@ func TestClassifierNeedsMoreThanAMatchingSubstring(t *testing.T) {
 			expected: ErrCategoryAuth,
 		},
 		{
+			// One mirror lacks the manifest, the next refuses the adapter: the
+			// NOT_FOUND concerns the database, not the scanned image.
+			name: "a database artifact missing on one mirror and refused by another",
+			output: "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact from any source: 2 errors occurred:\n" +
+				"\t* GET https://mirror.gcr.io/v2/aquasec/trivy-db/manifests/2: NOT_FOUND: manifest not found\n" +
+				"\t* GET https://ghcr.io/v2/aquasecurity/trivy-db/manifests/2: UNAUTHORIZED: authentication required\n",
+			expected: ErrCategoryAuth,
+		},
+		{
+			name:     "a Java database artifact missing on one mirror and refused by another",
+			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: Java DB error: GET https://mirror.gcr.io/v2/aquasec/trivy-java-db/manifests/1: MANIFEST_UNKNOWN: manifest unknown; GET https://ghcr.io/v2/aquasecurity/trivy-java-db/manifests/1: UNAUTHORIZED: authentication required",
+			expected: ErrCategoryAuth,
+		},
+		{
 			name:     "a database artifact that simply could not be fetched",
 			output:   "2026-09-15T10:00:00Z\tFATAL\tFatal error\tinit error: DB error: failed to download artifact: connection reset by peer",
 			expected: ErrCategoryDBDownload,
