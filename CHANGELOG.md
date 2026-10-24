@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.43.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.42.1...v0.43.0) (2026-10-24)
+
+
+### Features
+
+* **deps:** release the adapter with Trivy 0.76.1 and Go 1.27.3 ([#147](https://github.com/container-registry/harbor-scanner-trivy/issues/147)) ([96044b6](https://github.com/container-registry/harbor-scanner-trivy/commit/96044b6e6981e00245eaa1845994bbcf61f1ac20))
+
+
+### Bug Fixes
+
+* **trivy:** classify an artifact deleted before its scan as artifact_not_found, not auth ([#134](https://github.com/container-registry/harbor-scanner-trivy/issues/134)) ([b559fc2](https://github.com/container-registry/harbor-scanner-trivy/commit/b559fc216324f6fc4fc1c9d23a51d40f1f036a6a))
+
 ## [0.42.1](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.42.0...v0.42.1) (2026-10-12)
 
 
