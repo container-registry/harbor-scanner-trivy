@@ -29,7 +29,7 @@ COPY bin/linux-${TARGETARCH}/scanner-trivy /home/scanner/bin/scanner-trivy
 
 # Overwrite the base image's prebuilt trivy with our source-built binary
 # (same pinned version, built by `task build:trivy`); keeps the binary
-# CVE-patchable via go mod overrides, same pattern as harbor-next.
+# CVE-patchable via go mod overrides, same pattern as 8gcr.
 COPY bin/linux-${TARGETARCH}/trivy /usr/local/bin/trivy
 
 RUN chown -R scanner:scanner /home/scanner /usr/local/bin/trivy
