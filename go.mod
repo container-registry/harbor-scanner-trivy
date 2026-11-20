@@ -14,8 +14,8 @@ require (
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
-	github.com/testcontainers/testcontainers-go v0.44.0
-	golang.org/x/sys v0.49.0
+	github.com/testcontainers/testcontainers-go v0.45.0
+	golang.org/x/sys v0.50.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 )
 
