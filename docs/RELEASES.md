@@ -231,7 +231,7 @@ The Trivy CLI is compiled from source (`task build:trivy`) with the same flags a
 Trivy's own release builds, and the container image ships that binary instead of
 the prebuilt one from the `aquasec/trivy` base image. This keeps the binary
 CVE-patchable via `go mod` overrides and lets downstream consumers (e.g.
-harbor-next) take the adapter and Trivy as version-coupled artifacts: binary,
+8gcr) take the adapter and Trivy as version-coupled artifacts: binary,
 image, or source, from one release.
 
 Install the chart:

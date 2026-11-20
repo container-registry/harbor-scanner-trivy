@@ -62,7 +62,7 @@ earlier ones are raised.
 
 1. **Harbor jobservice workers.** Harbor runs at most `max_job_workers` jobs at
    once, scans included (harbor-helm `jobservice.maxJobWorkers`, default 10;
-   harbor-next-helm `jobservice.max_job_workers`, default 4). Each scan holds a
+   8gcr chart `jobservice.config.worker_pool.workers`, default 4). Each scan holds a
    worker until Harbor has fetched the report, and most of that time is Harbor's
    report polling interval, not scanning. In one production installation with 4
    jobservice workers, a scan-all ran at 50 to 75 scans/min with anywhere from 1

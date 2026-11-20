@@ -52,7 +52,7 @@ jobs:
         run: |
           echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
           # BUILDX_HOST is a runner-level variable naming a remote BuildKit
-          # endpoint (same name as harbor-next). Re-exporting it into
+          # endpoint (same name as 8gcr). Re-exporting it into
           # GITHUB_ENV is what makes it visible to the `env` context, so the
           # steps below can branch on it; unset means fall back to QEMU.
           if [ -n "${BUILDX_HOST:-}" ]; then
