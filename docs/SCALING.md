@@ -62,7 +62,8 @@ earlier ones are raised.
 
 1. **Harbor jobservice workers.** Harbor runs at most `max_job_workers` jobs at
    once, scans included (harbor-helm `jobservice.maxJobWorkers`, default 10;
-   8gcr chart `jobservice.config.worker_pool.workers`, default 4). Each scan holds a
+   the Harbor chart in 8gcr's `deploy/chart`, formerly harbor-next-helm,
+   `jobservice.config.worker_pool.workers`, default 4). Each scan holds a
    worker until Harbor has fetched the report, and most of that time is Harbor's
    report polling interval, not scanning. In one production installation with 4
    jobservice workers, a scan-all ran at 50 to 75 scans/min with anywhere from 1
@@ -78,7 +79,7 @@ earlier ones are raised.
 
 | Lever | Setting | Effect | Cost and caveats |
 | --- | --- | --- | --- |
-| Harbor scan concurrency | Harbor `jobservice.maxJobWorkers` / `max_job_workers` | Raises the first ceiling | More load on Harbor's PostgreSQL; raise in steps |
+| Harbor scan concurrency | Harbor `jobservice.maxJobWorkers` (harbor-helm) / `jobservice.config.worker_pool.workers` (8gcr chart) | Raises the first ceiling | More load on Harbor's PostgreSQL; raise in steps |
 | Adapter pods | `replicaCount`, `podManagementPolicy: Parallel` | One more concurrent scan per pod | Each new pod creates a PVC and downloads the vulnerability DB once |
 | Autoscaling | `autoscaling.*` (CPU-based HPA) | Pods follow load | Scale-down cancels the pod's running scan; another pod recovers it |
 | Pod resources | `resources`, `trivy.childGoMemLimit` | Fewer OOM kills and less CPU throttling on large images | Raise memory before replicas; the Trivy child gets 80% of the memory limit as its soft heap limit by default |
