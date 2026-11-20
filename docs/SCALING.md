@@ -79,7 +79,7 @@ earlier ones are raised.
 
 | Lever | Setting | Effect | Cost and caveats |
 | --- | --- | --- | --- |
-| Harbor scan concurrency | Harbor `jobservice.maxJobWorkers` (harbor-helm) / `jobservice.config.worker_pool.workers` (8gcr chart) | Raises the first ceiling | More load on Harbor's PostgreSQL; raise in steps |
+| Harbor scan concurrency | Harbor `jobservice.maxJobWorkers` (harbor-helm) / `jobservice.config.worker_pool.workers` (8gcr's `harbor` chart) | Raises the first ceiling | More load on Harbor's PostgreSQL; raise in steps |
 | Adapter pods | `replicaCount`, `podManagementPolicy: Parallel` | One more concurrent scan per pod | Each new pod creates a PVC and downloads the vulnerability DB once |
 | Autoscaling | `autoscaling.*` (CPU-based HPA) | Pods follow load | Scale-down cancels the pod's running scan; another pod recovers it |
 | Pod resources | `resources`, `trivy.childGoMemLimit` | Fewer OOM kills and less CPU throttling on large images | Raise memory before replicas; the Trivy child gets 80% of the memory limit as its soft heap limit by default |
