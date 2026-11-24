@@ -85,3 +85,9 @@ API endpoints:
   helm-docs comment), `values.schema.json`, a test in `tests/`, and the README
   via `task helm:docs`. `task helm:lint:schema` fails on drift between the first
   two.
+
+## Pull Requests
+
+- `feat:` and `fix:` pull requests end the description with a `## Release Notes` section: notes when users
+  are affected, otherwise `N/A`. At most 550 rendered characters, no headings, no alert boxes. It is shown
+  under the pull request's entry in the release; criteria in `CONTRIBUTING.md`, "Release Notes".

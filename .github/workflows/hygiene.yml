@@ -33,6 +33,18 @@ jobs:
           online-audits: true
           persona: regular
 
+  workflow-scripts:
+    name: Test Workflow Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Test the release notes scripts
+        run: node --test .github/scripts/*.test.mjs
+
   pinned-actions:
     name: Check Pinned Action SHAs
     runs-on: ubuntu-latest
