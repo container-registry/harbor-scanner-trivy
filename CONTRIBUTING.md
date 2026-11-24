@@ -8,6 +8,7 @@
 * [Check for Vulnerabilities](#check-for-vulnerabilities)
 * [Test Against a Local Harbor](#test-against-a-local-harbor)
 * [Commit Conventions](#commit-conventions)
+* [Release Notes](#release-notes)
 
 ## Set up Local Development Environment
 
@@ -131,3 +132,40 @@ verify that the sign-off identity matches the commit author or committer, which 
 does.
 
 [fowler-testing-strategies]: https://www.martinfowler.com/articles/microservice-testing/
+
+## Release Notes
+
+`feat:` and `fix:` pull requests end their description with a `## Release Notes` section. After a release
+is published, `release-notes.yml` puts that text under the pull request's entry in the GitHub release, so
+readers see each note next to the change it explains. It does not affect `CHANGELOG.md`.
+
+```markdown
+## Release Notes
+
+Adds federated OIDC support. Configure it with the new `federated_oidc` key;
+see the [OIDC documentation](https://docs.example.com/oidc).
+```
+
+**Write notes when, without them, someone running the scanner would act differently after upgrading or be
+surprised by what changed.** For `feat:` that is almost always the case. A `fix:` qualifies when at least
+one of these holds:
+
+- **Action needed**: users change config, migrate, clean up or re-check something
+- **Behaviour change**: something works differently or stops working, or a default or permission changes
+- **New decision**: the fix adds a setting users may want to set
+- **Security fix** with an advisory (GHSA or CVE)
+- **Visible failure gone**: an outage, data loss or regression users noticed and may have worked around
+
+Otherwise write `N/A`: internal fixes without a visible symptom, refactors, plumbing, dependency bumps
+without a CVE, and bugs that never shipped in a release.
+
+**Rules** (the `Release Notes` job of the PR Title workflow enforces them):
+
+- `feat:` and `fix:` pull requests need the section; its content is the notes or `N/A`. Breaking changes
+  (any type with `!`, such as `feat!:`) need notes
+- At most 550 characters as rendered; link targets, images and Markdown markers do not count. Put details in
+  the docs and link to them
+- Last section of the description, with no headings inside. Any heading ends the section, so `### Tests`
+  placed below it is not published
+- No alert boxes such as `> [!NOTE]`; they do not render inside the release's change list. Use plain text or
+  **bold**

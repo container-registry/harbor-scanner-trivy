@@ -259,6 +259,10 @@ tasks:
     deps: [_require-golangci-lint]
     cmd: '{{.GOPATH_BIN}}/golangci-lint run --timeout=10m'
 
+  test:scripts:
+    desc: "Test the workflow scripts in .github/scripts"
+    cmd: node --test .github/scripts/*.test.mjs
+
   lint:yaml:
     desc: "Lint YAML files with yamllint (.yamllint config)"
     cmds:
@@ -404,11 +408,12 @@ tasks:
     cmd: go test -count=1 -tags=component ./test/component/...
 
   test:all:
-    desc: "Run unit, integration, and component tests"
+    desc: "Run unit, integration, component and workflow script tests"
     cmds:
       - task: test
       - task: test:integration
       - task: test:component
+      - task: test:scripts
 
   # ============================================================================
   # Container Image

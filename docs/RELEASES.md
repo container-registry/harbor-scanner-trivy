@@ -38,9 +38,11 @@ Release state is defined by:
    - builds and pushes the multi-arch (`linux/amd64`, `linux/arm64`) image `8gears.container-registry.com/8gcr/harbor-scanner-trivy:vX.Y.Z`
    - signs the image with cosign (keyless) and attaches an SPDX SBOM attestation
    - uploads the adapter and Trivy binaries as release assets
+   - puts each PR's `## Release Notes` section under its entry in the release notes (see [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes))
    - appends image references and cosign verification commands to the release notes
    - opens or refreshes the chart release PR (`chore: release chart X.Y.Z`), so a chart with the new `appVersion` ships as soon as that PR is merged
 5. A **chart** release automatically:
+   - puts each PR's `## Release Notes` section under its entry in the release notes
    - appends the per-release `artifacthub.io/images` annotation to `Chart.yaml` (not committed - the tag is only known at release time)
    - packages the chart at the tag's version and pushes it to `oci://8gears.container-registry.com/8gcr/charts/harbor-scanner-trivy`
    - signs the chart with cosign (keyless)
@@ -317,6 +319,7 @@ Before merging a normal PR:
 
 1. PR title is a valid conventional commit.
 2. Merge method is **Squash and merge**.
+3. A `feat:` or `fix:` PR ends with a `## Release Notes` section that follows [the criteria](../CONTRIBUTING.md#release-notes); the `Release Notes` job of the PR Title workflow enforces the format, not the judgement.
 
 Before merging an adapter release PR:
 
