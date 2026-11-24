@@ -40,10 +40,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: .github/scripts
 
-      - name: Test the release notes scripts
-        run: node --test .github/scripts/*.test.mjs
+      - uses: $/.github/actions/setup
+        with:
+          go: "false"
+
+      - name: Test the workflow scripts
+        run: task test:scripts
 
   pinned-actions:
     name: Check Pinned Action SHAs

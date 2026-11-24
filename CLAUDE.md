@@ -89,5 +89,5 @@ API endpoints:
 ## Pull Requests
 
 - `feat:` and `fix:` pull requests end the description with a `## Release Notes` section: notes when users
-  are affected, otherwise `N/A`. At most 550 rendered characters, no headings, no alert boxes. It is shown
+  are affected, otherwise `N/A`; a breaking (`!`) pull request always needs notes. At most 550 rendered characters, no headings, no alert boxes. It is shown
   under the pull request's entry in the release; criteria in `CONTRIBUTING.md`, "Release Notes".

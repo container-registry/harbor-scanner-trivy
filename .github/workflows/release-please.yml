@@ -100,7 +100,8 @@ jobs:
     # build.
     # After the release notes, so two writers never race on the release body.
     needs: [release-please-chart, release-notes-chart]
-    if: ${{ needs.release-please-chart.outputs.release_created == 'true' }}
+    # A failed notes step must not hold back the chart.
+    if: ${{ !cancelled() && needs.release-please-chart.outputs.release_created == 'true' }}
     permissions:
       # A reusable workflow is capped by the caller's grant, so the write the
       # publish job needs for `gh release edit` has to be granted here.
@@ -165,7 +166,8 @@ jobs:
     name: Update Release Notes
     # After release-notes, so two writers never race on the release body.
     needs: [release-please, release-notes, publish-image, publish-binaries]
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    # A failed notes step must not hold back the rest.
+    if: ${{ !cancelled() && needs.release-please.outputs.release_created == 'true' && needs.publish-image.result == 'success' && needs.publish-binaries.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

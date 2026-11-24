@@ -319,7 +319,7 @@ Before merging a normal PR:
 
 1. PR title is a valid conventional commit.
 2. Merge method is **Squash and merge**.
-3. A `feat:` or `fix:` PR ends with a `## Release Notes` section that follows [the criteria](../CONTRIBUTING.md#release-notes); the `PR Release Notes` check enforces the format, not the judgement.
+3. A `feat:` or `fix:` PR ends with a `## Release Notes` section that follows [the criteria](../CONTRIBUTING.md#release-notes); the `Release Notes` job of the PR Title workflow enforces the format, not the judgement.
 
 Before merging an adapter release PR:
 
