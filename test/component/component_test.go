@@ -25,15 +25,27 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// The image stamps Scanner.Version as "<version> (<short-sha>)"; the sha
-// changes with every Trivy bump, so it is matched by pattern instead.
-var trivyVersionRegexp = regexp.MustCompile(`^0\.76\.1 \([0-9a-f]{8,}\)$`)
+// versionsEnv is the repository's pin file, relative to this package.
+const versionsEnv = "../../versions.env"
+
+// trivyVersionRegexp matches the Scanner.Version the image stamps,
+// "<version> (<short-sha>)". The version comes from TRIVY_BASE_IMAGE_VERSION
+// in versions.env, the pin the image is built FROM, so a Trivy bump needs no
+// test change; the sha changes with every bump and is matched by pattern.
+func trivyVersionRegexp(t *testing.T) *regexp.Regexp {
+	t.Helper()
+	data, err := os.ReadFile(versionsEnv)
+	require.NoError(t, err)
+	m := regexp.MustCompile(`(?m)^TRIVY_BASE_IMAGE_VERSION=(\S+)$`).FindSubmatch(data)
+	require.NotNil(t, m, "TRIVY_BASE_IMAGE_VERSION missing from %s", versionsEnv)
+	return regexp.MustCompile(`^` + regexp.QuoteMeta(string(m[1])) + ` \([0-9a-f]{8,}\)$`)
+}
 
 func assertTrivyScanner(t *testing.T, s harbor.Scanner) {
 	t.Helper()
 	assert.Equal(t, "Trivy", s.Name)
 	assert.Equal(t, "Aqua Security", s.Vendor)
-	assert.Regexp(t, trivyVersionRegexp, s.Version)
+	assert.Regexp(t, trivyVersionRegexp(t), s.Version)
 }
 
 const (
