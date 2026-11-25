@@ -2,6 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": "Only the versions.env pins are Renovate-managed; dependabot keeps gomod and github-actions.",
   "enabledManagers": ["custom.regex"],
+  "dependencyDashboard": {"enabled": true},
   "customManagers": [
     {
       "customType": "regex",
@@ -31,6 +32,18 @@
       "semanticCommitType": "feat",
       "prBodyNotes": [
         "Re-check `trivy-cve-overrides.txt` against the new tag: `task build:trivy` asserts each audited version on the pristine tag, so a stale entry fails the preview build instead of silently pinning below upstream."
+      ]
+    },
+    {
+      "description": "Trivy PRs are fix:/feat:, so pr-title.yml requires a final Release Notes section; prFooter is the last part of the body",
+      "matchDepNames": ["aquasec/trivy"],
+      "prFooter": "## Release Notes\n\nThe adapter image now ships Trivy {{{newVersion}}}."
+    },
+    {
+      "description": "These pins carry a hand-computed *_SHA256_* line that Renovate cannot update",
+      "matchDepNames": ["norwoodj/helm-docs", "helm/chart-testing", "stackrox/kube-linter"],
+      "prBodyNotes": [
+        "Recompute the matching `*_SHA256_*` pin in `versions.env` before merging: Renovate bumps only the version, and the install step fails on the stale checksum."
       ]
     }
   ]

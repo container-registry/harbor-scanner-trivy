@@ -196,8 +196,9 @@ replays old commits into the next changelog.
 
 ## Tracking Upstream Trivy
 
-The adapter tracks upstream Trivy's release cadence via the org's self-hosted
-Renovate (weekly cron). Pins in `versions.env` are invisible to dependabot, so
+The adapter tracks upstream Trivy's release cadence with Renovate, run weekly by
+`.github/workflows/renovate.yml` through the org's Renovate GitHub App (the
+`RENOVATE_APP_CLIENT_ID` variable and `RENOVATE_APP_PRIVATE_KEY` secret). Pins in `versions.env` are invisible to dependabot, so
 each carries a `# renovate:` annotation read by the regex manager in
 `renovate.json`. The Trivy pin uses the `docker` datasource against
 `aquasec/trivy`, so a bump PR only appears once the base-image tag the
@@ -216,6 +217,10 @@ fails the build instead of shipping.
 
 Renovate is limited to `versions.env` (`enabledManagers: custom.regex`);
 dependabot keeps gomod and github-actions.
+
+Renovate bumps a version line and the `*_DIGEST` line after it, never a
+`*_SHA256_*` line. The PRs for helm-docs, chart-testing and kube-linter say so
+in their body; recompute the checksum by hand before merging.
 
 ## Release Artifacts
 
