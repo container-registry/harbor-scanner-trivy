@@ -40,7 +40,7 @@ jobs:
         platform:
           - linux/amd64
           - linux/arm64
-    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       # Mint the OIDC token Harbor's federated robot login exchanges
@@ -169,7 +169,7 @@ jobs:
   merge:
     name: Merge Manifest List
     needs: [build]
-    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       # Mint the OIDC token Harbor's federated robot login exchanges
