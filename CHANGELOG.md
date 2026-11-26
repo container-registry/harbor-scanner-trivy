@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.2](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.43.1...v0.43.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **deps:** Build with Go 1.27.4 and patched docker/distribution ([#181](https://github.com/container-registry/harbor-scanner-trivy/issues/181)) ([6bd332c](https://github.com/container-registry/harbor-scanner-trivy/commit/6bd332cecc61fd68da27be708d84d33e8ef9d757))
+
 ## [0.43.1](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.43.0...v0.43.1) (2026-11-26)
 
 
