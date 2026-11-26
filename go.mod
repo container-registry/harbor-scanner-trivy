@@ -5,6 +5,7 @@ go 1.27.4
 require (
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/aquasecurity/bolt-fixtures v0.0.0-20200903104109-d34e7f983986
+	github.com/caarlos0/env/v11 v11.4.2
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/google/go-containerregistry v0.14.0
 	github.com/gorilla/mux v1.8.1
