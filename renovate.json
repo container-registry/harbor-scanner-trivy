@@ -1,8 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Renovate owns every dependency: the versions.env pins, go.mod/go.sum and the GitHub Actions in .github.",
+  "description": "Renovate owns every dependency: the versions.env pins, go.mod/go.sum and the GitHub Actions in .github. 3 days Supply-chain cooldown for dependencies.",
   "enabledManagers": ["custom.regex", "gomod", "github-actions"],
   "dependencyDashboard": {"enabled": true},
+  "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-required",
   "commitBody": "Signed-off-by: {{{gitAuthor}}}",
   "postUpdateOptions": ["gomodTidy"],
   "customManagers": [
@@ -17,9 +19,9 @@
   ],
   "packageRules": [
     {
-      "description": "Same cooldown dependabot had: wait 7 days after a Go module or action release before proposing it",
-      "matchManagers": ["gomod", "github-actions"],
-      "minimumReleaseAge": "7 days",
+      "description": "No publish date reaches Renovate for these: our own Harbor registry has none, and Docker Hub's node tag listing gets rate-limited before the current tag. timestamp-required would hold them back forever, so they take the update without the cooldown",
+      "matchDatasources": ["docker"],
+      "matchDepNames": ["8gears.container-registry.com/healthprobe/healthprobe", "node"],
       "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
