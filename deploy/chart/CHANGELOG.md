@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.1.2...chart-v1.1.3) (2026-11-26)
+
+
+### Miscellaneous
+
+* release adapter 0.43.1 ([#178](https://github.com/container-registry/harbor-scanner-trivy/issues/178)) ([099b5d9](https://github.com/container-registry/harbor-scanner-trivy/commit/099b5d9c9530df17a6fb1c2d74884ad76e94608b))
+
 ## [1.1.2](https://github.com/container-registry/harbor-scanner-trivy/compare/chart-v1.1.1...chart-v1.1.2) (2026-10-25)
 
 
