@@ -198,8 +198,8 @@ replays old commits into the next changelog.
 
 The adapter tracks upstream Trivy's release cadence with Renovate, run weekly by
 `.github/workflows/renovate.yml` through the org's Renovate GitHub App (the
-`RENOVATE_APP_CLIENT_ID` variable and `RENOVATE_APP_PRIVATE_KEY` secret). Pins in `versions.env` are invisible to dependabot, so
-each carries a `# renovate:` annotation read by the regex manager in
+`RENOVATE_APP_CLIENT_ID` variable and `RENOVATE_APP_PRIVATE_KEY` secret). Pins in `versions.env` have no
+manifest format of their own, so each carries a `# renovate:` annotation read by the regex manager in
 `renovate.json`. The Trivy pin uses the `docker` datasource against
 `aquasec/trivy`, so a bump PR only appears once the base-image tag the
 Dockerfile is `FROM` actually exists.
@@ -215,8 +215,12 @@ image, which compiles Trivy from source at the new pin and asserts every entry
 in `trivy-cve-overrides.txt` against the pristine tag, so a stale override
 fails the build instead of shipping.
 
-Renovate is limited to `versions.env` (`enabledManagers: custom.regex`);
-dependabot keeps gomod and github-actions.
+Renovate also owns `go.mod`/`go.sum` (`gomod`) and the actions in `.github`
+(`github-actions`); there is no dependabot config. Go minor and patch updates
+come as one grouped PR, Go majors and the `go` directive one PR each; action
+minor and patch updates as one PR, action majors as another. Indirect Go
+modules are not updated (Renovate's default, as with dependabot). Both wait 7 days after a release
+(`minimumReleaseAge`). Every Renovate commit carries a `Signed-off-by` for DCO.
 
 Renovate bumps a version line and the `*_DIGEST` line after it, never a
 `*_SHA256_*` line. The PRs for helm-docs, chart-testing and kube-linter say so
