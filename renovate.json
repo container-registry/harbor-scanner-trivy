@@ -1,8 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Only the versions.env pins are Renovate-managed; dependabot keeps gomod and github-actions.",
-  "enabledManagers": ["custom.regex"],
+  "description": "Renovate owns every dependency: the versions.env pins, go.mod/go.sum and the GitHub Actions in .github.",
+  "enabledManagers": ["custom.regex", "gomod", "github-actions"],
   "dependencyDashboard": {"enabled": true},
+  "commitBody": "Signed-off-by: {{{gitAuthor}}}",
+  "postUpdateOptions": ["gomodTidy"],
   "customManagers": [
     {
       "customType": "regex",
@@ -14,6 +16,30 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "Same cooldown dependabot had: wait 7 days after a Go module or action release before proposing it",
+      "matchManagers": ["gomod", "github-actions"],
+      "minimumReleaseAge": "7 days",
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "One PR for all Go minor and patch updates (was dependabot's gomod-minor-patch group); majors and the go directive get their own PRs",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["require", "indirect"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "Go minor and patch updates"
+    },
+    {
+      "description": "go.mod replaces go-containerregistry with the knqyf263 fork; bumping the replaced require line changes nothing that gets built, and the fork is moved by hand",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["github.com/google/go-containerregistry", "github.com/knqyf263/go-containerregistry"],
+      "enabled": false
+    },
+    {
+      "description": "One PR for all GitHub Actions updates (was dependabot's github-actions group); the pinned SHAs and their version comments move together",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions updates"
+    },
     {
       "description": "A Trivy patch release is an adapter patch release: release-please parses the squash-merged PR title",
       "matchDepNames": ["aquasec/trivy"],
