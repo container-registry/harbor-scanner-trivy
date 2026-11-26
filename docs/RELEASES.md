@@ -224,8 +224,10 @@ modules are not updated (Renovate's default, as with dependabot). Every Renovate
 
 Every update, `versions.env` pins included, waits 3 days after its release
 (`minimumReleaseAge`) as a supply-chain cooldown. A release without a publish
-date waits too, except `healthprobe` and `node`, whose registries never report
-one. Security updates from Dependabot alerts skip the wait.
+date waits too, except `healthprobe` and `node`: our Harbor registry reports no
+date for `healthprobe`, and Docker Hub rate-limits the `node` tag listing before
+it reaches the current tag. Security updates from Dependabot alerts skip the
+wait.
 
 Renovate bumps a version line and the `*_DIGEST` line after it, never a
 `*_SHA256_*` line. The PRs for helm-docs, chart-testing and kube-linter say so
