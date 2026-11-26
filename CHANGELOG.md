@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.1](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.43.0...v0.43.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **deps:** update aquasec/trivy docker tag to v0.76.2 ([843a2bb](https://github.com/container-registry/harbor-scanner-trivy/commit/843a2bbcdc64308fedba23fba9d41f996fbe4b1f))
+
 ## [0.43.0](https://github.com/container-registry/harbor-scanner-trivy/compare/v0.42.1...v0.43.0) (2026-10-24)
 
 
